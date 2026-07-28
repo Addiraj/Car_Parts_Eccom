@@ -1,0 +1,30 @@
+import "dotenv/config";
+import { models } from "./src/lib/db/index.server";
+
+async function main() {
+  const oldBulkCreate = models.parts.bulkCreate;
+  models.parts.bulkCreate = async function(records: any, options: any) {
+    console.log("upsertKeys BEFORE:", options.upsertKeys);
+    
+    // Simulate what Sequelize does in model.js:2851
+    let upsertKeys = options.upsertKeys || [];
+    if (!upsertKeys.length) {
+      upsertKeys = Object.keys(this.primaryKeys);
+    }
+    console.log("upsertKeys AFTER logic:", upsertKeys);
+    console.log("primaryKeys:", Object.keys(this.primaryKeys));
+    return;
+  };
+  
+  try {
+    await models.parts.bulkCreate([{
+      part_number: "TEST-123", name: "Test Part", price: 10, stock: 5, is_oem: true, images: [], specs: {}, manufacturer: "TEST", oem_number: "T-123", category_tag: "Test",
+    }], {
+      updateOnDuplicate: ["manufacturer", "name", "price", "stock"]
+    });
+    console.log("Success");
+  } catch (err: any) {
+    console.error("Error inserting:", err.stack);
+  }
+}
+main().catch(console.error);

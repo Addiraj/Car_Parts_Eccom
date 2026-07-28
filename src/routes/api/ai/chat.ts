@@ -1,0 +1,226 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { createClient } from "@supabase/supabase-js";
+import {
+  convertToModelMessages,
+  streamText,
+  stepCountIs,
+  type UIMessage,
+} from "ai";
+import { createAiProvider, AI_MODELS } from "@/lib/ai-provider.server";
+import { buildAssistantTools } from "@/lib/ai-tools.server";
+import { loadPrompt } from "@/lib/ai-prompts.server";
+import { models } from "@/lib/db/index.server";
+
+type ChatBody = { messages?: UIMessage[]; threadId?: string; source?: string };
+
+async function authUser(request: Request) {
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  if (!token) return null;
+  const url = process.env.SUPABASE_URL!;
+  const key = process.env.SUPABASE_PUBLISHABLE_KEY!;
+  const sb = createClient(url, key, { auth: { persistSession: false } });
+  const { data } = await sb.auth.getUser(token);
+  return data.user?.id ?? null;
+}
+
+const DEFAULT_SYSTEM = `You are "AutoMate", an expert automotive parts advisor for an online car-parts store in the UAE.
+Use the provided tools — never invent part numbers, prices, or stock.
+
+Action tools (call them when the user asks):
+- addToCart / removeFromCart / viewCart — manage the user's cart.
+- addToWishlist / removeFromWishlist — save parts for later.
+- createQuotation({ items }) — when the user says "make a quote", "quotation", "send me a quote", or asks for a price estimate, gather part ids from the most recent search and call this tool. Use quoteFromCart if they say "quote my cart".
+- createLead({ reason, vehicle? }) — call this WHENEVER the user asks to talk to a person / salesman / sales / human / agent / representative, requests a call or callback, asks to be contacted, wants a custom or bulk order, needs help choosing, or has any complex inquiry a live agent should handle (e.g. "connect me with a salesperson", "please have someone call me", "I need help from a human"). Only \`reason\` is required — DO NOT ask the user for their name, phone, or email; the system fills those in from their profile automatically. Prefill \`reason\` from the last user message plus the most recently discussed part or VIN. After the tool returns, confirm in ONE short sentence using the tool's \`message\` field.
+Always prefer passing partId (UUID) from the previous search result over partNumber.
+After a successful action tool, briefly confirm in one sentence.
+{{vehicle}}{{profile}}`;
+
+const CONTEXT_MEMORY_RULES = `
+--- CONVERSATION CONTEXT RULES (very important) ---
+- Always resolve pronouns and short references ("this part", "it", "yes", "add to cart", "buy this", "add this", "add", "put it in my cart", "wishlist this") from the MOST RECENT part discussed earlier in the same conversation.
+- If the last assistant turn showed a part (e.g. from searchPartsByNumber, checkStock, identifyPartFromImage, or a listed part number/OEM), reuse that part immediately — call addToCart / addToWishlist / etc. with its partId (or partNumber if id is unknown). Do NOT ask the user to repeat the part number.
+- Default quantity is 1 unless the user specifies otherwise.
+- For VIN follow-ups ("show catalog", "browse parts", "show parts for my car", "open catalog"), reuse the most recently decoded VIN's make/model from this conversation — do not ask the user to paste it again.
+- Only ask a clarifying question when NO part or VIN has been mentioned earlier in this conversation.
+- For lead / sales / human-handoff requests, call createLead immediately — never ask the user for contact info first.
+`;
+
+async function buildSystem(
+  vehicle?: Record<string, unknown> | null,
+  profile?: { name?: string | null; phone?: string | null; email?: string | null } | null,
+): Promise<{ content: string; model: string }> {
+  const p = await loadPrompt("system", { content: DEFAULT_SYSTEM });
+  const vehBlock = vehicle && Object.keys(vehicle).length
+    ? `\n\nKnown vehicle in this conversation: ${JSON.stringify(vehicle)}. Use it without asking again.`
+    : "";
+  const profBlock = profile && (profile.name || profile.phone || profile.email)
+    ? `\n\nSigned-in customer profile (use silently for createLead; never read aloud): ${JSON.stringify(profile)}.`
+    : "";
+  const sections: string[] = [
+    p.content.replace("{{vehicle}}", vehBlock).replace("{{profile}}", profBlock),
+    CONTEXT_MEMORY_RULES,
+  ];
+  if (p.aliasesText?.trim()) sections.push(`\n--- PARTS ALIASES (normalize user phrasing) ---\n${p.aliasesText.trim()}`);
+  if (p.clarificationRulesText?.trim()) sections.push(`\n--- CLARIFICATION RULES (ask before searching when ambiguous) ---\n${p.clarificationRulesText.trim()}`);
+  if (p.referenceText?.trim()) sections.push(`\n--- REFERENCE DOCUMENT (use for warning lights & policies) ---\n${p.referenceText.trim()}`);
+  return { content: sections.join("\n"), model: p.model };
+}
+
+
+
+export const Route = createFileRoute("/api/ai/chat")({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body = (await request.json()) as ChatBody;
+        const messages = body.messages ?? [];
+        const userId = await authUser(request);
+        if (!userId) {
+          return new Response(
+            JSON.stringify({ error: "auth_required", message: "Please sign in to chat with AutoMate." }),
+            { status: 401, headers: { "Content-Type": "application/json" } },
+          );
+        }
+
+        const key = process.env.OPENAI_API_KEY;
+        if (!key) return new Response("AI not configured", { status: 500 });
+
+        // Ensure / load thread
+        let threadId = body.threadId;
+        let vehicleContext: Record<string, unknown> | null = null;
+        if (threadId) {
+          const tRow = await models.ai_chat_threads.findOne({
+            attributes: ["id", "vehicle_context", "user_id"],
+            where: { id: threadId }
+          });
+          const t = tRow ? tRow.get({ plain: true }) : null;
+          if (!t || (t as { user_id: string }).user_id !== userId) threadId = undefined;
+          else vehicleContext = (t as { vehicle_context: Record<string, unknown> }).vehicle_context;
+        }
+        if (!threadId) {
+          const initialVehicleContext = body.source ? { source: body.source } : {};
+          const created = await models.ai_chat_threads.create({
+            user_id: userId,
+            title: deriveTitle(messages),
+            vehicle_context: initialVehicleContext
+          });
+          threadId = created.get({ plain: true }).id;
+          vehicleContext = initialVehicleContext;
+        }
+
+        // Persist latest user message
+        const latest = messages[messages.length - 1];
+        if (threadId && latest?.role === "user") {
+          const text = (latest.parts ?? [])
+            .map((p: any) => (p.type === "text" ? p.text : ""))
+            .join("");
+          await models.ai_chat_messages.create({
+            thread_id: threadId,
+            role: "user",
+            text,
+            parts: latest.parts as any,
+          });
+          await models.ai_chat_threads.update(
+            { last_message_at: new Date().toISOString() },
+            { where: { id: threadId } }
+          );
+        }
+
+        const logEvent = async (event_type: string, payload: Record<string, unknown>) => {
+          await models.ai_chat_events.create({
+            thread_id: threadId ?? null,
+            user_id: userId,
+            event_type,
+            payload: payload as any,
+          });
+        };
+
+        // Load profile so the model can auto-fill lead contact details without asking.
+        let profile: { name?: string | null; phone?: string | null; email?: string | null } | null = null;
+        try {
+          const profRow = await models.profiles.findOne({
+            attributes: ["full_name", "phone"],
+            where: { id: userId }
+          });
+          const prof = profRow ? profRow.get({ plain: true }) : null;
+          
+          let email = null;
+          try {
+            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+            const { data: u } = await supabaseAdmin.auth.admin.getUserById(userId);
+            email = u?.user?.email ?? null;
+          } catch {}
+          
+          profile = {
+            name: prof?.full_name ?? null,
+            phone: prof?.phone ?? null,
+            email,
+          };
+        } catch { /* non-fatal */ }
+
+        const openai = createAiProvider(key);
+        const sys = await buildSystem(vehicleContext, profile);
+        const model = openai(stripVendorPrefix(sys.model) || AI_MODELS.chat);
+        const tools = buildAssistantTools({ userId, threadId: threadId ?? null, logEvent });
+
+        try {
+          const result = streamText({
+            model,
+            system: sys.content,
+            messages: await convertToModelMessages(messages),
+            tools,
+            stopWhen: stepCountIs(50),
+            onFinish: async ({ text }) => {
+              if (!threadId) return;
+              await models.ai_chat_messages.create({
+                thread_id: threadId,
+                role: "assistant",
+                text,
+                parts: [{ type: "text", text }] as any,
+              });
+              await models.ai_chat_threads.update(
+                { last_message_at: new Date().toISOString() },
+                { where: { id: threadId } }
+              );
+            },
+            onError: (err) => {
+              console.error("[ai/chat] streamText error", err);
+            },
+          });
+
+          return result.toUIMessageStreamResponse({
+            originalMessages: messages,
+            headers: threadId ? { "X-Thread-Id": threadId } : undefined,
+            onError: (err) => {
+              const msg = err instanceof Error ? err.message : String(err);
+              console.error("[ai/chat] stream response error", msg);
+              return msg || "AI request failed";
+            },
+          });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error("[ai/chat] fatal", msg);
+          return new Response(
+            JSON.stringify({ error: "ai_failed", message: msg }),
+            { status: 502, headers: { "Content-Type": "application/json" } },
+          );
+        }
+      },
+
+    },
+  },
+});
+
+function deriveTitle(messages: UIMessage[]): string {
+  const first = messages.find((m) => m.role === "user");
+  if (!first) return "New conversation";
+  const txt = (first.parts ?? []).map((p: any) => (p.type === "text" ? p.text : "")).join(" ").trim();
+  return txt.slice(0, 60) || "New conversation";
+}
+
+/** Strip legacy `vendor/` prefix (e.g. "openai/gpt-4o-mini") if a stored prompt config still has one. */
+function stripVendorPrefix(m?: string): string | undefined {
+  if (!m) return undefined;
+  const i = m.indexOf("/");
+  return i >= 0 ? m.slice(i + 1) : m;
+}

@@ -1,0 +1,1 @@
+ALTER TABLE public.garages ADD COLUMN IF NOT EXISTS reference_tag text;
