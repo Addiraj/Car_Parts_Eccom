@@ -48,6 +48,10 @@ export function makeCreateServerFn() {
         state.validator = v;
         return builder;
       },
+      validator(v: any) {
+        state.validator = v;
+        return builder;
+      },
       handler(h: any) {
         const fn: any = async (arg: any = {}) => {
           let ctx: TestContext = { ...currentContext };

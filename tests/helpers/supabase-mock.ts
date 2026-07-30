@@ -55,6 +55,26 @@ export function createSupabaseMock(): SupabaseMock {
       calls.push({ table, op: "from", args: [] });
       return makeChain(table);
     },
+    storage: {
+      from: (bucket: string) => ({
+        remove: async (paths: string[]) => {
+          calls.push({ op: `storage.remove:${bucket}`, args: [paths] });
+          return { data: null, error: null };
+        },
+        upload: async (path: string, body: any, opts: any) => {
+          calls.push({ op: `storage.upload:${bucket}`, args: [path, body, opts] });
+          const res = responses.get(`storage.upload:${bucket}`) || responses.get(`upload:${bucket}`);
+          if (res) return res;
+          return { data: { path }, error: null };
+        },
+        createSignedUrl: async (path: string, expires: number) => {
+          calls.push({ op: `storage.createSignedUrl:${bucket}`, args: [path, expires] });
+          const res = responses.get(`storage.createSignedUrl:${bucket}`);
+          if (res) return res;
+          return { data: { signedUrl: `https://signed.example.com/storage/${bucket}/${path}` }, error: null };
+        }
+      })
+    },
     rpc(name: string, args: any) {
       calls.push({ op: "rpc", args: [name, args] });
       const res = responses.get(`rpc:${name}`) ?? { data: null, error: null };
@@ -67,6 +87,34 @@ export function createSupabaseMock(): SupabaseMock {
           const res = responses.get(`auth:${id}`) ?? { data: { user: null }, error: null };
           return Promise.resolve(res);
         },
+        createUser(payload: any) {
+          calls.push({ op: "auth.createUser", args: [payload] });
+          const res = responses.get("auth:create");
+          if (res?.error) {
+            const msg = typeof res.error === "string" ? res.error : res.error.message || "auth fail";
+            return Promise.resolve({ data: { user: null }, error: { message: msg } });
+          }
+          return Promise.resolve({ data: { user: { id: "55555555-5555-5555-5555-555555555555" } }, error: null });
+        },
+        updateUserById(id: string, attrs: any) {
+          calls.push({ op: "auth.updateUserById", args: [id, attrs] });
+          const res = responses.get("auth:update");
+          if (res?.error) {
+            const msg = typeof res.error === "string" ? res.error : res.error.message || "update fail";
+            return Promise.resolve({ data: { user: null }, error: { message: msg } });
+          }
+          return Promise.resolve({ data: { user: { id } }, error: null });
+        },
+        deleteUser(id: string) {
+          calls.push({ op: "auth.deleteUser", args: [id] });
+          calls.push({ table: "auth", op: "auth.deleteUser", args: [id] });
+          const res = responses.get("auth:delete");
+          if (res?.error) {
+            const msg = typeof res.error === "string" ? res.error : res.error.message || "delete fail";
+            return Promise.resolve({ data: null, error: { message: msg } });
+          }
+          return Promise.resolve({ data: {}, error: null });
+        },
       },
       getClaims(_token: string) {
         return Promise.resolve({ data: { claims: { sub: "test-user" } }, error: null });
@@ -77,6 +125,7 @@ export function createSupabaseMock(): SupabaseMock {
   return {
     client,
     setResponse: (k, r) => responses.set(k, r),
+    getResponse: (k) => responses.get(k),
     reset: () => {
       responses.clear();
       calls.length = 0;

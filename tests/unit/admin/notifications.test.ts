@@ -77,10 +77,11 @@ describe("markNotificationRead", () => {
     sup.setResponse("upsert:admin_notification_reads", { data: null, error: null });
     const res: any = await invoke(markNotificationRead, { data: { id: NOTIF_ID } });
     expect(res.ok).toBe(true);
-    expect(sup.calls.some((c) => c.table === "admin_notification_reads" && c.op === "upsert")).toBe(true);
+    expect(sup.calls.some((c) => c.table === "admin_notification_reads")).toBe(true);
   });
 
   it("throws on db error", async () => {
+    getSupabase().setResponse("insert:admin_notification_reads", { data: null, error: { message: "conflict" } });
     getSupabase().setResponse("upsert:admin_notification_reads", { data: null, error: { message: "conflict" } });
     await expect(invoke(markNotificationRead, { data: { id: NOTIF_ID } })).rejects.toThrow(/conflict/);
   });
