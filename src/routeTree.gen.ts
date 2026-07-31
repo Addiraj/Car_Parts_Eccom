@@ -58,6 +58,7 @@ import { Route as AuthenticatedAdminQuotationsRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminReportsRouteImport } from './routes/_authenticated.admin.reports'
 import { Route as AuthenticatedAdminSalesmenRouteImport } from './routes/_authenticated.admin.salesmen'
 import { Route as AuthenticatedAdminSpecialOffersRouteImport } from './routes/_authenticated.admin.special-offers'
+import { Route as AuthenticatedAdminSreMonitorRouteImport } from './routes/_authenticated.admin.sre-monitor'
 import { Route as AuthenticatedAdminStockMovementsRouteImport } from './routes/_authenticated.admin.stock-movements'
 import { Route as AuthenticatedAdminTeamRouteImport } from './routes/_authenticated.admin.team'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated.admin.users'
@@ -79,6 +80,7 @@ import { Route as ApiAiSimliRouteImport } from './routes/api/ai/simli'
 import { Route as ApiAiSpeakRouteImport } from './routes/api/ai/speak'
 import { Route as ApiAiTranscribeRouteImport } from './routes/api/ai/transcribe'
 import { Route as ApiAiUploadRouteImport } from './routes/api/ai/upload'
+import { Route as ApiCronSreCheckRouteImport } from './routes/api/cron/sre-check'
 import { Route as ApiPublicChatLogsRouteImport } from './routes/api/public/chat-logs'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe-webhook'
 import { Route as CatalogBrandModelRouteImport } from './routes/catalog.$brand.$model'
@@ -368,6 +370,12 @@ const AuthenticatedAdminSpecialOffersRoute =
     path: '/special-offers',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminSreMonitorRoute =
+  AuthenticatedAdminSreMonitorRouteImport.update({
+    id: '/sre-monitor',
+    path: '/sre-monitor',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminStockMovementsRoute =
   AuthenticatedAdminStockMovementsRouteImport.update({
     id: '/stock-movements',
@@ -483,6 +491,11 @@ const ApiAiTranscribeRoute = ApiAiTranscribeRouteImport.update({
 const ApiAiUploadRoute = ApiAiUploadRouteImport.update({
   id: '/api/ai/upload',
   path: '/api/ai/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCronSreCheckRoute = ApiCronSreCheckRouteImport.update({
+  id: '/api/cron/sre-check',
+  path: '/api/cron/sre-check',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicChatLogsRoute = ApiPublicChatLogsRouteImport.update({
@@ -691,6 +704,7 @@ export interface FileRoutesByFullPath {
   '/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/admin/salesmen': typeof AuthenticatedAdminSalesmenRouteWithChildren
   '/admin/special-offers': typeof AuthenticatedAdminSpecialOffersRoute
+  '/admin/sre-monitor': typeof AuthenticatedAdminSreMonitorRoute
   '/admin/stock-movements': typeof AuthenticatedAdminStockMovementsRoute
   '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -710,6 +724,7 @@ export interface FileRoutesByFullPath {
   '/api/ai/speak': typeof ApiAiSpeakRoute
   '/api/ai/transcribe': typeof ApiAiTranscribeRoute
   '/api/ai/upload': typeof ApiAiUploadRoute
+  '/api/cron/sre-check': typeof ApiCronSreCheckRoute
   '/api/public/chat-logs': typeof ApiPublicChatLogsRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/catalog/$brand/$model': typeof CatalogBrandModelRouteWithChildren
@@ -785,6 +800,7 @@ export interface FileRoutesByTo {
   '/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/admin/salesmen': typeof AuthenticatedAdminSalesmenRouteWithChildren
   '/admin/special-offers': typeof AuthenticatedAdminSpecialOffersRoute
+  '/admin/sre-monitor': typeof AuthenticatedAdminSreMonitorRoute
   '/admin/stock-movements': typeof AuthenticatedAdminStockMovementsRoute
   '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -804,6 +820,7 @@ export interface FileRoutesByTo {
   '/api/ai/speak': typeof ApiAiSpeakRoute
   '/api/ai/transcribe': typeof ApiAiTranscribeRoute
   '/api/ai/upload': typeof ApiAiUploadRoute
+  '/api/cron/sre-check': typeof ApiCronSreCheckRoute
   '/api/public/chat-logs': typeof ApiPublicChatLogsRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/catalog/$brand/$model': typeof CatalogBrandModelRouteWithChildren
@@ -885,6 +902,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/_authenticated/admin/salesmen': typeof AuthenticatedAdminSalesmenRouteWithChildren
   '/_authenticated/admin/special-offers': typeof AuthenticatedAdminSpecialOffersRoute
+  '/_authenticated/admin/sre-monitor': typeof AuthenticatedAdminSreMonitorRoute
   '/_authenticated/admin/stock-movements': typeof AuthenticatedAdminStockMovementsRoute
   '/_authenticated/admin/team': typeof AuthenticatedAdminTeamRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -904,6 +922,7 @@ export interface FileRoutesById {
   '/api/ai/speak': typeof ApiAiSpeakRoute
   '/api/ai/transcribe': typeof ApiAiTranscribeRoute
   '/api/ai/upload': typeof ApiAiUploadRoute
+  '/api/cron/sre-check': typeof ApiCronSreCheckRoute
   '/api/public/chat-logs': typeof ApiPublicChatLogsRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
   '/catalog/$brand/$model': typeof CatalogBrandModelRouteWithChildren
@@ -985,6 +1004,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/salesmen'
     | '/admin/special-offers'
+    | '/admin/sre-monitor'
     | '/admin/stock-movements'
     | '/admin/team'
     | '/admin/users'
@@ -1004,6 +1024,7 @@ export interface FileRouteTypes {
     | '/api/ai/speak'
     | '/api/ai/transcribe'
     | '/api/ai/upload'
+    | '/api/cron/sre-check'
     | '/api/public/chat-logs'
     | '/api/public/stripe-webhook'
     | '/catalog/$brand/$model'
@@ -1079,6 +1100,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/salesmen'
     | '/admin/special-offers'
+    | '/admin/sre-monitor'
     | '/admin/stock-movements'
     | '/admin/team'
     | '/admin/users'
@@ -1098,6 +1120,7 @@ export interface FileRouteTypes {
     | '/api/ai/speak'
     | '/api/ai/transcribe'
     | '/api/ai/upload'
+    | '/api/cron/sre-check'
     | '/api/public/chat-logs'
     | '/api/public/stripe-webhook'
     | '/catalog/$brand/$model'
@@ -1178,6 +1201,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/reports'
     | '/_authenticated/admin/salesmen'
     | '/_authenticated/admin/special-offers'
+    | '/_authenticated/admin/sre-monitor'
     | '/_authenticated/admin/stock-movements'
     | '/_authenticated/admin/team'
     | '/_authenticated/admin/users'
@@ -1197,6 +1221,7 @@ export interface FileRouteTypes {
     | '/api/ai/speak'
     | '/api/ai/transcribe'
     | '/api/ai/upload'
+    | '/api/cron/sre-check'
     | '/api/public/chat-logs'
     | '/api/public/stripe-webhook'
     | '/catalog/$brand/$model'
@@ -1260,6 +1285,7 @@ export interface RootRouteChildren {
   ApiAiSpeakRoute: typeof ApiAiSpeakRoute
   ApiAiTranscribeRoute: typeof ApiAiTranscribeRoute
   ApiAiUploadRoute: typeof ApiAiUploadRoute
+  ApiCronSreCheckRoute: typeof ApiCronSreCheckRoute
   ApiPublicChatLogsRoute: typeof ApiPublicChatLogsRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   ApiPublicAnalyticsEventsRoute: typeof ApiPublicAnalyticsEventsRoute
@@ -1613,6 +1639,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSpecialOffersRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/sre-monitor': {
+      id: '/_authenticated/admin/sre-monitor'
+      path: '/sre-monitor'
+      fullPath: '/admin/sre-monitor'
+      preLoaderRoute: typeof AuthenticatedAdminSreMonitorRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/stock-movements': {
       id: '/_authenticated/admin/stock-movements'
       path: '/stock-movements'
@@ -1758,6 +1791,13 @@ declare module '@tanstack/react-router' {
       path: '/api/ai/upload'
       fullPath: '/api/ai/upload'
       preLoaderRoute: typeof ApiAiUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron/sre-check': {
+      id: '/api/cron/sre-check'
+      path: '/api/cron/sre-check'
+      fullPath: '/api/cron/sre-check'
+      preLoaderRoute: typeof ApiCronSreCheckRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/chat-logs': {
@@ -2045,6 +2085,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminReportsRoute: typeof AuthenticatedAdminReportsRoute
   AuthenticatedAdminSalesmenRoute: typeof AuthenticatedAdminSalesmenRouteWithChildren
   AuthenticatedAdminSpecialOffersRoute: typeof AuthenticatedAdminSpecialOffersRoute
+  AuthenticatedAdminSreMonitorRoute: typeof AuthenticatedAdminSreMonitorRoute
   AuthenticatedAdminStockMovementsRoute: typeof AuthenticatedAdminStockMovementsRoute
   AuthenticatedAdminTeamRoute: typeof AuthenticatedAdminTeamRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
@@ -2081,6 +2122,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminReportsRoute: AuthenticatedAdminReportsRoute,
   AuthenticatedAdminSalesmenRoute: AuthenticatedAdminSalesmenRouteWithChildren,
   AuthenticatedAdminSpecialOffersRoute: AuthenticatedAdminSpecialOffersRoute,
+  AuthenticatedAdminSreMonitorRoute: AuthenticatedAdminSreMonitorRoute,
   AuthenticatedAdminStockMovementsRoute: AuthenticatedAdminStockMovementsRoute,
   AuthenticatedAdminTeamRoute: AuthenticatedAdminTeamRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
@@ -2270,6 +2312,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAiSpeakRoute: ApiAiSpeakRoute,
   ApiAiTranscribeRoute: ApiAiTranscribeRoute,
   ApiAiUploadRoute: ApiAiUploadRoute,
+  ApiCronSreCheckRoute: ApiCronSreCheckRoute,
   ApiPublicChatLogsRoute: ApiPublicChatLogsRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   ApiPublicAnalyticsEventsRoute: ApiPublicAnalyticsEventsRoute,

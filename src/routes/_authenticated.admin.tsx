@@ -73,6 +73,7 @@ const navGroups: Array<{ labelKey: string; items: NavItem[]; superOnly?: boolean
     { to: "/admin/reports", labelKey: "admin.reports", icon: FileBarChart },
     { to: "/admin/analytics", labelKey: "admin.analytics", icon: BarChart3 },
     { to: "/admin/audit-logs", labelKey: "admin.auditLogs", icon: ScrollText },
+    { to: "/admin/sre-monitor", labelKey: "admin.sreMonitor", icon: Activity },
   ]},
 ];
 
