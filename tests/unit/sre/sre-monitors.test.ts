@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { checkOpenAiHealth } from "@/lib/sre/monitors/openai.monitor";
 import { checkSimliHealth } from "@/lib/sre/monitors/simli.monitor";
-import { checkSupabaseHealth } from "@/lib/sre/monitors/supabase.monitor";
-import { checkNhtsaHealth } from "@/lib/sre/monitors/nhtsa.monitor";
+import { checkDatabaseHealth } from "@/lib/sre/monitors/database.monitor";
+import { checkVinDecoderHealth } from "@/lib/sre/monitors/vin-decoder.monitor";
 import { buildSreEmailTemplate, sendSreAlertEmail } from "@/lib/sre/sre-emailer.server";
 import { runSreAudit } from "@/lib/sre/sre-engine.server";
 

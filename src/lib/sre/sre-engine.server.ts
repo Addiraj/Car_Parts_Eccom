@@ -1,8 +1,8 @@
 import type { SreOverviewReport, ServiceHealthResult, ServiceHealthStatus } from "./types";
 import { checkOpenAiHealth } from "./monitors/openai.monitor";
 import { checkSimliHealth } from "./monitors/simli.monitor";
-import { checkSupabaseHealth } from "./monitors/supabase.monitor";
-import { checkNhtsaHealth } from "./monitors/nhtsa.monitor";
+import { checkDatabaseHealth } from "./monitors/database.monitor";
+import { checkVinDecoderHealth } from "./monitors/vin-decoder.monitor";
 import { sendSreAlertEmail } from "./sre-emailer.server";
 import { models } from "../db/index.server";
 
@@ -17,11 +17,11 @@ export async function runSreAudit(options?: { forceAlert?: boolean; recipientOve
   report: SreOverviewReport;
   emailResult?: { success: boolean; message: string; previewHtml?: string };
 }> {
-  const [openAiResult, simliResult, supabaseResult, nhtsaResult] = await Promise.allSettled([
+  const [openAiResult, simliResult, dbResult, vinResult] = await Promise.allSettled([
     checkOpenAiHealth(),
     checkSimliHealth(),
-    checkSupabaseHealth(),
-    checkNhtsaHealth(),
+    checkDatabaseHealth(),
+    checkVinDecoderHealth(),
   ]);
 
   const services: ServiceHealthResult[] = [
@@ -47,22 +47,22 @@ export async function runSreAudit(options?: { forceAlert?: boolean; recipientOve
           message: "Check failed unexpectedly",
           lastChecked: new Date().toISOString(),
         },
-    supabaseResult.status === "fulfilled"
-      ? supabaseResult.value
+    dbResult.status === "fulfilled"
+      ? dbResult.value
       : {
-          id: "supabase",
-          name: "Supabase DB",
+          id: "database",
+          name: "PostgreSQL Local DB",
           category: "database",
           status: "DOWN",
           responseTimeMs: 0,
           message: "Check failed unexpectedly",
           lastChecked: new Date().toISOString(),
         },
-    nhtsaResult.status === "fulfilled"
-      ? nhtsaResult.value
+    vinResult.status === "fulfilled"
+      ? vinResult.value
       : {
-          id: "nhtsa",
-          name: "NHTSA VIN API",
+          id: "vin-decoder",
+          name: "VIN Decoder API",
           category: "external",
           status: "DOWN",
           responseTimeMs: 0,
