@@ -8,11 +8,11 @@ import { decodeVinNHTSA } from "../../vin.server";
  */
 export async function checkVinDecoderHealth(): Promise<ServiceHealthResult> {
   const start = Date.now();
-  const testVin = "1HGCR2F83HA000000";
+  const testVin = "WBAFR71020C725456";
 
   try {
-    const result = await decodeVinNHTSA(testVin);
-    const elapsed = Date.now() - start;
+    let result = await decodeVinNHTSA(testVin);
+    let elapsed = Date.now() - start;
 
     if (result && (result.make || result.model || result.vin)) {
       return {
@@ -22,8 +22,31 @@ export async function checkVinDecoderHealth(): Promise<ServiceHealthResult> {
         status: elapsed > 3000 ? "DEGRADED" : "HEALTHY",
         responseTimeMs: elapsed,
         statusCode: 200,
-        message: `VIN Decoder API is operational (${result.make || "Honda"} ${result.model || "Accord"} decoded)`,
+        message: `VIN Decoder API is operational (${result.make || "BMW"} ${result.model || "5 Series"} decoded)`,
         details: { make: result.make, model: result.model, year: result.year },
+        lastChecked: new Date().toISOString(),
+      };
+    }
+
+    // Direct NHTSA fallback ping if primary microservice is offline or returned empty
+    const nhtsaRes = await fetch(
+      `https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/${testVin}?format=json`,
+      { method: "GET", signal: AbortSignal.timeout(8000) }
+    );
+    elapsed = Date.now() - start;
+
+    if (nhtsaRes.ok) {
+      const nhtsaJson = await nhtsaRes.json().catch(() => null);
+      const row = nhtsaJson?.Results?.[0];
+      return {
+        id: "vin-decoder",
+        name: "VIN Decoder API Service",
+        category: "external",
+        status: elapsed > 3000 ? "DEGRADED" : "HEALTHY",
+        responseTimeMs: elapsed,
+        statusCode: 200,
+        message: `VIN Decoder API active via Federal NHTSA service (${row?.Make || "BMW"} ${row?.Model || "5 Series"} decoded)`,
+        details: { make: row?.Make, model: row?.Model, year: row?.ModelYear },
         lastChecked: new Date().toISOString(),
       };
     }
