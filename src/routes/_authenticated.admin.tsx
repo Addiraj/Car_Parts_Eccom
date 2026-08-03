@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 // JWT auth check is done in beforeLoad via localStorage
 import { checkIsAdmin } from "@/lib/admin.functions";
 import { useI18n } from "@/lib/i18n";
-import { LayoutDashboard, Package, ShoppingBag, Image as ImageIcon, Users, Users2, BarChart3, Mail, Tag, Crown, Boxes, Warehouse, ArrowUpDown, FileBarChart, MessageSquareQuote, PanelBottom, FileText, UserCog, UserPlus, Trophy, Calendar, ScrollText, Bot, MessagesSquare, UserSearch, Sparkles, PanelLeftClose, PanelLeftOpen, Bell, Wallet, Settings } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingBag, Image as ImageIcon, Users, Users2, BarChart3, Mail, Tag, Crown, Boxes, Warehouse, ArrowUpDown, FileBarChart, MessageSquareQuote, PanelBottom, FileText, UserCog, UserPlus, Trophy, Calendar, ScrollText, Bot, MessagesSquare, UserSearch, Sparkles, PanelLeftClose, PanelLeftOpen, Bell, Wallet, Settings, Activity } from "lucide-react";
 import { NotificationBell } from "@/components/admin/notification-bell";
 
 export const Route = createFileRoute("/_authenticated/admin")({
