@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireAdmin } from "./auth.middleware";
+import { requireAdmin } from "./admin.functions";
 import { runSreAudit } from "./sre/sre-engine.server";
 import { sendSreAlertEmail } from "./sre/sre-emailer.server";
 
