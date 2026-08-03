@@ -59,6 +59,7 @@ import { Route as AuthenticatedAdminReportsRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminSalesmenRouteImport } from './routes/_authenticated.admin.salesmen'
 import { Route as AuthenticatedAdminSpecialOffersRouteImport } from './routes/_authenticated.admin.special-offers'
 import { Route as AuthenticatedAdminSreMonitorRouteImport } from './routes/_authenticated.admin.sre-monitor'
+import { Route as AuthenticatedAdminSre_monitorRouteImport } from './routes/_authenticated.admin.sre_monitor'
 import { Route as AuthenticatedAdminStockMovementsRouteImport } from './routes/_authenticated.admin.stock-movements'
 import { Route as AuthenticatedAdminTeamRouteImport } from './routes/_authenticated.admin.team'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated.admin.users'
@@ -83,6 +84,7 @@ import { Route as ApiAiUploadRouteImport } from './routes/api/ai/upload'
 import { Route as ApiCronSreCheckRouteImport } from './routes/api/cron/sre-check'
 import { Route as ApiPublicChatLogsRouteImport } from './routes/api/public/chat-logs'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe-webhook'
+import { Route as ApiVinLookupRouteImport } from './routes/api/vin/lookup'
 import { Route as CatalogBrandModelRouteImport } from './routes/catalog.$brand.$model'
 import { Route as VinBrandModelNumberRouteImport } from './routes/vin.$brand.$modelNumber'
 import { Route as AuthenticatedAdminAiAssistantAnalyticsRouteImport } from './routes/_authenticated.admin.ai-assistant.analytics'
@@ -376,6 +378,12 @@ const AuthenticatedAdminSreMonitorRoute =
     path: '/sre-monitor',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminSre_monitorRoute =
+  AuthenticatedAdminSre_monitorRouteImport.update({
+    id: '/sre_monitor',
+    path: '/sre_monitor',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminStockMovementsRoute =
   AuthenticatedAdminStockMovementsRouteImport.update({
     id: '/stock-movements',
@@ -506,6 +514,11 @@ const ApiPublicChatLogsRoute = ApiPublicChatLogsRouteImport.update({
 const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
   id: '/api/public/stripe-webhook',
   path: '/api/public/stripe-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVinLookupRoute = ApiVinLookupRouteImport.update({
+  id: '/api/vin/lookup',
+  path: '/api/vin/lookup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CatalogBrandModelRoute = CatalogBrandModelRouteImport.update({
@@ -705,6 +718,7 @@ export interface FileRoutesByFullPath {
   '/admin/salesmen': typeof AuthenticatedAdminSalesmenRouteWithChildren
   '/admin/special-offers': typeof AuthenticatedAdminSpecialOffersRoute
   '/admin/sre-monitor': typeof AuthenticatedAdminSreMonitorRoute
+  '/admin/sre_monitor': typeof AuthenticatedAdminSre_monitorRoute
   '/admin/stock-movements': typeof AuthenticatedAdminStockMovementsRoute
   '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -727,6 +741,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/sre-check': typeof ApiCronSreCheckRoute
   '/api/public/chat-logs': typeof ApiPublicChatLogsRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
+  '/api/vin/lookup': typeof ApiVinLookupRoute
   '/catalog/$brand/$model': typeof CatalogBrandModelRouteWithChildren
   '/vin/$brand/$modelNumber': typeof VinBrandModelNumberRoute
   '/account/': typeof AuthenticatedAccountIndexRoute
@@ -801,6 +816,7 @@ export interface FileRoutesByTo {
   '/admin/salesmen': typeof AuthenticatedAdminSalesmenRouteWithChildren
   '/admin/special-offers': typeof AuthenticatedAdminSpecialOffersRoute
   '/admin/sre-monitor': typeof AuthenticatedAdminSreMonitorRoute
+  '/admin/sre_monitor': typeof AuthenticatedAdminSre_monitorRoute
   '/admin/stock-movements': typeof AuthenticatedAdminStockMovementsRoute
   '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -823,6 +839,7 @@ export interface FileRoutesByTo {
   '/api/cron/sre-check': typeof ApiCronSreCheckRoute
   '/api/public/chat-logs': typeof ApiPublicChatLogsRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
+  '/api/vin/lookup': typeof ApiVinLookupRoute
   '/catalog/$brand/$model': typeof CatalogBrandModelRouteWithChildren
   '/vin/$brand/$modelNumber': typeof VinBrandModelNumberRoute
   '/account': typeof AuthenticatedAccountIndexRoute
@@ -903,6 +920,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/salesmen': typeof AuthenticatedAdminSalesmenRouteWithChildren
   '/_authenticated/admin/special-offers': typeof AuthenticatedAdminSpecialOffersRoute
   '/_authenticated/admin/sre-monitor': typeof AuthenticatedAdminSreMonitorRoute
+  '/_authenticated/admin/sre_monitor': typeof AuthenticatedAdminSre_monitorRoute
   '/_authenticated/admin/stock-movements': typeof AuthenticatedAdminStockMovementsRoute
   '/_authenticated/admin/team': typeof AuthenticatedAdminTeamRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -925,6 +943,7 @@ export interface FileRoutesById {
   '/api/cron/sre-check': typeof ApiCronSreCheckRoute
   '/api/public/chat-logs': typeof ApiPublicChatLogsRoute
   '/api/public/stripe-webhook': typeof ApiPublicStripeWebhookRoute
+  '/api/vin/lookup': typeof ApiVinLookupRoute
   '/catalog/$brand/$model': typeof CatalogBrandModelRouteWithChildren
   '/vin/$brand/$modelNumber': typeof VinBrandModelNumberRoute
   '/_authenticated/account/': typeof AuthenticatedAccountIndexRoute
@@ -1005,6 +1024,7 @@ export interface FileRouteTypes {
     | '/admin/salesmen'
     | '/admin/special-offers'
     | '/admin/sre-monitor'
+    | '/admin/sre_monitor'
     | '/admin/stock-movements'
     | '/admin/team'
     | '/admin/users'
@@ -1027,6 +1047,7 @@ export interface FileRouteTypes {
     | '/api/cron/sre-check'
     | '/api/public/chat-logs'
     | '/api/public/stripe-webhook'
+    | '/api/vin/lookup'
     | '/catalog/$brand/$model'
     | '/vin/$brand/$modelNumber'
     | '/account/'
@@ -1101,6 +1122,7 @@ export interface FileRouteTypes {
     | '/admin/salesmen'
     | '/admin/special-offers'
     | '/admin/sre-monitor'
+    | '/admin/sre_monitor'
     | '/admin/stock-movements'
     | '/admin/team'
     | '/admin/users'
@@ -1123,6 +1145,7 @@ export interface FileRouteTypes {
     | '/api/cron/sre-check'
     | '/api/public/chat-logs'
     | '/api/public/stripe-webhook'
+    | '/api/vin/lookup'
     | '/catalog/$brand/$model'
     | '/vin/$brand/$modelNumber'
     | '/account'
@@ -1202,6 +1225,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/salesmen'
     | '/_authenticated/admin/special-offers'
     | '/_authenticated/admin/sre-monitor'
+    | '/_authenticated/admin/sre_monitor'
     | '/_authenticated/admin/stock-movements'
     | '/_authenticated/admin/team'
     | '/_authenticated/admin/users'
@@ -1224,6 +1248,7 @@ export interface FileRouteTypes {
     | '/api/cron/sre-check'
     | '/api/public/chat-logs'
     | '/api/public/stripe-webhook'
+    | '/api/vin/lookup'
     | '/catalog/$brand/$model'
     | '/vin/$brand/$modelNumber'
     | '/_authenticated/account/'
@@ -1288,6 +1313,7 @@ export interface RootRouteChildren {
   ApiCronSreCheckRoute: typeof ApiCronSreCheckRoute
   ApiPublicChatLogsRoute: typeof ApiPublicChatLogsRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
+  ApiVinLookupRoute: typeof ApiVinLookupRoute
   ApiPublicAnalyticsEventsRoute: typeof ApiPublicAnalyticsEventsRoute
   ApiPublicPromptsIntentKeyRoute: typeof ApiPublicPromptsIntentKeyRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -1646,6 +1672,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSreMonitorRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/sre_monitor': {
+      id: '/_authenticated/admin/sre_monitor'
+      path: '/sre_monitor'
+      fullPath: '/admin/sre_monitor'
+      preLoaderRoute: typeof AuthenticatedAdminSre_monitorRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/stock-movements': {
       id: '/_authenticated/admin/stock-movements'
       path: '/stock-movements'
@@ -1812,6 +1845,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/stripe-webhook'
       fullPath: '/api/public/stripe-webhook'
       preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/vin/lookup': {
+      id: '/api/vin/lookup'
+      path: '/api/vin/lookup'
+      fullPath: '/api/vin/lookup'
+      preLoaderRoute: typeof ApiVinLookupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/catalog/$brand/$model': {
@@ -2086,6 +2126,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminSalesmenRoute: typeof AuthenticatedAdminSalesmenRouteWithChildren
   AuthenticatedAdminSpecialOffersRoute: typeof AuthenticatedAdminSpecialOffersRoute
   AuthenticatedAdminSreMonitorRoute: typeof AuthenticatedAdminSreMonitorRoute
+  AuthenticatedAdminSre_monitorRoute: typeof AuthenticatedAdminSre_monitorRoute
   AuthenticatedAdminStockMovementsRoute: typeof AuthenticatedAdminStockMovementsRoute
   AuthenticatedAdminTeamRoute: typeof AuthenticatedAdminTeamRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
@@ -2123,6 +2164,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminSalesmenRoute: AuthenticatedAdminSalesmenRouteWithChildren,
   AuthenticatedAdminSpecialOffersRoute: AuthenticatedAdminSpecialOffersRoute,
   AuthenticatedAdminSreMonitorRoute: AuthenticatedAdminSreMonitorRoute,
+  AuthenticatedAdminSre_monitorRoute: AuthenticatedAdminSre_monitorRoute,
   AuthenticatedAdminStockMovementsRoute: AuthenticatedAdminStockMovementsRoute,
   AuthenticatedAdminTeamRoute: AuthenticatedAdminTeamRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
@@ -2315,6 +2357,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronSreCheckRoute: ApiCronSreCheckRoute,
   ApiPublicChatLogsRoute: ApiPublicChatLogsRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
+  ApiVinLookupRoute: ApiVinLookupRoute,
   ApiPublicAnalyticsEventsRoute: ApiPublicAnalyticsEventsRoute,
   ApiPublicPromptsIntentKeyRoute: ApiPublicPromptsIntentKeyRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
