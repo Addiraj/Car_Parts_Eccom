@@ -17,8 +17,10 @@ const VOICE_BY_LANG: Record<string, string> = {
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();
-  const t = data.session?.access_token;
-  return t ? { Authorization: `Bearer ${t}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+  const t = data.session?.access_token || (typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null);
+  return t
+    ? { Authorization: `Bearer ${t}`, "Content-Type": "application/json" }
+    : { "Content-Type": "application/json" };
 }
 
 async function call(action: string, payload: Record<string, unknown> = {}) {
