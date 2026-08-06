@@ -10,32 +10,39 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+import { useAuth } from "@/hooks/use-auth";
+
 const AvatarPanel = React.lazy(() => import("./avatar-panel").then((m) => ({ default: m.AvatarPanel })));
 
 export function AvatarLauncher() {
   const [mounted, setMounted] = React.useState(false);
   const [open, setOpen] = React.useState(false);
-  const [userId, setUserId] = React.useState<string | null>(null);
-  const [authReady, setAuthReady] = React.useState(false);
+  const [supabaseUserId, setSupabaseUserId] = React.useState<string | null>(null);
   const [showAuthDialog, setShowAuthDialog] = React.useState(false);
+  const auth = useAuth();
   const navigate = useNavigate();
 
   React.useEffect(() => setMounted(true), []);
 
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      setUserId(data.user?.id ?? null);
-      setAuthReady(true);
+      setSupabaseUserId(data.user?.id ?? null);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setUserId(s?.user?.id ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSupabaseUserId(s?.user?.id ?? null));
     return () => sub.subscription.unsubscribe();
   }, []);
 
   if (!mounted) return null;
 
+  const hasJwtToken = typeof window !== "undefined" && !!localStorage.getItem("jwt_token");
+  const currentUserId = auth?.user?.id || supabaseUserId || (hasJwtToken ? "jwt-user" : null);
+  const isLoggedIn = !!currentUserId;
+
   const handleClick = () => {
-    if (!authReady) return;
-    if (!userId) { setShowAuthDialog(true); return; }
+    if (!isLoggedIn) {
+      setShowAuthDialog(true);
+      return;
+    }
     setOpen(true);
   };
 
@@ -52,7 +59,7 @@ export function AvatarLauncher() {
       aria-label="Open AI avatar advisor"
     >
       <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-white/15">
-        {userId ? <span className="absolute inset-0 rounded-full bg-blue-300/40 animate-ping" /> : null}
+        {isLoggedIn ? <span className="absolute inset-0 rounded-full bg-blue-300/40 animate-ping" /> : null}
         <Bot className="relative h-5 w-5" />
       </span>
       <span className="text-sm font-semibold">Avatar</span>

@@ -22,6 +22,7 @@ import { ToolPartView, AvatarActionContext } from "./tool-cards";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getActiveAvatarProvider, getSimliConfig, listEnabledAvatarProviders } from "@/lib/avatar/avatar-providers.functions";
+import { useAuth } from "@/hooks/use-auth";
 
 type Style = "3d" | "did" | "simli";
 type Lang = "en" | "hi" | "ar" | "gu";
@@ -89,14 +90,17 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
   }, [enabledList, style]);
 
   const voice = useVoice();
+  const auth = useAuth();
 
   React.useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
+    supabase.auth.getUser().then(({ data }) => {
+      setUserId(data.user?.id || auth?.user?.id || (typeof window !== "undefined" && localStorage.getItem("jwt_token") ? "jwt-user" : null));
+    });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserId(session?.user?.id ?? null);
+      setUserId(session?.user?.id || auth?.user?.id || (typeof window !== "undefined" && localStorage.getItem("jwt_token") ? "jwt-user" : null));
     });
     return () => { sub.subscription.unsubscribe(); };
-  }, []);
+  }, [auth?.user?.id]);
 
   // Panel lifecycle: connect BOTH providers as soon as the popup mounts so the
   // session is alive for the whole time the user has the avatar open. Tear
