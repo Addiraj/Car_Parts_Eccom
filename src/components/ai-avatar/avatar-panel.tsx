@@ -278,7 +278,8 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
 
   const ensureSignedIn = async () => {
     const { data } = await supabase.auth.getSession();
-    if (!data.session?.access_token) { toast.error("Please sign in again to chat"); return false; }
+    const token = data.session?.access_token || (typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null);
+    if (!token) { toast.error("Please sign in again to chat"); return false; }
     return true;
   };
 

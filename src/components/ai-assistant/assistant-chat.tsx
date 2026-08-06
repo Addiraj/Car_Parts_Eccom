@@ -102,7 +102,8 @@ export function AssistantChat({
     const text = input.trim();
     if (!text || isLoading) return;
     const { data } = await supabase.auth.getSession();
-    if (!data.session?.access_token) { toast.error("Please sign in to chat"); return; }
+    const t = data.session?.access_token || (typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null);
+    if (!t) { toast.error("Please sign in to chat"); return; }
     await ensureThread();
     setInput("");
     sendMessage({ text });
@@ -110,7 +111,8 @@ export function AssistantChat({
 
 
   const handleUpload = async (file: File) => {
-    if (!token) { toast.error("Sign in to upload images"); return; }
+    const currentToken = token || (typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null);
+    if (!currentToken) { toast.error("Sign in to upload images"); return; }
     setUploading(true);
     try {
       const fd = new FormData();
