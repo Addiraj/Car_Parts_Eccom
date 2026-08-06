@@ -39,7 +39,7 @@ export const Route = createFileRoute("/api/ai/simli")({
         }
 
         if (!process.env.SIMLI_API_KEY) {
-          return Response.json({ error: "Simli not configured — add SIMLI_API_KEY." }, { status: 500 });
+          return Response.json({ error: "Simli not configured — add SIMLI_API_KEY in Admin → Avatar → Simli." }, { status: 500 });
         }
 
         const body = (await request.json().catch(() => ({}))) as any;
@@ -54,9 +54,9 @@ export const Route = createFileRoute("/api/ai/simli")({
             });
             const providerData = row ? row.get({ plain: true }) : null;
             
-            const faceId = (providerData?.face_id as string | undefined) || process.env.SIMLI_FACE_ID || "tmp_face_id";
+            const faceId = (providerData?.face_id as string | undefined) || process.env.SIMLI_FACE_ID;
             if (!faceId) {
-              return Response.json({ error: "No Simli face configured. Upload a face image in Admin → Avatar → Simli." }, { status: 400 });
+              return Response.json({ error: "No Simli face configured. Upload a face image in Admin → Avatar → Simli or set SIMLI_FACE_ID." }, { status: 400 });
             }
             const modelRaw = providerData?.model as string | undefined;
             const model = modelRaw === "fasttalk" || modelRaw === "artalk" ? modelRaw : null;
