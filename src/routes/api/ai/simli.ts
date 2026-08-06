@@ -1,5 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from "@tanstack/react-router";
+import { createClient } from "@supabase/supabase-js";
 import jwt from "jsonwebtoken";
+
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret_key";
 
 async function verifyToken(token: string) {
@@ -52,7 +54,7 @@ export const Route = createFileRoute("/api/ai/simli")({
             });
             const providerData = row ? row.get({ plain: true }) : null;
             
-            const faceId = providerData?.face_id as string | undefined;
+            const faceId = (providerData?.face_id as string | undefined) || process.env.SIMLI_FACE_ID || "tmp_face_id";
             if (!faceId) {
               return Response.json({ error: "No Simli face configured. Upload a face image in Admin → Avatar → Simli." }, { status: 400 });
             }
