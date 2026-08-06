@@ -98,7 +98,7 @@ export function AssistantLauncher() {
       aria-label="Open AI assistant"
     >
       <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-primary-foreground/15">
-        {userId ? <span className="absolute inset-0 rounded-full bg-primary-foreground/20 animate-ping" /> : null}
+        {isLoggedIn ? <span className="absolute inset-0 rounded-full bg-primary-foreground/20 animate-ping" /> : null}
         <MessageCircle className="relative h-5 w-5" />
       </span>
       <span className="text-sm font-semibold">AutoMate</span>
