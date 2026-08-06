@@ -50,7 +50,7 @@ export function AssistantChat({
         body: () => ({ threadId }),
         headers: async () => {
           const { data } = await supabase.auth.getSession();
-          const t = data.session?.access_token;
+          const t = data.session?.access_token || (typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null);
           return t ? ({ Authorization: `Bearer ${t}` } as Record<string, string>) : ({} as Record<string, string>);
         },
         fetch: (async (url: any, init: any) => {

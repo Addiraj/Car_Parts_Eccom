@@ -13,6 +13,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+import { useAuth } from "@/hooks/use-auth";
+
 type Thread = { id: string; title: string };
 
 export function AssistantLauncher() {
@@ -21,24 +23,27 @@ export function AssistantLauncher() {
   const [full, setFull] = React.useState(false);
   const [threads, setThreads] = React.useState<Thread[]>([]);
   const [threadId, setThreadId] = React.useState<string | null>(null);
-  const [userId, setUserId] = React.useState<string | null>(null);
-  const [authReady, setAuthReady] = React.useState(false);
+  const [supabaseUserId, setSupabaseUserId] = React.useState<string | null>(null);
   const [showAuthDialog, setShowAuthDialog] = React.useState(false);
+  const auth = useAuth();
   const navigate = useNavigate();
 
   React.useEffect(() => setMounted(true), []);
 
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      setUserId(data.user?.id ?? null);
-      setAuthReady(true);
+      setSupabaseUserId(data.user?.id ?? null);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setUserId(s?.user?.id ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSupabaseUserId(s?.user?.id ?? null));
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  const hasJwtToken = typeof window !== "undefined" && !!localStorage.getItem("jwt_token");
+  const currentUserId = auth?.user?.id || supabaseUserId || (hasJwtToken ? "jwt-user" : null);
+  const isLoggedIn = !!currentUserId;
+
   const refresh = React.useCallback(async () => {
-    if (!userId) { setThreads([]); return; }
+    if (!currentUserId) { setThreads([]); return; }
     const { data } = await supabase
       .from("ai_chat_threads")
       .select("id, title, vehicle_context")
@@ -49,15 +54,16 @@ export function AssistantLauncher() {
       return src !== "avatar";
     });
     setThreads(filtered.map((t: any) => ({ id: t.id, title: t.title })) as Thread[]);
-  }, [userId]);
+  }, [currentUserId]);
 
   React.useEffect(() => { if (open) refresh(); }, [open, refresh, threadId]);
 
   const newThread = async (): Promise<string | null> => {
-    if (!userId) { toast.error("Please sign in to start a conversation"); return null; }
+    if (!isLoggedIn) { toast.error("Please sign in to start a conversation"); return null; }
+    const insertObj = supabaseUserId ? { user_id: supabaseUserId, title: "New conversation" } : { title: "New conversation" };
     const { data, error } = await supabase
       .from("ai_chat_threads")
-      .insert({ user_id: userId, title: "New conversation" } as never)
+      .insert(insertObj as never)
       .select("id")
       .single();
     if (error || !data) { toast.error(error?.message ?? "Failed to create"); return null; }
@@ -76,8 +82,7 @@ export function AssistantLauncher() {
   if (!mounted) return null;
 
   const handleLauncherClick = () => {
-    if (!authReady) return;
-    if (!userId) { setShowAuthDialog(true); return; }
+    if (!isLoggedIn) { setShowAuthDialog(true); return; }
     setOpen(true);
   };
 

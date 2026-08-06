@@ -80,7 +80,8 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
   const enabledList = React.useMemo<Style[]>(() => {
     const order: Style[] = ["3d", "did", "simli"];
     if (!enabled) return order;
-    return order.filter((id) => (enabled as any)[id]);
+    const filtered = order.filter((id) => (enabled as any)[id] !== false);
+    return filtered.length > 0 ? filtered : order;
   }, [enabled]);
 
   // Auto-switch if the currently selected style becomes disabled.
