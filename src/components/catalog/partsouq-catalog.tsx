@@ -382,11 +382,10 @@ export function PartsouqCatalog({
                   <li key={(c?.category_name || "cat") + "-" + i}>
                     <button
                       onClick={() => setCatIdx(i)}
-                      className={`group w-full text-left rounded-md px-3 py-2 text-sm flex items-center gap-2 transition-colors ${
-                        active
+                      className={`group w-full text-left rounded-md px-3 py-2 text-sm flex items-center gap-2 transition-colors ${active
                           ? "bg-primary/10 text-foreground border-l-2 border-primary"
                           : "hover:bg-muted/60 border-l-2 border-transparent"
-                      }`}
+                        }`}
                     >
                       <span className="flex-1 truncate">
                         <Highlight text={c?.category_name || "Untitled"} query={debouncedQuery} />
@@ -467,7 +466,7 @@ export function PartsouqCatalog({
                   <div className="flex items-center justify-between gap-2 px-5 py-2 border-b bg-muted/30">
                     <label className="flex items-center gap-2 text-xs cursor-pointer">
                       <Checkbox checked={allChecked} onCheckedChange={toggleAll} />
-                      <span>Select all ({allPartNumbers.length})</span>
+                      <span>Selecct all ({allPartNumbers.length})</span>
                     </label>
                     <Button size="sm" disabled={pickedCount === 0 || bulkLoading} onClick={addSelected}>
                       {bulkLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <ShoppingCart className="h-3.5 w-3.5 mr-1" />}
