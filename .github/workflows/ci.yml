@@ -1,0 +1,78 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-and-report:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # The repository uses bun (bun.lock is present)
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install
+
+      - name: Check and Run Tests
+        id: run_tests
+        # Vitest will automatically find and run test files.
+        # If tests fail, this step fails, which will reject the PR.
+        run: bun run test
+
+      - name: Send MS Teams Notification
+        if: always() # Run this step even if tests fail
+        run: |
+          if [ -z "${{ secrets.TEAMS_WEBHOOK_URL }}" ]; then
+            echo "TEAMS_WEBHOOK_URL secret is not set. Skipping notification."
+            exit 0
+          fi
+
+          if [ "${{ job.status }}" = "success" ]; then
+            COLOR="28a745"
+            STATUS="✅ Success"
+          else
+            COLOR="cb2431"
+            STATUS="❌ Failed"
+          fi
+
+          # Create a JSON payload for Microsoft Teams (Office 365 Connector format)
+          PAYLOAD=$(cat <<EOF
+          {
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "$COLOR",
+            "summary": "GitHub Actions CI Report",
+            "sections": [{
+              "activityTitle": "Pull Request CI Report: $STATUS",
+              "activitySubtitle": "${{ github.repository }}",
+              "activityImage": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+              "facts": [
+                {
+                  "name": "Pull Request:",
+                  "value": "[#${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}](${{ github.event.pull_request.html_url }})"
+                },
+                {
+                  "name": "Author:",
+                  "value": "${{ github.actor }}"
+                },
+                {
+                  "name": "Action URL:",
+                  "value": "[View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+                }
+              ],
+              "markdown": true
+            }]
+          }
+          EOF
+          )
+
+          curl -H "Content-Type: application/json" -d "$PAYLOAD" "${{ secrets.TEAMS_WEBHOOK_URL }}"
