@@ -181,10 +181,11 @@ export const uploadSimliFace = createServerFn({ method: "POST" })
     const bytes = Buffer.from(b64, "base64");
     if (bytes.byteLength > 5 * 1024 * 1024) throw new Error("File too large (max 5MB)");
 
-    // Upload to storage if available.
+    // Upload to storage if available, fallback to data URL for immediate preview
     const ext = data.contentType === "image/png" ? "png" : data.contentType === "image/webp" ? "webp" : "jpg";
     const path = `simli/face-${Date.now()}.${ext}`;
-    let imageUrl: string | null = null;
+    const dataUrl = `data:${data.contentType};base64,${b64}`;
+    let imageUrl: string | null = dataUrl;
     try {
       const { error: upErr } = await supabaseAdmin.storage.from(AVATAR_BUCKET).upload(path, bytes, {
         contentType: data.contentType,
@@ -192,7 +193,7 @@ export const uploadSimliFace = createServerFn({ method: "POST" })
       });
       if (!upErr) {
         const { data: signed } = await supabaseAdmin.storage.from(AVATAR_BUCKET).createSignedUrl(path, SIGNED_URL_TTL);
-        imageUrl = signed?.signedUrl ?? null;
+        if (signed?.signedUrl) imageUrl = signed.signedUrl;
       }
     } catch {}
 

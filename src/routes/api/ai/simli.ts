@@ -54,14 +54,23 @@ export const Route = createFileRoute("/api/ai/simli")({
             });
             const providerData = row ? row.get({ plain: true }) : null;
             
-            const faceId = (providerData?.face_id as string | undefined) || process.env.SIMLI_FACE_ID;
-            if (!faceId) {
-              return Response.json({ error: "No Simli face configured. Upload a face image in Admin → Avatar → Simli or set SIMLI_FACE_ID." }, { status: 400 });
-            }
+            const DEFAULT_SIMLI_FACE_ID = "55f4ed33-010c-4bfa-8373-c15c0e12ed08";
+            let faceId = (providerData?.face_id as string | undefined) || process.env.SIMLI_FACE_ID || DEFAULT_SIMLI_FACE_ID;
             const modelRaw = providerData?.model as string | undefined;
             const model = modelRaw === "fasttalk" || modelRaw === "artalk" ? modelRaw : null;
             const { simliMintRealtimeSession } = await import("@/lib/avatar/simli.server");
-            const session = await simliMintRealtimeSession({ faceId, model });
+
+            let session;
+            try {
+              session = await simliMintRealtimeSession({ faceId, model });
+            } catch (err: any) {
+              if (faceId !== DEFAULT_SIMLI_FACE_ID) {
+                faceId = DEFAULT_SIMLI_FACE_ID;
+                session = await simliMintRealtimeSession({ faceId, model });
+              } else {
+                throw err;
+              }
+            }
             return Response.json({
               sessionToken: session.sessionToken,
               iceServers: session.iceServers,
