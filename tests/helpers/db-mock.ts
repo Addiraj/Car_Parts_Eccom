@@ -18,7 +18,7 @@ export function createDBMock(): DBMock {
       return { commit: async () => {}, rollback: async () => {} };
     },
     authenticate: async () => Promise.resolve(),
-    query: async () => [[]],
+    query: async () => [],
   };
 
   const models = new Proxy(
@@ -285,12 +285,19 @@ export function createDBMock(): DBMock {
                   if (errRes?.error) throw new Error(typeof errRes.error === "string" ? errRes.error : errRes.error?.message || "fail");
                   const stockRes = supaMock.getResponse("select:stock_movements");
                   const defaultId = table === "warehouses" ? "22222222-2222-2222-2222-222255555555" : "11111111-1111-1111-1111-111155555555";
-                  const id = data.id || stockRes?.data?.id || args[0]?.where?.id || defaultId;
+                  const id = data.id || errRes?.data?.id || stockRes?.data?.id || args[0]?.where?.id || defaultId;
                   const ret: any = { id, code: "MAIN", name: "Main Warehouse", is_default: true, status: "active", updated: 2, ...data };
                   ret.get = (opts?: any) => ret;
                   ret.update = async (u: any) => Object.assign(ret, u);
                   ret.destroy = async () => true;
                   return method === "update" ? [ret, 2] : ret;
+                }
+                if (method === "findOrCreate") {
+                  const data = args[0]?.defaults ?? {};
+                  const ret: any = { id: "11111111-1111-1111-1111-111155555555", ...data };
+                  ret.get = () => ret;
+                  ret.update = async (u: any) => Object.assign(ret, u);
+                  return [ret, true];
                 }
                 if (method === "destroy") return 1;
                 return null;
