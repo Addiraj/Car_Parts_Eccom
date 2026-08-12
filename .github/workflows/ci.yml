@@ -26,7 +26,7 @@ jobs:
         id: run_tests
         # Vitest will automatically find and run test files.
         # If tests fail, this step fails, which will reject the PR.
-        run: bun run test
+        run: bun run test --reporter=default --reporter=json --outputFile=test-results.json
 
       - name: Send MS Teams Notification
         if: always() # Run this step even if tests fail
@@ -36,13 +36,30 @@ jobs:
             exit 0
           fi
 
+          SUMMARY_TEXT=""
           if [ "${{ job.status }}" = "success" ]; then
             COLOR="28a745"
             STATUS="✅ Success"
+            SUMMARY_TEXT="All tests passed successfully!"
           else
             COLOR="cb2431"
             STATUS="❌ Failed"
+            SUMMARY_TEXT="Some tests failed."
+            
+            if [ -f "test-results.json" ]; then
+              FAILING_TESTS=$(jq -r '.testResults[] | .assertionResults[]? | select(.status == "failed") | "- " + (.ancestorTitles | join(" > ")) + " > " + .title' test-results.json | head -n 10)
+              
+              if [ -z "$FAILING_TESTS" ]; then
+                FAILING_TESTS=$(jq -r '.testResults[] | select(.status == "failed") | "- " + .name' test-results.json | head -n 10)
+              fi
+              
+              if [ -n "$FAILING_TESTS" ]; then
+                SUMMARY_TEXT="**Failing Tests (Up to 10):**\n\n$FAILING_TESTS"
+              fi
+            fi
           fi
+
+          SUMMARY_JSON=$(jq -R -s '.' <<< "$SUMMARY_TEXT")
 
           # Create a JSON payload for Microsoft Teams (Office 365 Connector format)
           PAYLOAD=$(cat <<EOF
@@ -69,6 +86,7 @@ jobs:
                   "value": "[View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
                 }
               ],
+              "text": $SUMMARY_JSON,
               "markdown": true
             }]
           }
