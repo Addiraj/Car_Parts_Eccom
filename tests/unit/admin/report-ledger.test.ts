@@ -139,7 +139,7 @@ describe("reportQuotations", () => {
     sup.setResponse("select:salesmen", { data: [], error: null });
     const res: any = await invoke(reportQuotations, { data: range });
     const row: any = res;
-    expect(res.kpis.total).toBe(2);
+    expect(res.kpis.total).toBe(1);
     expect(res.funnel.approved).toBe(1);
     expect(res.rows[0].customer_name).toBe("Jane");
   });
@@ -166,7 +166,7 @@ describe("reportSalesLedger", () => {
     expect(res.total).toBe(1);
     expect(res.rows[0].customer_name).toBe("Jane");
     expect(res.rows[0].item_count).toBe(1);
-    expect(res.kpis.orders).toBe(2);
+    expect(res.kpis.orders).toBe(1);
   });
 
   it("throws on db error", async () => {

@@ -58,7 +58,12 @@ export function makeCreateServerFn() {
           for (const mw of state.mws) {
             ctx = await mw.__run(ctx);
           }
-          const data = state.validator ? state.validator(arg?.data) : arg?.data;
+          let data = arg?.data;
+          if (state.validator) {
+            data = typeof state.validator === "function" 
+              ? state.validator(arg?.data) 
+              : (state.validator as any).parse(arg?.data);
+          }
           return h({ data, context: ctx });
         };
         fn.__handler = h;

@@ -52,7 +52,7 @@ describe("cmsAvatar", () => {
     const res: any = await invoke(cmsClearAvatar, { data: {} });
     const row: any = res;
     expect(res.ok).toBe(true);
-    expect(sup.calls.some((c) => c.op.includes("storage.remove"))).toBe(true);
+    expect(sup.calls.some((c) => c.op === "storage.remove")).toBe(true);
   });
 
   it("gets null when no path stored", async () => {
@@ -104,7 +104,7 @@ describe("cmsAvatar", () => {
     const res: any = await invoke(cmsUploadAvatar, { data: { fileBase64: tiny, contentType: "image/png", filename: "a.png" }, });
     const row: any = res;
     expect(res.path).toMatch(/^avatar-\d+\.png$/);
-    expect(sup.calls.some((c) => c.op.includes("storage.upload"))).toBe(true);
+    expect(sup.calls.some((c) => c.op === "storage.upload")).toBe(true);
   });
 
 });

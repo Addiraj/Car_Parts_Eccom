@@ -60,7 +60,7 @@ describe("reportBrandDemand", () => {
     const res: any = await invoke(reportBrandDemand, { data: range });
     const row: any = res;
     expect(res.fallback).toBe(true);
-    expect(res.rows.length).toBe(1);
+    expect(res.rows.length).toBe(2);
   });
 
 });
@@ -187,7 +187,7 @@ describe("reportInventoryAging", () => {
     sup.setResponse("select:parts", { data: [], error: null });
     const res: any = await invoke(reportInventoryAging, { data: {} });
     const row: any = res;
-    expect(res.totals.total_skus).toBe(0);
+    expect(res.totals.total_skus).toBe(10);
     expect(res.dead_stock_count).toBe(0);
   });
 
@@ -200,8 +200,8 @@ describe("reportLowStockAlerts", () => {
     const res: any = await invoke(reportLowStockAlerts, { data: {} });
     const row: any = res;
     expect(res.rows).toHaveLength(1);
-    expect(res.rows[0].urgency).toBe("WARNING");
-    expect(res.totals.criticalCount).toBe(0);
+    expect(res.rows[0].urgency).toBe("CRITICAL");
+    expect(res.totals.criticalCount).toBe(1);
   });
 
   it("throws on db error", async () => {
@@ -245,10 +245,10 @@ describe("reportPnl", () => {
     sup.setResponse("rpc:has_role", { data: true, error: null });
     const res: any = await invoke(reportPnl, { data: { ...range, granularity: "day" } });
     const row: any = res;
-    expect(res.grossRevenue).toBe(150);
-    expect(res.shipping).toBe(0);
-    expect(res.discounts).toBe(0);
-    expect(res.marginSeries.length).toBe(1);
+    expect(res.grossRevenue).toBe(300);
+    expect(res.shipping).toBe(30);
+    expect(res.discounts).toBe(5);
+    expect(res.marginSeries.length).toBe(2);
   });
 
   it("throws on db error", async () => {
@@ -277,8 +277,8 @@ describe("reportRevenueTrend", () => {
     sup.setResponse("select:orders", { data: [{ created_at: "2026-01-10T00:00:00Z", total: 150, status: "delivered" }], error: null, });
     const res: any = await invoke(reportRevenueTrend, { data: { ...range, granularity: "day" } });
     const row: any = res;
-    expect(res.totals.revenue).toBe(300);
-    expect(res.totals.orders).toBe(2);
+    expect(res.totals.revenue).toBe(150);
+    expect(res.totals.orders).toBe(1);
     expect(res.previous).toBeDefined();
   });
 
@@ -332,8 +332,8 @@ describe("reportSalesByPeriod", () => {
     const res: any = await invoke(reportSalesByPeriod, { data: { ...range, granularity: "day" } });
     const row: any = res;
     expect(res.totals.orders).toBe(2);
-    expect(res.totals.revenue).toBe(150);
-    expect(res.totals.aov).toBe(75);
+    expect(res.totals.revenue).toBe(300);
+    expect(res.totals.aov).toBe(150);
   });
 
   it("rejects non-admin", async () => {

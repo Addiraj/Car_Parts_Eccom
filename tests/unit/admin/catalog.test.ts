@@ -154,7 +154,7 @@ describe("adminExportPartsCsv", () => {
     sup.setResponse("rpc:has_role", { data: true, error: null });
     const res: any = await invoke(adminExportPartsCsv, { data: {} });
     const row: any = res;
-    expect(res.count).toBeGreaterThan(0);
+    expect(res.count).toBe(1);
     expect(res.csv.split("\n")[0]).toBe("part_number,oem_number,name,manufacturer,category_tag,price,ind_price,gar_price,export_price,stock");
     expect(res.csv).toContain('"Brake, pad"');
   });
