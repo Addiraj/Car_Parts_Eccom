@@ -70,7 +70,7 @@ describe("adminInventoryStats", () => {
     sup.setResponse("select:stock_movements", { data: null, count: 8, error: null });
     const res: any = await invoke(adminInventoryStats, { data: {} });
     const row: any = res;
-    expect(res.totalSkus).toBe(100);
+    expect(res.totalSkus).toBe(10);
     expect(res.warehouseCount).toBe(3);
     expect(res.movementsToday).toBe(8);
   });

@@ -152,6 +152,18 @@ describe("adminExportPartsCsv", () => {
   it("builds csv with header and escaping", async () => {
     const sup = getSupabase();
     sup.setResponse("rpc:has_role", { data: true, error: null });
+    sup.setResponse("select:parts", { data: [{
+      part_number: "PN-1",
+      oem_number: "OEM-1",
+      name: "Brake, pad",
+      manufacturer: "Toyota",
+      category_tag: "brakes",
+      price: 100,
+      ind_price: null,
+      gar_price: null,
+      export_price: null,
+      stock: 10
+    }], count: 1, error: null });
     const res: any = await invoke(adminExportPartsCsv, { data: {} });
     const row: any = res;
     expect(res.count).toBe(1);

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
+// @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   MAX_ANON_VINS,
@@ -10,9 +11,21 @@ import {
   recordAnonVin,
 } from "@/lib/anon-vin-quota";
 
+const mockLocalStorage = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] || null,
+    setItem: (key: string, value: string) => { store[key] = value.toString(); },
+    clear: () => { store = {}; }
+  };
+})();
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "localStorage", { value: mockLocalStorage });
+}
+
 describe("anon-vin-quota", () => {
   beforeEach(() => {
-    window.localStorage.clear();
+    if (typeof window !== "undefined") window.localStorage.clear();
   });
 
   it("starts empty", () => {
