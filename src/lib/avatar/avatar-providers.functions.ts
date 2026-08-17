@@ -137,6 +137,7 @@ export const listEnabledAvatarProviders = createServerFn({ method: "GET" }).hand
 export const updateSimliConfig = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .validator((d: unknown) => z.object({
+    face_id: z.string().optional().nullable(),
     voice_id: z.string().optional().nullable(),
     model: z.enum(["trinity", "legacy"]).optional().nullable(),
   }).parse(d))
@@ -144,15 +145,20 @@ export const updateSimliConfig = createServerFn({ method: "POST" })
     const [provider, created] = await models.avatar_providers.findOrCreate({
       where: { provider: "simli" },
       defaults: {
+        face_id: data.face_id ?? null,
         voice_id: data.voice_id ?? null,
         model: data.model ?? "trinity",
       }
     });
     if (!created) {
-      await provider.update({
+      const updates: any = {
         voice_id: data.voice_id ?? null,
         model: data.model ?? "trinity",
-      });
+      };
+      if (data.face_id !== undefined) {
+        updates.face_id = data.face_id;
+      }
+      await provider.update(updates);
     }
     return { ok: true };
   });

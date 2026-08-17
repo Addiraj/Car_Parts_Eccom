@@ -68,12 +68,13 @@ describe("adminCreateSalesman", () => {
   it("rolls back auth user when salesmen insert fails", async () => {
     const sup = getSupabase();
     sup.setResponse("rpc:has_role", { data: true, error: null });
+    sup.setResponse("select:users", { data: null, error: null }); // NEW USER
     sup.setResponse("auth.createUser", { data: { user: { id: SM_ID } }, error: null });
     sup.setResponse("insert:user_roles", { data: null, error: null });
     sup.setResponse("insert:salesmen", { data: null, error: { message: "conflict" } });
     sup.setResponse("insert:salesmen", { error: "conflict" });
     await expect( invoke(adminCreateSalesman, { data: { full_name: "Ali", email: "a@x.com", password: "password123" }, }), ).rejects.toThrow(/conflict/);
-    await expect(sup.calls.some((c) => c.op === "auth.deleteUser")).toBe(true);
+    await expect(sup.calls.some((c) => c.table === "users" && c.op === "delete")).toBe(true);
   });
 
   it("throws when auth create fails", async () => {
@@ -110,7 +111,7 @@ describe("adminDeleteSalesman", () => {
     const res: any = await invoke(adminDeleteSalesman, { data: { id: SM_ID } });
     const row: any = res;
     expect(res.ok).toBe(true);
-    expect(sup.calls.some((c) => c.op === "auth.deleteUser")).toBe(true);
+    expect(sup.calls.some((c) => c.table === "users" && c.op === "delete")).toBe(true);
   });
 
 });
@@ -197,7 +198,7 @@ describe("adminResetSalesmanPassword", () => {
     const res: any = await invoke(adminResetSalesmanPassword, { data: { id: SM_ID, password: "newpassword123" }, });
     const row: any = res;
     expect(res.ok).toBe(true);
-    expect(getSupabase().calls.some((c) => c.op === "auth.updateUserById")).toBe(true);
+    expect(getSupabase().calls.some((c) => c.table === "users" && c.op === "update")).toBe(true);
   });
 
   it("rejects short password", async () => {
@@ -218,7 +219,7 @@ describe("adminResetSalesmanPassword", () => {
     sup.setResponse("upload:avatars", { error: "auth-fail" });
     sup.setResponse("auth:create", { error: "auth-fail" });
     sup.setResponse("auth:update", { error: "auth-fail" });
-    sup.setResponse("insert:salesmen", { error: "auth-fail" });
+    sup.setResponse("update:users", { data: null, error: { message: "auth-fail" } });
     sup.setResponse("update:salesmen", { error: "auth-fail" });
     await expect( invoke(adminResetSalesmanPassword, { data: { id: SM_ID, password: "newpassword123" }, }), ).rejects.toThrow(/auth-fail/);
   });

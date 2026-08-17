@@ -43,7 +43,7 @@ export class users extends Model<usersAttributes, usersCreationAttributes> imple
   }, {
     sequelize,
     tableName: 'users',
-    schema: 'auth',
+    schema: 'public',
     hasTrigger: true,
     timestamps: false,
     indexes: [

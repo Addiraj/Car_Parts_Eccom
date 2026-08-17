@@ -118,12 +118,14 @@ function SimliPanel({ isDefault, onSetDefault, isEnabled, onToggleEnabled, row }
 
   const { data: keyStatus } = useQuery({ queryKey: ["simli-key-status"], queryFn: () => keyFn() });
 
+  const [faceId, setFaceId] = React.useState<string>(row?.face_id ?? "");
   const [voiceId, setVoiceId] = React.useState<string>(row?.voice_id ?? "");
   const [model, setModel] = React.useState<"trinity" | "legacy">((row?.model ?? "trinity") as any);
   React.useEffect(() => {
+    setFaceId(row?.face_id ?? "");
     setVoiceId(row?.voice_id ?? "");
     setModel((row?.model ?? "trinity") as any);
-  }, [row?.voice_id, row?.model]);
+  }, [row?.face_id, row?.voice_id, row?.model]);
 
   const upload = useMutation({
     mutationFn: async (file: File) => {
@@ -146,7 +148,7 @@ function SimliPanel({ isDefault, onSetDefault, isEnabled, onToggleEnabled, row }
   });
 
   const saveCfg = useMutation({
-    mutationFn: () => updateCfgFn({ data: { voice_id: voiceId || null, model } }),
+    mutationFn: () => updateCfgFn({ data: { face_id: faceId || null, voice_id: voiceId || null, model } }),
     onSuccess: () => { toast.success("Salone settings saved"); qc.invalidateQueries({ queryKey: ["avatar-providers"] }); },
     onError: (e: any) => toast.error(e?.message || "Failed"),
   });
@@ -203,15 +205,9 @@ function SimliPanel({ isDefault, onSetDefault, isEnabled, onToggleEnabled, row }
                 {upload.isPending ? "Uploading…" : row?.face_id ? "Replace face image" : "Upload face image"}
               </Button>
               {row?.face_id && (
-                <>
-                  <div className="rounded-md border bg-muted/40 p-2 text-xs">
-                    <span className="font-medium">Face ID:</span>{" "}
-                    <code className="break-all text-[11px]">{row.face_id}</code>
-                  </div>
-                  <Button variant="outline" onClick={() => clear.mutate()} disabled={clear.isPending}>
-                    <Trash2 className="mr-2 h-4 w-4" /> Remove face
-                  </Button>
-                </>
+                <Button variant="outline" onClick={() => clear.mutate()} disabled={clear.isPending}>
+                  <Trash2 className="mr-2 h-4 w-4" /> Remove face
+                </Button>
               )}
             </div>
           </div>
@@ -219,9 +215,18 @@ function SimliPanel({ isDefault, onSetDefault, isEnabled, onToggleEnabled, row }
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Model & voice</CardTitle></CardHeader>
+        <CardHeader><CardTitle>API Configuration</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Face ID (Required)</Label>
+              <Input placeholder="Simli Face ID" value={faceId} onChange={(e) => setFaceId(e.target.value)} />
+              <p className="text-[10px] text-muted-foreground">Auto-generated when you upload an image, or paste manually if it fails.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Voice ID (Optional)</Label>
+              <Input placeholder="e.g. simli voice id" value={voiceId} onChange={(e) => setVoiceId(e.target.value)} />
+            </div>
             <div className="space-y-2">
               <Label>Model</Label>
               <Select value={model} onValueChange={(v) => setModel(v as any)}>
@@ -231,10 +236,6 @@ function SimliPanel({ isDefault, onSetDefault, isEnabled, onToggleEnabled, row }
                   <SelectItem value="legacy">Legacy</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Voice ID (optional)</Label>
-              <Input placeholder="e.g. simli voice id" value={voiceId} onChange={(e) => setVoiceId(e.target.value)} />
             </div>
           </div>
           <Button onClick={() => saveCfg.mutate()} disabled={saveCfg.isPending}>

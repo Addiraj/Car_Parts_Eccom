@@ -156,8 +156,10 @@ function AdminQuotations() {
                       <Eye className="h-4 w-4" />
                     </Link>
                   </Button>
-                  <Button variant="ghost" size="sm" title="Download PDF" onClick={() => window.open(`/api/public/quotations/${it.share_token}/print?auto=1`, "_blank")}>
-                    <Download className="h-4 w-4" />
+                  <Button asChild variant="ghost" size="sm" title="Download PDF">
+                    <a href={`/api/public/quotations/${it.share_token}/pdf`} target="_blank" rel="noreferrer" download>
+                      <Download className="h-4 w-4" />
+                    </a>
                   </Button>
                   <Button variant="ghost" size="sm" title="Duplicate" onClick={() => onDuplicate(it.id)}><Copy className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="sm" title="Delete" onClick={() => onDelete(it.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>

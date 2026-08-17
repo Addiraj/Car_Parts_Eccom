@@ -28,7 +28,7 @@ export const Route = createFileRoute("/api/public/quotations/$token/print")({
           .from("quotation_items")
           .select("*")
           .eq("quotation_id", quote.id)
-          .order("sort_order");
+          .order("created_at");
 
         const html = renderQuotationHtml(quote as any, (items ?? []) as any[], auto);
         return new Response(html, {

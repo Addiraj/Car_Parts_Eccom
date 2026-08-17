@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { cmsListTestimonials, cmsUpsertTestimonial, cmsDeleteTestimonial } from "@/lib/admin.cms.functions";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil, Star } from "lucide-react";
@@ -15,15 +16,19 @@ const empty: T = { author_name: "", author_role: "", avatar_url: "", rating: 5, 
 
 function TestimonialsPage() {
   const qc = useQueryClient();
-  const { data = [] } = useQuery({ queryKey: ["cms-testimonials"], queryFn: () => cmsListTestimonials() });
+  const listFn = useServerFn(cmsListTestimonials);
+  const upsertFn = useServerFn(cmsUpsertTestimonial);
+  const deleteFn = useServerFn(cmsDeleteTestimonial);
+
+  const { data = [] } = useQuery({ queryKey: ["cms-testimonials"], queryFn: () => listFn() });
   const [editing, setEditing] = useState<T | null>(null);
   const save = useMutation({
-    mutationFn: (v: T) => cmsUpsertTestimonial({ data: v }),
+    mutationFn: (v: T) => upsertFn({ data: v }),
     onSuccess: () => { toast.success("Saved"); setEditing(null); qc.invalidateQueries({ queryKey: ["cms-testimonials"] }); },
     onError: (e: any) => toast.error(e.message),
   });
   const del = useMutation({
-    mutationFn: (id: string) => cmsDeleteTestimonial({ data: { id } }),
+    mutationFn: (id: string) => deleteFn({ data: { id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["cms-testimonials"] }),
     onError: (e: any) => toast.error(e.message),
   });

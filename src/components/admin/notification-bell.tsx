@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bell, Check, UserPlus, ShoppingBag, FileText } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -20,23 +21,27 @@ function iconFor(type: string) {
 
 export function NotificationBell() {
   const qc = useQueryClient();
+  const listNotificationsFn = useServerFn(listAdminNotifications);
+  const markReadFn = useServerFn(markNotificationRead);
+  const markAllReadFn = useServerFn(markAllNotificationsRead);
+
   const [open, setOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const { data } = useQuery({
     queryKey: ["admin-notifications", "recent"],
-    queryFn: () => listAdminNotifications({ data: { limit: 15, offset: 0, type: "all" } }),
+    queryFn: () => listNotificationsFn({ data: { limit: 15, offset: 0, type: "all" } }),
     refetchOnWindowFocus: true,
   });
   const items = (data as any)?.items ?? [];
   const unread = items.filter((n: any) => !n.read).length;
 
   const markOne = useMutation({
-    mutationFn: (id: string) => markNotificationRead({ data: { id } }),
+    mutationFn: (id: string) => markReadFn({ data: { id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-notifications"] }),
   });
   const markAll = useMutation({
-    mutationFn: () => markAllNotificationsRead(),
+    mutationFn: () => markAllReadFn(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-notifications"] }),
   });
 

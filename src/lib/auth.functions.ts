@@ -14,7 +14,21 @@ export const login = createServerFn({ method: "POST" })
       throw new Error("Invalid credentials");
     }
 
-    const isValid = await bcrypt.compare(password, user.password_hash);
+    let isValid = false;
+    const isBcrypt = user.password_hash.startsWith("$2a$") || user.password_hash.startsWith("$2b$") || user.password_hash.startsWith("$2y$");
+
+    if (isBcrypt) {
+      isValid = await bcrypt.compare(password, user.password_hash);
+    } else {
+      // Plain text password comparison fallback
+      isValid = (password === user.password_hash);
+      if (isValid) {
+        // Upgrade user's password_hash to bcrypt hash for security
+        const newHash = await bcrypt.hash(password, 10);
+        await user.update({ password_hash: newHash } as any);
+      }
+    }
+
     if (!isValid) {
       throw new Error("Invalid credentials");
     }

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, useEffect } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { Sparkles, Filter as FilterIcon, Tag } from "lucide-react";
 import { listActiveOffers, type OfferedPart } from "@/lib/offers.functions";
 import { Countdown } from "@/components/countdown";
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/special-offers")({
 });
 
 function SpecialOffersPage() {
+  const listOffersFn = useServerFn(listActiveOffers);
   const [brand, setBrand] = useState<string>("");
   const [category, setCategory] = useState<string>("");
   const [minDiscount, setMinDiscount] = useState<number>(0);
@@ -30,7 +32,7 @@ function SpecialOffersPage() {
 
   const { data: offers = [], isLoading } = useQuery({
     queryKey: ["special-offers", sort],
-    queryFn: () => listActiveOffers({ data: { sort } }),
+    queryFn: () => listOffersFn({ data: { sort } }),
   });
 
   const brands = useMemo(() => Array.from(new Set(offers.map((o) => o.manufacturer).filter(Boolean))) as string[], [offers]);

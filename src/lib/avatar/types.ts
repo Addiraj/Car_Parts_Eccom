@@ -1,4 +1,4 @@
-export type AvatarProviderId = "3d" | "did" | "simli";
+export type AvatarProviderId = "simli";
 
 export type AvatarProviderRow = {
   id: string;

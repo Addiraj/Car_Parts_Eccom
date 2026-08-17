@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Bell, Check, UserPlus, ShoppingBag, FileText, ChevronLeft, ChevronRight } from "lucide-react";
@@ -31,24 +32,28 @@ function linkFor(n: any): { to: string; params?: any } | null {
 
 function NotificationsPage() {
   const qc = useQueryClient();
+  const listNotificationsFn = useServerFn(listAdminNotifications);
+  const markReadFn = useServerFn(markNotificationRead);
+  const markAllReadFn = useServerFn(markAllNotificationsRead);
+
   const [filter, setFilter] = useState<Filter>("all");
   const [page, setPage] = useState(1);
   const pageSize = 25;
 
   const { data, isFetching } = useQuery({
     queryKey: ["admin-notifications", "page", filter, page],
-    queryFn: () => listAdminNotifications({ data: { limit: pageSize, offset: (page - 1) * pageSize, type: filter } }),
+    queryFn: () => listNotificationsFn({ data: { limit: pageSize, offset: (page - 1) * pageSize, type: filter } }),
   });
   const items = (data as any)?.items ?? [];
   const total = (data as any)?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
   const markOne = useMutation({
-    mutationFn: (id: string) => markNotificationRead({ data: { id } }),
+    mutationFn: (id: string) => markReadFn({ data: { id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-notifications"] }),
   });
   const markAll = useMutation({
-    mutationFn: () => markAllNotificationsRead(),
+    mutationFn: () => markAllReadFn(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-notifications"] }),
   });
 

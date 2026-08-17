@@ -2,7 +2,7 @@ import { createFileRoute, redirect, Outlet, Link, useLocation } from "@tanstack/
 // JWT auth check is done in beforeLoad via localStorage
 import { getMyRoleInfo } from "@/lib/admin.salesmen.functions";
 import { useI18n } from "@/lib/i18n";
-import { LayoutDashboard, Users, FileText, ShoppingBag, Calendar, ShoppingCart, Bot, MessageCircle } from "lucide-react";
+import { LayoutDashboard, Users, FileText, ShoppingBag, Calendar, ShoppingCart, Bot, MessageCircle, Activity } from "lucide-react";
 import { SalesmanNotificationBell } from "@/components/salesman/notification-bell";
 
 export const Route = createFileRoute("/_authenticated/salesman")({
@@ -25,6 +25,7 @@ export const Route = createFileRoute("/_authenticated/salesman")({
 const nav = [
   { to: "/salesman", labelKey: "salesman.dashboard", icon: LayoutDashboard, exact: true },
   { to: "/salesman/customers", labelKey: "salesman.myCustomers", icon: Users },
+  { to: "/salesman/customer-activity", labelKey: "salesman.customerActivity", icon: Activity },
   { to: "/salesman/carts", labelKey: "salesman.activeCarts", icon: ShoppingCart },
   { to: "/salesman/followups", labelKey: "salesman.followups", icon: Calendar },
   { to: "/salesman/quotations", labelKey: "salesman.quotations", icon: FileText },

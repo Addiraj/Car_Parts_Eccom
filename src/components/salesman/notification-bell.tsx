@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bell, Check, UserPlus, ShoppingBag, ShoppingCart, Bot, MessageCircle, FileText } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -33,23 +34,27 @@ function linkFor(n: any): string | null {
 export function SalesmanNotificationBell() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const listNotificationsFn = useServerFn(listSalesmanNotifications);
+  const markReadFn = useServerFn(markSalesmanNotificationRead);
+  const markAllReadFn = useServerFn(markAllSalesmanNotificationsRead);
+
   const [open, setOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const { data } = useQuery({
     queryKey: ["sm-notifications", "recent"],
-    queryFn: () => listSalesmanNotifications({ data: { limit: 15, offset: 0, type: "all" } }),
+    queryFn: () => listNotificationsFn({ data: { limit: 15, offset: 0, type: "all" } }),
     refetchOnWindowFocus: true,
   });
   const items = (data as any)?.items ?? [];
   const unread = items.filter((n: any) => !n.read).length;
 
   const markOne = useMutation({
-    mutationFn: (id: string) => markSalesmanNotificationRead({ data: { id } }),
+    mutationFn: (id: string) => markReadFn({ data: { id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sm-notifications"] }),
   });
   const markAll = useMutation({
-    mutationFn: () => markAllSalesmanNotificationsRead(),
+    mutationFn: () => markAllReadFn(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sm-notifications"] }),
   });
 

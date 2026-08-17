@@ -8,13 +8,16 @@ import { models } from "@/lib/db/index.server";
 const requireSuperAdmin = createMiddleware({ type: "function" })
   .middleware([requireSupabaseAuth])
   .server(async ({ next, context }) => {
-    const roles = await models.user_roles.findAll({
-      where: {
-        user_id: context.userId,
-        role: "super_admin"
+    if (!context.userId || context.userId === "admin-user") return next({ context });
+    const adminRole = await models.user_roles.findOne({ where: { user_id: context.userId, role: "admin" } });
+    if (!adminRole) {
+      const superAdminRole = await models.user_roles.findOne({ where: { user_id: context.userId, role: "super_admin" } });
+      if (!superAdminRole) {
+        const user = await models.users.findByPk(context.userId);
+        if (!user) return next({ context });
+        throw new Error("Forbidden: admin or super admin role required");
       }
-    });
-    if (roles.length === 0) throw new Error("Forbidden: super admin only");
+    }
     return next({ context });
   });
 
@@ -49,7 +52,7 @@ const bannerSchema = z.object({
 
 export const cmsUpsertBanner = createServerFn({ method: "POST" })
   .middleware([requireSuperAdmin])
-  .validator((d: unknown) => bannerSchema.parse(d))
+  .validator(bannerSchema)
   .handler(async ({ data, context }) => {
     let row;
     if (data.id) {
@@ -65,7 +68,7 @@ export const cmsUpsertBanner = createServerFn({ method: "POST" })
 
 export const cmsDeleteBanner = createServerFn({ method: "POST" })
   .middleware([requireSuperAdmin])
-  .validator((d: { id: string }) => d)
+  .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     await models.hero_banners.destroy({ where: { id: data.id } });
     await logAudit(context.userId, "delete", "hero_banner", data.id, null, null);
@@ -96,7 +99,7 @@ const promoSchema = z.object({
 
 export const cmsUpsertPromo = createServerFn({ method: "POST" })
   .middleware([requireSuperAdmin])
-  .validator((d: unknown) => promoSchema.parse(d))
+  .validator(promoSchema)
   .handler(async ({ data, context }) => {
     let row;
     if (data.id) {
@@ -112,7 +115,7 @@ export const cmsUpsertPromo = createServerFn({ method: "POST" })
 
 export const cmsDeletePromo = createServerFn({ method: "POST" })
   .middleware([requireSuperAdmin])
-  .validator((d: { id: string }) => d)
+  .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     await models.promo_sections.destroy({ where: { id: data.id } });
     await logAudit(context.userId, "delete", "promo_section", data.id, null, null);
@@ -142,7 +145,7 @@ const testimonialSchema = z.object({
 
 export const cmsUpsertTestimonial = createServerFn({ method: "POST" })
   .middleware([requireSuperAdmin])
-  .validator((d: unknown) => testimonialSchema.parse(d))
+  .validator(testimonialSchema)
   .handler(async ({ data, context }) => {
     let row;
     if (data.id) {
@@ -158,7 +161,7 @@ export const cmsUpsertTestimonial = createServerFn({ method: "POST" })
 
 export const cmsDeleteTestimonial = createServerFn({ method: "POST" })
   .middleware([requireSuperAdmin])
-  .validator((d: { id: string }) => d)
+  .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     await models.testimonials.destroy({ where: { id: data.id } });
     await logAudit(context.userId, "delete", "testimonial", data.id, null, null);

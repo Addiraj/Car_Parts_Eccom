@@ -5,25 +5,28 @@ import { z } from "zod";
 import { models } from "@/lib/db/index.server";
 import { Op } from "@/lib/db/op.server";
 
+
 export const listAdminNotifications = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
-  .validator((d: unknown) =>
+  .validator(
     z.object({
       limit: z.coerce.number().int().min(1).max(100).default(20),
       offset: z.coerce.number().int().min(0).default(0),
       type: z.enum(["all", "signup", "order", "quotation"]).default("all"),
-    }).parse(d ?? {}),
+    })
   )
   .handler(async ({ data, context }) => {
     const where: any = {};
-    if (data.type !== "all") where.type = data.type;
+    if (data?.type && data.type !== "all") where.type = data.type;
+    const limit = data?.limit ?? 20;
+    const offset = data?.offset ?? 0;
     
     const { rows: itemsRows, count } = await models.admin_notifications.findAndCountAll({
       attributes: ["id", "type", "title", "body", "entity_type", "entity_id", "metadata", "created_at"],
       where,
       order: [["created_at", "DESC"]],
-      limit: data.limit,
-      offset: data.offset
+      limit,
+      offset
     });
     
     const reads = await models.admin_notification_reads.findAll({
@@ -55,7 +58,7 @@ export const getUnreadCount = createServerFn({ method: "GET" })
 
 export const markNotificationRead = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .validator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
     const existing = await models.admin_notification_reads.findOne({
       where: { notification_id: data.id, admin_id: context.userId }
@@ -86,12 +89,12 @@ export const markAllNotificationsRead = createServerFn({ method: "POST" })
 
 export const listSalesmanNotifications = createServerFn({ method: "GET" })
   .middleware([requireSalesmanOrAdmin])
-  .validator((d: unknown) =>
+  .validator(
     z.object({
       limit: z.coerce.number().int().min(1).max(100).default(20),
       offset: z.coerce.number().int().min(0).default(0),
       type: z.enum(["all", "assignment", "cart", "order", "ai_lead", "lead", "activity", "quotation", "wishlist"]).default("all"),
-    }).parse(d ?? {}),
+    })
   )
   .handler(async ({ data, context }: any) => {
     const where: any = { salesman_id: context.userId };
@@ -134,7 +137,7 @@ export const getSalesmanUnreadCount = createServerFn({ method: "GET" })
 
 export const markSalesmanNotificationRead = createServerFn({ method: "POST" })
   .middleware([requireSalesmanOrAdmin])
-  .validator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data, context }: any) => {
     const existing = await models.admin_notification_reads.findOne({
       where: { notification_id: data.id, admin_id: context.userId }

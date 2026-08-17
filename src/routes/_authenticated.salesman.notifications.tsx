@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { listSalesmanNotifications } from "@/lib/admin.notifications.functions";
@@ -11,12 +12,13 @@ export const Route = createFileRoute("/_authenticated/salesman/notifications")({
 const TYPES = ["all", "assignment", "cart", "order", "ai_lead", "quotation"] as const;
 
 function NotificationsPage() {
+  const listNotificationsFn = useServerFn(listSalesmanNotifications);
   const [type, setType] = useState<(typeof TYPES)[number]>("all");
   const [offset, setOffset] = useState(0);
   const LIMIT = 30;
   const q = useQuery({
     queryKey: ["sm-notifications-page", type, offset],
-    queryFn: () => listSalesmanNotifications({ data: { limit: LIMIT, offset, type } }),
+    queryFn: () => listNotificationsFn({ data: { limit: LIMIT, offset, type } }),
   });
   const data: any = q.data ?? { items: [], total: 0 };
   return (
