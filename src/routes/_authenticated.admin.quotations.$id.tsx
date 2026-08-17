@@ -87,7 +87,7 @@ function QuotationDetail() {
           <a href={printUrl} target="_blank" rel="noreferrer">
             <Button variant="outline" size="sm"><Printer className="h-4 w-4 mr-1" /> Print</Button>
           </a>
-          <a href={`${printUrl}?auto=1`} target="_blank" rel="noreferrer">
+          <a href={`/api/public/quotations/${quote.share_token}/pdf`} target="_blank" rel="noreferrer" download>
             <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-1" /> Download PDF</Button>
           </a>
           <a href={emailLink()}>

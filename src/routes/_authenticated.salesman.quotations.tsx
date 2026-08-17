@@ -39,7 +39,7 @@ function MyQuotes() {
             {rows.map((q) => (
               <tr key={q.id}>
                 <td className="px-3 py-2 font-mono text-xs">
-                  <Link to="/admin/quotations/$id" params={{ id: q.id }} className="text-primary hover:underline">{q.quotation_number}</Link>
+                  <Link to="/salesman/quotations/$id" params={{ id: q.id }} className="text-primary hover:underline">{q.quotation_number}</Link>
                 </td>
                 <td className="px-3 py-2 text-xs">{q.customer_snapshot?.full_name ?? "—"}</td>
                 <td className="px-3 py-2 text-xs capitalize">{q.status}</td>
@@ -47,7 +47,7 @@ function MyQuotes() {
                 <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(q.created_at).toLocaleDateString()}</td>
                 <td className="px-3 py-2 text-right">
                   <Button asChild variant="ghost" size="sm" title="View">
-                    <Link to="/admin/quotations/$id" params={{ id: q.id }}>
+                    <Link to="/salesman/quotations/$id" params={{ id: q.id }}>
                       <Eye className="h-4 w-4" />
                     </Link>
                   </Button>

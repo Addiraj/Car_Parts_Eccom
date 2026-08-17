@@ -71,7 +71,8 @@ function CartsPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Link
-                          to="/salesman/customers"
+                          to="/salesman/customers/$id"
+                          params={{ id: c.customer_id }}
                           className="inline-flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-muted"
                         >
                           <ExternalLink className="h-3 w-3" /> Customer

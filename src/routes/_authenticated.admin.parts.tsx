@@ -558,28 +558,8 @@ function ImportPanel() {
 
     const flush = async () => {
       if (!buffer.length) return;
-      // De-duplicate within batch by (part_number|manufacturer), keeping the LAST occurrence.
-      const seen = new Map<string, number>();
-      const dups: FailedRow[] = [];
-      buffer.forEach((r, idx) => {
-        const k = `${r.part_number}|${r.manufacturer ?? ""}`;
-        if (seen.has(k)) {
-          const prevIdx = seen.get(k)!;
-          dups.push({
-            rowIndex: buffer[prevIdx].rowIndex,
-            part_number: buffer[prevIdx].part_number,
-            manufacturer: buffer[prevIdx].manufacturer,
-            reason: "duplicate-in-batch (superseded by a later row)",
-            source: "duplicate-in-batch",
-          });
-        }
-        seen.set(k, idx);
-      });
-      const deduped = Array.from(seen.values()).sort((a, b) => a - b).map((i) => buffer[i]);
-      totalDuplicates += dups.length;
-      pushFailed(dups);
-
-      const rows = deduped;
+      // No de-duplication: every row in the file is imported as its own record.
+      const rows = buffer;
       const sent = buffer.length;
       buffer = [];
       try {

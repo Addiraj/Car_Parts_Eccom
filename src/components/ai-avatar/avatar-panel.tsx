@@ -10,21 +10,19 @@ import {
   PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit, PromptInputTools, PromptInputButton,
 } from "@/components/ai-elements/prompt-input";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import { X, Mic, Square, Volume2, VolumeX, Sparkles, User2, MessageSquarePlus, Trash2, History, Video } from "lucide-react";
+import { X, Mic, Square, Volume2, VolumeX, History, Video, MessageSquarePlus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Avatar3D } from "./avatar-3d";
-import { AvatarRealistic, type AvatarRealisticHandle } from "./avatar-realistic";
 import { AvatarSimli, type AvatarSimliHandle } from "./avatar-simli";
 import { useVoice } from "./use-voice";
 import { ToolPartView, AvatarActionContext } from "./tool-cards";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { getActiveAvatarProvider, getSimliConfig, listEnabledAvatarProviders } from "@/lib/avatar/avatar-providers.functions";
+import { getActiveAvatarProvider, getSimliConfig } from "@/lib/avatar/avatar-providers.functions";
 import { useAuth } from "@/hooks/use-auth";
+import { listThreads, deleteThread as deleteThreadFn } from "@/lib/ai-chat.functions";
 
-type Style = "3d" | "did" | "simli";
 type Lang = "en" | "hi" | "ar" | "gu";
 type Thread = { id: string; title: string };
 
@@ -37,7 +35,6 @@ const LANG_INSTRUCTION: Record<Lang, string> = {
 };
 
 export function AvatarPanel({ onClose }: { onClose: () => void }) {
-  const [style, setStyle] = React.useState<Style>("3d");
   const [lang, setLang] = React.useState<Lang>("en");
   const [threadId, setThreadId] = React.useState<string | null>(null);
   // Stable chat session id — only changes when the user explicitly starts a
@@ -49,15 +46,16 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
   const [userId, setUserId] = React.useState<string | null>(null);
   const [voiceOn, setVoiceOn] = React.useState(true);
   const [showHistory, setShowHistory] = React.useState(false);
-  const [didStatus, setDidStatus] = React.useState<"idle" | "connecting" | "live" | "error">("idle");
   const [simliStatus, setSimliStatus] = React.useState<"idle" | "connecting" | "live" | "error">("idle");
   const lastSpokenId = React.useRef<string | null>(null);
   const spokenOffsetRef = React.useRef<{ id: string | null; offset: number }>({ id: null, offset: 0 });
   const skipNextSpeakRef = React.useRef(false);
   const userRequestedSpeechRef = React.useRef(false);
   const historyLoadRequestedRef = React.useRef(false);
-  const realisticRef = React.useRef<AvatarRealisticHandle | null>(null);
   const simliRef = React.useRef<AvatarSimliHandle | null>(null);
+
+  const fetchListThreads = useServerFn(listThreads);
+  const fetchDeleteThread = useServerFn(deleteThreadFn);
 
   const getActiveProvider = useServerFn(getActiveAvatarProvider);
   const { data: activeProvider } = useQuery({
@@ -65,30 +63,11 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
     queryFn: () => getActiveProvider(),
     staleTime: 60_000,
   });
-  const getSimli = useServerFn(getSimliConfig);
   const { data: simliConfig } = useQuery({
     queryKey: ["simli-config"],
     queryFn: () => getSimli(),
     staleTime: 60_000,
   });
-  const getEnabled = useServerFn(listEnabledAvatarProviders);
-  const { data: enabled } = useQuery({
-    queryKey: ["enabled-avatar-providers"],
-    queryFn: () => getEnabled(),
-    staleTime: 60_000,
-  });
-  const enabledList = React.useMemo<Style[]>(() => {
-    const order: Style[] = ["3d", "did", "simli"];
-    if (!enabled) return order;
-    const filtered = order.filter((id) => (enabled as any)[id] !== false);
-    return filtered.length > 0 ? filtered : order;
-  }, [enabled]);
-
-  // Auto-switch if the currently selected style becomes disabled.
-  React.useEffect(() => {
-    if (enabledList.length === 0) return;
-    if (!enabledList.includes(style)) setStyle(enabledList[0]);
-  }, [enabledList, style]);
 
   const voice = useVoice();
   const auth = useAuth();
@@ -103,20 +82,7 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
     return () => { sub.subscription.unsubscribe(); };
   }, [auth?.user?.id]);
 
-  // Panel lifecycle: connect BOTH providers as soon as the popup mounts so the
-  // session is alive for the whole time the user has the avatar open. Tear
-  // both down on unmount so closing the popup releases the Simli slot and
-  // D-ID stream immediately.
-  React.useEffect(() => {
-    realisticRef.current?.connect().catch(() => { /* surfaced via toast */ });
-    return () => {
-      void realisticRef.current?.close().catch(() => { /* noop */ });
-      void simliRef.current?.close().catch(() => { /* noop */ });
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Simli self-connects on mount inside AvatarSimli (mirrors AvatarRealistic).
+  // Simli self-connects on mount inside AvatarSimli.
 
 
 
@@ -124,14 +90,15 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
 
   const refreshThreads = React.useCallback(async () => {
     if (!userId) { setThreads([]); return; }
-    const { data } = await supabase
-      .from("ai_chat_threads")
-      .select("id, title, vehicle_context")
-      .order("last_message_at", { ascending: false })
-      .limit(80);
-    const avatarOnly = (data ?? []).filter((t: any) => (t.vehicle_context as any)?.source === "avatar");
-    setThreads(avatarOnly.map((t: any) => ({ id: t.id, title: t.title })) as Thread[]);
-  }, [userId]);
+    try {
+      const data = await fetchListThreads();
+      const avatarOnly = (data ?? []).filter((t: any) => (t.vehicle_context as any)?.source === "avatar");
+      setThreads(avatarOnly.map((t: any) => ({ id: t.id, title: t.title })) as Thread[]);
+    } catch (e) {
+      console.error(e);
+      setThreads([]);
+    }
+  }, [userId, fetchListThreads]);
 
   React.useEffect(() => { refreshThreads(); }, [refreshThreads, threadId]);
 
@@ -228,7 +195,7 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
     }
 
     // Simli: stream sentence-by-sentence as the LLM streams to cut speak latency.
-    if (style === "simli" && simliRef.current) {
+    if (simliRef.current) {
       if (skipNextSpeakRef.current) {
         if (status === "ready") {
           skipNextSpeakRef.current = false;
@@ -266,13 +233,8 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
     if (last.id === lastSpokenId.current) return;
     lastSpokenId.current = last.id;
     userRequestedSpeechRef.current = false;
-    if (style === "did" && realisticRef.current) {
-      voice.cancel();
-      realisticRef.current.speak(fullText).catch(() => { /* surfaced via toast */ });
-    } else {
-      voice.speak(fullText);
-    }
-  }, [status, messages, voiceOn, voice, style]);
+    voice.speak(fullText);
+  }, [status, messages, voiceOn, voice]);
 
   const [input, setInput] = React.useState("");
 
@@ -331,85 +293,29 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
   };
 
   const deleteThread = async (id: string) => {
-    await supabase.from("ai_chat_threads").delete().eq("id", id);
-    if (threadId === id) { setThreadId(null); setMessages([]); }
-    refreshThreads();
+    try {
+      await fetchDeleteThread({ data: { id } });
+      if (threadId === id) { setThreadId(null); setMessages([]); }
+      refreshThreads();
+    } catch (error) {
+      toast.error("Failed to delete thread");
+    }
   };
 
   return (
     <div className="fixed inset-2 z-[80] flex flex-col overflow-hidden rounded-2xl border border-blue-500/20 bg-[#05070d] text-white shadow-2xl md:inset-auto md:bottom-4 md:right-4 md:h-[660px] md:w-[900px] md:max-w-[94vw] md:flex-row">
-      {/* Avatar stage */}
       <div className="relative flex h-48 min-h-[12rem] shrink-0 flex-col bg-[#05070d] md:h-auto md:min-h-[360px] md:w-[32%] md:min-w-[260px] md:max-w-[300px]">
         <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
-          {/* Keep every provider mounted so connections persist across tab switches.
-              Only the active provider is visible; the others stay hidden but live. */}
-          <div className={cn("absolute inset-0", style === "3d" ? "" : "invisible pointer-events-none")}>
-            <Avatar3D amplitude={voice.amplitude} speaking={voice.isSpeaking} />
-          </div>
-          <div className={cn("absolute inset-0", style === "did" ? "" : "invisible pointer-events-none")}>
-            <AvatarRealistic
-              ref={realisticRef}
-              lang={lang}
-              amplitude={voice.amplitude}
-              speaking={voice.isSpeaking}
-              onStatusChange={setDidStatus}
-            />
-          </div>
-          <div className={cn("absolute inset-0", style === "simli" ? "" : "invisible pointer-events-none")}>
+          <div className="absolute inset-0">
             <AvatarSimli
               ref={simliRef}
               imageUrl={simliConfig?.imageUrl ?? activeProvider?.imageUrl ?? null}
               faceId={simliConfig?.faceId ?? null}
-              active={style === "simli"}
+              active={true}
               onStatusChange={setSimliStatus}
             />
           </div>
-
         </div>
-
-
-        {/* Bottom-right floating provider switcher with live status dots */}
-        {enabledList.length > 0 ? (
-          <div className="pointer-events-none absolute bottom-14 right-2 z-20 flex justify-end md:bottom-16 md:right-3">
-            <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-white/10 bg-black/70 p-1 shadow-lg backdrop-blur">
-              {([
-                { id: "3d" as const, label: "3D", icon: Sparkles, status: "live" as const },
-                { id: "did" as const, label: "D-ID", icon: User2, status: style === "did" ? didStatus : "idle" },
-                { id: "simli" as const, label: "Salone", icon: Video, status: style === "simli" ? simliStatus : "idle" },
-              ])
-                .filter((p) => enabledList.includes(p.id))
-                .map((p) => {
-                const Icon = p.icon;
-                const dot =
-                  p.status === "live" ? "bg-emerald-400 shadow-[0_0_8px_2px_rgba(52,211,153,0.6)]"
-                  : p.status === "connecting" ? "bg-amber-400 animate-pulse"
-                  : p.status === "error" ? "bg-red-400"
-                  : "bg-white/30";
-                const active = style === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => setStyle(p.id)}
-                    className={cn(
-                      "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition",
-                      active ? "bg-blue-500 text-white" : "text-white/75 hover:bg-white/10 hover:text-white",
-                    )}
-                    aria-label={`Switch to ${p.label} avatar (${p.status})`}
-                    title={`${p.label} · ${p.status}`}
-                  >
-                    <span className={cn("inline-block h-1.5 w-1.5 rounded-full", dot)} />
-                    <Icon className="h-3 w-3" />
-                    <span>{p.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
-            <div className="rounded-md bg-black/70 px-3 py-2 text-xs text-white/70">Avatar unavailable</div>
-          </div>
-        )}
 
         <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between border-t border-white/10 bg-black/60 px-3 py-2 backdrop-blur">
           <div>
@@ -423,7 +329,7 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
             variant={voice.isSpeaking ? "destructive" : "secondary"}
             className="h-7 gap-1 text-[11px]"
             onClick={() => {
-              if (voice.isSpeaking || style === "simli") {
+              if (voice.isSpeaking || simliStatus === "live") {
                 voice.cancel();
                 try { simliRef.current?.stopSpeaking(); } catch { /* noop */ }
                 return;

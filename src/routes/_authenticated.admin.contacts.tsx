@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminListContacts, adminUpdateContactStatus, adminDeleteContact } from "@/lib/contact.functions";
@@ -12,19 +13,23 @@ export const Route = createFileRoute("/_authenticated/admin/contacts")({
 
 function AdminContactsPage() {
   const qc = useQueryClient();
+  const listContactsFn = useServerFn(adminListContacts);
+  const updateStatusFn = useServerFn(adminUpdateContactStatus);
+  const deleteContactFn = useServerFn(adminDeleteContact);
+
   const { data: contacts = [], isLoading } = useQuery({
     queryKey: ["admin-contacts"],
-    queryFn: () => adminListContacts(),
+    queryFn: () => listContactsFn(),
   });
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const upd = useMutation({
-    mutationFn: (v: { id: string; status: "new" | "read" | "replied" }) => adminUpdateContactStatus({ data: v }),
+    mutationFn: (v: { id: string; status: "new" | "read" | "replied" }) => updateStatusFn({ data: v }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-contacts"] }),
     onError: (e: any) => toast.error(e.message),
   });
   const del = useMutation({
-    mutationFn: (id: string) => adminDeleteContact({ data: { id } }),
+    mutationFn: (id: string) => deleteContactFn({ data: { id } }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin-contacts"] }); toast.success("Deleted"); },
     onError: (e: any) => toast.error(e.message),
   });

@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery, useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { getBrands } from "@/lib/catalog.functions";
-import { listActiveTestimonials } from "@/lib/cms.functions";
+import { listActiveBanners, listActiveTestimonials } from "@/lib/cms.functions";
 import { useI18n } from "@/lib/i18n";
 import {
   ArrowRight,
@@ -88,23 +89,36 @@ function useInView<E extends Element>(options?: IntersectionObserverInit) {
 /* ─────────────── 1. Hero (always dark — cinematic backdrop) ─────────────── */
 
 function Hero({ t }: { t: T }) {
+  const getBannersFn = useServerFn(listActiveBanners);
+  const { data: banners = [] } = useQuery({
+    queryKey: ["home-banners"],
+    queryFn: () => getBannersFn(),
+  });
+
+  const activeBanner = (banners as any[]).length > 0 ? banners[0] : null;
+  const bgImage = activeBanner?.image_url || heroAsset.url;
+  const title = activeBanner?.title || t("Your Trusted Source for Genuine Car Parts Across the UAE");
+  const subtitle = activeBanner?.subtitle || t("OEM & aftermarket components for BMW, Mercedes-Benz, Honda, Rolls-Royce & MINI. VIN-verified compatibility. Shipped across the UAE.");
+  const ctaLabel = activeBanner?.cta_label || t("Explore Catalog");
+  const ctaUrl = activeBanner?.cta_url || "/catalog";
+
   return (
     <section className="relative flex min-h-[100svh] w-full items-center overflow-hidden bg-background text-foreground dark:bg-[#0a0a0a] dark:text-white">
       <div className="absolute inset-0">
         <img
-          src={heroAsset.url}
+          src={bgImage}
           alt=""
-          className="ken-burns h-full w-full object-cover opacity-40 dark:opacity-100"
+          className="ken-burns h-full w-full object-cover opacity-85 dark:opacity-95 transition-opacity duration-700"
         />
-        {/* Light mode overlay — soft white wash */}
+        {/* Light mode overlay — clear backdrop gradient */}
         <div
           className="absolute inset-0 dark:hidden"
-          style={{ background: "linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.8) 40%, rgba(255,255,255,0.35) 100%)" }}
+          style={{ background: "linear-gradient(90deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.65) 50%, rgba(255,255,255,0.25) 100%)" }}
         />
-        {/* Dark mode overlay — cinematic black */}
+        {/* Dark mode overlay — cinematic dark gradient */}
         <div
           className="absolute inset-0 hidden dark:block"
-          style={{ background: "linear-gradient(90deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 40%, rgba(0,0,0,0.15) 100%)" }}
+          style={{ background: "linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.2) 100%)" }}
         />
       </div>
 
@@ -125,27 +139,7 @@ function Hero({ t }: { t: T }) {
               className="block animate-fade-in text-foreground opacity-0 dark:text-white"
               style={{ animationDelay: "0.2s", animationFillMode: "forwards", animationDuration: "0.8s" }}
             >
-              {t("Your Trusted Source for")}
-            </span>
-            <span
-              className="block animate-fade-in opacity-0"
-              style={{
-                animationDelay: "0.4s",
-                animationFillMode: "forwards",
-                animationDuration: "0.8s",
-                background: "linear-gradient(135deg, #3B82F6, #8B5CF6)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}
-            >
-              {t("Genuine Car Parts")}
-            </span>
-            <span
-              className="block animate-fade-in text-foreground opacity-0 dark:text-white"
-              style={{ animationDelay: "0.55s", animationFillMode: "forwards", animationDuration: "0.8s" }}
-            >
-              {t("Across the UAE")}
+              {title}
             </span>
           </h1>
 
@@ -153,15 +147,15 @@ function Hero({ t }: { t: T }) {
             className="mt-6 max-w-[520px] animate-fade-in text-[1.05rem] leading-relaxed text-muted-foreground opacity-0 dark:text-white/70 md:text-[1.15rem]"
             style={{ animationDelay: "0.75s", animationFillMode: "forwards", animationDuration: "0.9s" }}
           >
-            {t("OEM & aftermarket components for BMW, Mercedes-Benz, Honda, Rolls-Royce & MINI. VIN-verified compatibility. Shipped across the UAE.")}
+            {subtitle}
           </p>
 
           <div
             className="mt-10 flex flex-wrap items-center gap-4 animate-fade-in opacity-0"
             style={{ animationDelay: "0.95s", animationFillMode: "forwards", animationDuration: "0.9s" }}
           >
-            <Link to="/catalog" className={primaryBtn} style={primaryBtnStyle}>
-              {t("Explore Catalog")}
+            <Link to={ctaUrl as any} className={primaryBtn} style={primaryBtnStyle}>
+              {ctaLabel}
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
 
@@ -470,7 +464,8 @@ type TestimonialRow = {
 };
 
 function Testimonials({ t }: { t: T }) {
-  const { data = [] } = useQuery(testimonialsQO);
+  const getTestimonialsFn = useServerFn(listActiveTestimonials);
+  const { data = [] } = useQuery({ queryKey: ["home-testimonials"], queryFn: () => getTestimonialsFn() });
   const items = data as TestimonialRow[];
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);

@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 import { z } from "zod";
 
-import { models } from "@/lib/db/index.server";
+import { models, sequelize } from "@/lib/db/index.server";
 import { Op, col } from "sequelize";
 
 async function hasRole(userId: string, role: string) {
@@ -71,7 +71,7 @@ export const adminUpdateOrderStatus = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .validator((d: { id: string; status: string; note?: string }) => d)
   .handler(async ({ data }) => {
-    const allowed = ["placed","confirmed","packed","shipped","delivered","cancelled"];
+    const allowed = ["placed", "confirmed", "packed", "shipped", "delivered", "cancelled"];
     if (!allowed.includes(data.status)) throw new Error("Invalid status");
     await models.orders.update({ status: data.status }, { where: { id: data.id } });
     await models.order_events.create({ order_id: data.id, status: data.status, note: data.note ?? null } as any);
@@ -105,7 +105,7 @@ export const adminListParts = createServerFn({ method: "GET" })
     const page = Math.max(1, data.page ?? 1);
     const pageSize = Math.min(200, data.pageSize ?? 50);
     const offset = (page - 1) * pageSize;
-    
+
     const where: any = {};
 
     if (data.q && data.q.trim()) {
@@ -117,7 +117,7 @@ export const adminListParts = createServerFn({ method: "GET" })
         { name: { [Op.iLike]: `%${escaped}%` } },
         { manufacturer: { [Op.iLike]: `%${escaped}%` } }
       ];
-      
+
       const nk = s.toUpperCase().replace(/[^A-Z0-9]/g, "");
       if (nk) {
         // Fallback for normalized search locally without rpc
@@ -133,7 +133,7 @@ export const adminListParts = createServerFn({ method: "GET" })
     if (data.brand && data.brand.trim()) {
       where.manufacturer = data.brand.trim();
     }
-    
+
     const { rows, count } = await models.parts.findAndCountAll({
       where,
       order: [["created_at", "DESC"]],
@@ -141,7 +141,7 @@ export const adminListParts = createServerFn({ method: "GET" })
       offset,
       attributes: ["id", "part_number", "oem_number", "name", "price", "ind_price", "gar_price", "export_price", "stock", "manufacturer", "is_oem", "category_tag", "category_id", "images"]
     });
-    
+
     const items = rows.map((r: any) => {
       const p = r.get({ plain: true });
       return {
@@ -149,7 +149,7 @@ export const adminListParts = createServerFn({ method: "GET" })
         category: p.category_tag ?? null,
       };
     });
-    
+
     return { items, total: count, page, pageSize };
   });
 
@@ -276,8 +276,8 @@ export const adminImportPartsBatch = createServerFn({ method: "POST" })
         is_oem: true,
         images: [],
 
+        unique_value: r.unique_value ?? null,
         specs: {
-          unique_value: r.unique_value ?? null,
           rate_price: r.rate_price ?? null,
         },
       });
@@ -293,17 +293,31 @@ export const adminImportPartsBatch = createServerFn({ method: "POST" })
     let failed = errors.length;
 
     if (valid.length) {
+      // Deduplicate valid records by unique_value to prevent "ON CONFLICT DO UPDATE command cannot affect row a second time"
+      // If unique_value is missing, fallback to deduplicating by part_number so we don't crash
+      const uniqueValidMap = new Map();
+      for (const v of valid) {
+        const key = v.unique_value || v.part_number;
+        uniqueValidMap.set(key, v);
+      }
+      const uniqueValid = Array.from(uniqueValidMap.values());
+
       const existing = await models.parts.findAll({
-        attributes: ["part_number"],
-        where: { part_number: valid.map((v) => v.part_number) },
+        attributes: ["unique_value", "part_number"],
+        where: { 
+          [Op.or]: [
+            { unique_value: { [Op.in]: uniqueValid.map(v => v.unique_value).filter(Boolean) } },
+            { part_number: { [Op.in]: uniqueValid.filter(v => !v.unique_value).map(v => v.part_number) } }
+          ]
+        },
       });
-      const existingSet = new Set(existing.map((e) => e.part_number));
-      for (const v of valid) (existingSet.has(v.part_number) ? updated++ : inserted++);
+      const existingSet = new Set(existing.map((e) => e.unique_value || e.part_number));
+      for (const v of uniqueValid) (existingSet.has(v.unique_value || v.part_number) ? updated++ : inserted++);
 
       try {
-        await models.parts.bulkCreate(valid, {
-          updateOnDuplicate: ["manufacturer", "oem_number", "name", "description", "category_tag", "price", "ind_price", "gar_price", "export_price", "stock", "is_oem"],
-          conflictAttributes: ["part_number"]
+        await models.parts.bulkCreate(uniqueValid, {
+          updateOnDuplicate: ["manufacturer", "oem_number", "name", "description", "category_tag", "price", "ind_price", "gar_price", "export_price", "stock", "is_oem", "part_number"],
+          conflictAttributes: ["unique_value"]
         } as any);
       } catch (error: any) {
         failed += valid.length;
@@ -357,7 +371,7 @@ export const adminListImports = createServerFn({ method: "GET" })
       order: [["created_at", "DESC"]],
       limit: 20,
     });
-    return data ?? [];
+    return (data ?? []).map((d: any) => d.get({ plain: true }));
   });
 
 export const adminGetImportErrors = createServerFn({ method: "POST" })
@@ -556,7 +570,7 @@ export const adminListUsers = createServerFn({ method: "GET" })
         total_spend: a.spend,
       };
     });
-    
+
     if (data.search && data.search.trim()) {
       const s = data.search.trim().toLowerCase();
       items = items.filter(
@@ -683,7 +697,7 @@ export const adminTopCustomersByType = createServerFn({ method: "GET" })
       attributes: ["user_id", "total"],
       where: { customer_type: data.type }
     });
-    
+
     const agg = new Map<string, { orders: number; spend: number }>();
     for (const o of orders) {
       const cur = agg.get(o.user_id) ?? { orders: 0, spend: 0 };
@@ -693,20 +707,20 @@ export const adminTopCustomersByType = createServerFn({ method: "GET" })
     }
     const sorted = Array.from(agg.entries()).sort((a, b) => b[1].spend - a[1].spend).slice(0, limit);
     const ids = sorted.map(([id]) => id);
-    
+
     const profiles = await models.profiles.findAll({
       attributes: ["id", "full_name"],
       where: { id: { [Op.in]: ids.length ? ids : ["00000000-0000-0000-0000-000000000000"] } }
     });
-    
+
     const nameById = new Map(profiles.map((p) => [p.id, p.full_name]));
-    
+
     const users = await models.users.findAll({
       attributes: ["id", "email"],
       where: { id: { [Op.in]: ids.length ? ids : ["00000000-0000-0000-0000-000000000000"] } }
     });
     const emailById = new Map<string, string>(users.filter(u => u.email).map(u => [u.id, u.email as string]));
-    
+
     return sorted.map(([id, v]) => ({
       user_id: id,
       full_name: nameById.get(id) ?? "—",
@@ -725,7 +739,7 @@ export const adminTopPartsByType = createServerFn({ method: "GET" })
       attributes: ["part_id", "part_number", "name", "quantity", "line_total"],
       where: { customer_type: data.type }
     });
-    
+
     const agg = new Map<string, { part_number: string; name: string; qty: number; revenue: number }>();
     for (const it of items) {
       const key = (it.part_id ?? it.part_number) as string;

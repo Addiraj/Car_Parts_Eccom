@@ -70,6 +70,7 @@ import { Route as AuthenticatedSalesmanIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedSalesmanAiLeadsRouteImport } from './routes/_authenticated.salesman.ai-leads'
 import { Route as AuthenticatedSalesmanCartsRouteImport } from './routes/_authenticated.salesman.carts'
 import { Route as AuthenticatedSalesmanConversationsRouteImport } from './routes/_authenticated.salesman.conversations'
+import { Route as AuthenticatedSalesmanCustomerActivityRouteImport } from './routes/_authenticated.salesman.customer-activity'
 import { Route as AuthenticatedSalesmanCustomersRouteImport } from './routes/_authenticated.salesman.customers'
 import { Route as AuthenticatedSalesmanFollowupsRouteImport } from './routes/_authenticated.salesman.followups'
 import { Route as AuthenticatedSalesmanNotificationsRouteImport } from './routes/_authenticated.salesman.notifications'
@@ -92,7 +93,9 @@ import { Route as AuthenticatedAdminAiAssistantAvatarRouteImport } from './route
 import { Route as AuthenticatedAdminAiAssistantConversationsRouteImport } from './routes/_authenticated.admin.ai-assistant.conversations'
 import { Route as AuthenticatedAdminAiAssistantLeadsRouteImport } from './routes/_authenticated.admin.ai-assistant.leads'
 import { Route as AuthenticatedAdminAiAssistantPromptsRouteImport } from './routes/_authenticated.admin.ai-assistant.prompts'
+import { Route as AuthenticatedAdminCmsBannersRouteImport } from './routes/_authenticated.admin.cms.banners'
 import { Route as AuthenticatedAdminCmsFooterRouteImport } from './routes/_authenticated.admin.cms.footer'
+import { Route as AuthenticatedAdminCmsInvoiceRouteImport } from './routes/_authenticated.admin.cms.invoice'
 import { Route as AuthenticatedAdminCmsTestimonialsRouteImport } from './routes/_authenticated.admin.cms.testimonials'
 import { Route as AuthenticatedAdminCustomersIdRouteImport } from './routes/_authenticated.admin.customers.$id'
 import { Route as AuthenticatedAdminOrdersIndexRouteImport } from './routes/_authenticated.admin.orders.index'
@@ -103,11 +106,15 @@ import { Route as AuthenticatedAdminQuotationsIdRouteImport } from './routes/_au
 import { Route as AuthenticatedAdminQuotationsNewRouteImport } from './routes/_authenticated.admin.quotations.new'
 import { Route as AuthenticatedAdminSalesmenIdRouteImport } from './routes/_authenticated.admin.salesmen.$id'
 import { Route as AuthenticatedSalesmanCustomersIdRouteImport } from './routes/_authenticated.salesman.customers.$id'
+import { Route as AuthenticatedSalesmanOrdersIdRouteImport } from './routes/_authenticated.salesman.orders.$id'
+import { Route as AuthenticatedSalesmanQuotationsIdRouteImport } from './routes/_authenticated.salesman.quotations.$id'
 import { Route as AuthenticatedSalesmanQuotationsNewRouteImport } from './routes/_authenticated.salesman.quotations.new'
 import { Route as ApiPublicAnalyticsEventsRouteImport } from './routes/api/public/analytics.events'
 import { Route as ApiPublicPromptsIntentKeyRouteImport } from './routes/api/public/prompts.$intentKey'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as AuthenticatedAdminQuotationsIdEditRouteImport } from './routes/_authenticated.admin.quotations.$id.edit'
+import { Route as ApiPublicOrdersIdPdfRouteImport } from './routes/api/public/orders.$id.pdf'
+import { Route as ApiPublicQuotationsTokenPdfRouteImport } from './routes/api/public/quotations.$token.pdf'
 import { Route as ApiPublicQuotationsTokenPrintRouteImport } from './routes/api/public/quotations.$token.print'
 import { Route as CatalogBrandModelYearEngineRouteImport } from './routes/catalog.$brand.$model.$year.$engine'
 
@@ -441,6 +448,12 @@ const AuthenticatedSalesmanConversationsRoute =
     path: '/conversations',
     getParentRoute: () => AuthenticatedSalesmanRoute,
   } as any)
+const AuthenticatedSalesmanCustomerActivityRoute =
+  AuthenticatedSalesmanCustomerActivityRouteImport.update({
+    id: '/customer-activity',
+    path: '/customer-activity',
+    getParentRoute: () => AuthenticatedSalesmanRoute,
+  } as any)
 const AuthenticatedSalesmanCustomersRoute =
   AuthenticatedSalesmanCustomersRouteImport.update({
     id: '/customers',
@@ -561,10 +574,22 @@ const AuthenticatedAdminAiAssistantPromptsRoute =
     path: '/ai-assistant/prompts',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminCmsBannersRoute =
+  AuthenticatedAdminCmsBannersRouteImport.update({
+    id: '/cms/banners',
+    path: '/cms/banners',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminCmsFooterRoute =
   AuthenticatedAdminCmsFooterRouteImport.update({
     id: '/cms/footer',
     path: '/cms/footer',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminCmsInvoiceRoute =
+  AuthenticatedAdminCmsInvoiceRouteImport.update({
+    id: '/cms/invoice',
+    path: '/cms/invoice',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminCmsTestimonialsRoute =
@@ -627,6 +652,18 @@ const AuthenticatedSalesmanCustomersIdRoute =
     path: '/$id',
     getParentRoute: () => AuthenticatedSalesmanCustomersRoute,
   } as any)
+const AuthenticatedSalesmanOrdersIdRoute =
+  AuthenticatedSalesmanOrdersIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AuthenticatedSalesmanOrdersRoute,
+  } as any)
+const AuthenticatedSalesmanQuotationsIdRoute =
+  AuthenticatedSalesmanQuotationsIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AuthenticatedSalesmanQuotationsRoute,
+  } as any)
 const AuthenticatedSalesmanQuotationsNewRoute =
   AuthenticatedSalesmanQuotationsNewRouteImport.update({
     id: '/new',
@@ -656,6 +693,17 @@ const AuthenticatedAdminQuotationsIdEditRoute =
     id: '/edit',
     path: '/edit',
     getParentRoute: () => AuthenticatedAdminQuotationsIdRoute,
+  } as any)
+const ApiPublicOrdersIdPdfRoute = ApiPublicOrdersIdPdfRouteImport.update({
+  id: '/api/public/orders/$id/pdf',
+  path: '/api/public/orders/$id/pdf',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicQuotationsTokenPdfRoute =
+  ApiPublicQuotationsTokenPdfRouteImport.update({
+    id: '/api/public/quotations/$token/pdf',
+    path: '/api/public/quotations/$token/pdf',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicQuotationsTokenPrintRoute =
   ApiPublicQuotationsTokenPrintRouteImport.update({
@@ -727,10 +775,11 @@ export interface FileRoutesByFullPath {
   '/salesman/ai-leads': typeof AuthenticatedSalesmanAiLeadsRoute
   '/salesman/carts': typeof AuthenticatedSalesmanCartsRoute
   '/salesman/conversations': typeof AuthenticatedSalesmanConversationsRoute
+  '/salesman/customer-activity': typeof AuthenticatedSalesmanCustomerActivityRoute
   '/salesman/customers': typeof AuthenticatedSalesmanCustomersRouteWithChildren
   '/salesman/followups': typeof AuthenticatedSalesmanFollowupsRoute
   '/salesman/notifications': typeof AuthenticatedSalesmanNotificationsRoute
-  '/salesman/orders': typeof AuthenticatedSalesmanOrdersRoute
+  '/salesman/orders': typeof AuthenticatedSalesmanOrdersRouteWithChildren
   '/salesman/quotations': typeof AuthenticatedSalesmanQuotationsRouteWithChildren
   '/api/ai/chat': typeof ApiAiChatRoute
   '/api/ai/did': typeof ApiAiDidRoute
@@ -753,7 +802,9 @@ export interface FileRoutesByFullPath {
   '/admin/ai-assistant/conversations': typeof AuthenticatedAdminAiAssistantConversationsRoute
   '/admin/ai-assistant/leads': typeof AuthenticatedAdminAiAssistantLeadsRoute
   '/admin/ai-assistant/prompts': typeof AuthenticatedAdminAiAssistantPromptsRoute
+  '/admin/cms/banners': typeof AuthenticatedAdminCmsBannersRoute
   '/admin/cms/footer': typeof AuthenticatedAdminCmsFooterRoute
+  '/admin/cms/invoice': typeof AuthenticatedAdminCmsInvoiceRoute
   '/admin/cms/testimonials': typeof AuthenticatedAdminCmsTestimonialsRoute
   '/admin/customers/$id': typeof AuthenticatedAdminCustomersIdRoute
   '/admin/orders/$id': typeof AuthenticatedAdminOrdersIdRoute
@@ -763,12 +814,16 @@ export interface FileRoutesByFullPath {
   '/admin/quotations/new': typeof AuthenticatedAdminQuotationsNewRoute
   '/admin/salesmen/$id': typeof AuthenticatedAdminSalesmenIdRoute
   '/salesman/customers/$id': typeof AuthenticatedSalesmanCustomersIdRoute
+  '/salesman/orders/$id': typeof AuthenticatedSalesmanOrdersIdRoute
+  '/salesman/quotations/$id': typeof AuthenticatedSalesmanQuotationsIdRoute
   '/salesman/quotations/new': typeof AuthenticatedSalesmanQuotationsNewRoute
   '/api/public/analytics/events': typeof ApiPublicAnalyticsEventsRoute
   '/api/public/prompts/$intentKey': typeof ApiPublicPromptsIntentKeyRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/admin/orders/': typeof AuthenticatedAdminOrdersIndexRoute
   '/admin/quotations/$id/edit': typeof AuthenticatedAdminQuotationsIdEditRoute
+  '/api/public/orders/$id/pdf': typeof ApiPublicOrdersIdPdfRoute
+  '/api/public/quotations/$token/pdf': typeof ApiPublicQuotationsTokenPdfRoute
   '/api/public/quotations/$token/print': typeof ApiPublicQuotationsTokenPrintRoute
   '/catalog/$brand/$model/$year/$engine': typeof CatalogBrandModelYearEngineRoute
 }
@@ -825,10 +880,11 @@ export interface FileRoutesByTo {
   '/salesman/ai-leads': typeof AuthenticatedSalesmanAiLeadsRoute
   '/salesman/carts': typeof AuthenticatedSalesmanCartsRoute
   '/salesman/conversations': typeof AuthenticatedSalesmanConversationsRoute
+  '/salesman/customer-activity': typeof AuthenticatedSalesmanCustomerActivityRoute
   '/salesman/customers': typeof AuthenticatedSalesmanCustomersRouteWithChildren
   '/salesman/followups': typeof AuthenticatedSalesmanFollowupsRoute
   '/salesman/notifications': typeof AuthenticatedSalesmanNotificationsRoute
-  '/salesman/orders': typeof AuthenticatedSalesmanOrdersRoute
+  '/salesman/orders': typeof AuthenticatedSalesmanOrdersRouteWithChildren
   '/salesman/quotations': typeof AuthenticatedSalesmanQuotationsRouteWithChildren
   '/api/ai/chat': typeof ApiAiChatRoute
   '/api/ai/did': typeof ApiAiDidRoute
@@ -851,7 +907,9 @@ export interface FileRoutesByTo {
   '/admin/ai-assistant/conversations': typeof AuthenticatedAdminAiAssistantConversationsRoute
   '/admin/ai-assistant/leads': typeof AuthenticatedAdminAiAssistantLeadsRoute
   '/admin/ai-assistant/prompts': typeof AuthenticatedAdminAiAssistantPromptsRoute
+  '/admin/cms/banners': typeof AuthenticatedAdminCmsBannersRoute
   '/admin/cms/footer': typeof AuthenticatedAdminCmsFooterRoute
+  '/admin/cms/invoice': typeof AuthenticatedAdminCmsInvoiceRoute
   '/admin/cms/testimonials': typeof AuthenticatedAdminCmsTestimonialsRoute
   '/admin/customers/$id': typeof AuthenticatedAdminCustomersIdRoute
   '/admin/orders/$id': typeof AuthenticatedAdminOrdersIdRoute
@@ -861,12 +919,16 @@ export interface FileRoutesByTo {
   '/admin/quotations/new': typeof AuthenticatedAdminQuotationsNewRoute
   '/admin/salesmen/$id': typeof AuthenticatedAdminSalesmenIdRoute
   '/salesman/customers/$id': typeof AuthenticatedSalesmanCustomersIdRoute
+  '/salesman/orders/$id': typeof AuthenticatedSalesmanOrdersIdRoute
+  '/salesman/quotations/$id': typeof AuthenticatedSalesmanQuotationsIdRoute
   '/salesman/quotations/new': typeof AuthenticatedSalesmanQuotationsNewRoute
   '/api/public/analytics/events': typeof ApiPublicAnalyticsEventsRoute
   '/api/public/prompts/$intentKey': typeof ApiPublicPromptsIntentKeyRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/admin/orders': typeof AuthenticatedAdminOrdersIndexRoute
   '/admin/quotations/$id/edit': typeof AuthenticatedAdminQuotationsIdEditRoute
+  '/api/public/orders/$id/pdf': typeof ApiPublicOrdersIdPdfRoute
+  '/api/public/quotations/$token/pdf': typeof ApiPublicQuotationsTokenPdfRoute
   '/api/public/quotations/$token/print': typeof ApiPublicQuotationsTokenPrintRoute
   '/catalog/$brand/$model/$year/$engine': typeof CatalogBrandModelYearEngineRoute
 }
@@ -929,10 +991,11 @@ export interface FileRoutesById {
   '/_authenticated/salesman/ai-leads': typeof AuthenticatedSalesmanAiLeadsRoute
   '/_authenticated/salesman/carts': typeof AuthenticatedSalesmanCartsRoute
   '/_authenticated/salesman/conversations': typeof AuthenticatedSalesmanConversationsRoute
+  '/_authenticated/salesman/customer-activity': typeof AuthenticatedSalesmanCustomerActivityRoute
   '/_authenticated/salesman/customers': typeof AuthenticatedSalesmanCustomersRouteWithChildren
   '/_authenticated/salesman/followups': typeof AuthenticatedSalesmanFollowupsRoute
   '/_authenticated/salesman/notifications': typeof AuthenticatedSalesmanNotificationsRoute
-  '/_authenticated/salesman/orders': typeof AuthenticatedSalesmanOrdersRoute
+  '/_authenticated/salesman/orders': typeof AuthenticatedSalesmanOrdersRouteWithChildren
   '/_authenticated/salesman/quotations': typeof AuthenticatedSalesmanQuotationsRouteWithChildren
   '/api/ai/chat': typeof ApiAiChatRoute
   '/api/ai/did': typeof ApiAiDidRoute
@@ -955,7 +1018,9 @@ export interface FileRoutesById {
   '/_authenticated/admin/ai-assistant/conversations': typeof AuthenticatedAdminAiAssistantConversationsRoute
   '/_authenticated/admin/ai-assistant/leads': typeof AuthenticatedAdminAiAssistantLeadsRoute
   '/_authenticated/admin/ai-assistant/prompts': typeof AuthenticatedAdminAiAssistantPromptsRoute
+  '/_authenticated/admin/cms/banners': typeof AuthenticatedAdminCmsBannersRoute
   '/_authenticated/admin/cms/footer': typeof AuthenticatedAdminCmsFooterRoute
+  '/_authenticated/admin/cms/invoice': typeof AuthenticatedAdminCmsInvoiceRoute
   '/_authenticated/admin/cms/testimonials': typeof AuthenticatedAdminCmsTestimonialsRoute
   '/_authenticated/admin/customers/$id': typeof AuthenticatedAdminCustomersIdRoute
   '/_authenticated/admin/orders/$id': typeof AuthenticatedAdminOrdersIdRoute
@@ -965,12 +1030,16 @@ export interface FileRoutesById {
   '/_authenticated/admin/quotations/new': typeof AuthenticatedAdminQuotationsNewRoute
   '/_authenticated/admin/salesmen/$id': typeof AuthenticatedAdminSalesmenIdRoute
   '/_authenticated/salesman/customers/$id': typeof AuthenticatedSalesmanCustomersIdRoute
+  '/_authenticated/salesman/orders/$id': typeof AuthenticatedSalesmanOrdersIdRoute
+  '/_authenticated/salesman/quotations/$id': typeof AuthenticatedSalesmanQuotationsIdRoute
   '/_authenticated/salesman/quotations/new': typeof AuthenticatedSalesmanQuotationsNewRoute
   '/api/public/analytics/events': typeof ApiPublicAnalyticsEventsRoute
   '/api/public/prompts/$intentKey': typeof ApiPublicPromptsIntentKeyRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/_authenticated/admin/orders/': typeof AuthenticatedAdminOrdersIndexRoute
   '/_authenticated/admin/quotations/$id/edit': typeof AuthenticatedAdminQuotationsIdEditRoute
+  '/api/public/orders/$id/pdf': typeof ApiPublicOrdersIdPdfRoute
+  '/api/public/quotations/$token/pdf': typeof ApiPublicQuotationsTokenPdfRoute
   '/api/public/quotations/$token/print': typeof ApiPublicQuotationsTokenPrintRoute
   '/catalog/$brand/$model/$year/$engine': typeof CatalogBrandModelYearEngineRoute
 }
@@ -1033,6 +1102,7 @@ export interface FileRouteTypes {
     | '/salesman/ai-leads'
     | '/salesman/carts'
     | '/salesman/conversations'
+    | '/salesman/customer-activity'
     | '/salesman/customers'
     | '/salesman/followups'
     | '/salesman/notifications'
@@ -1059,7 +1129,9 @@ export interface FileRouteTypes {
     | '/admin/ai-assistant/conversations'
     | '/admin/ai-assistant/leads'
     | '/admin/ai-assistant/prompts'
+    | '/admin/cms/banners'
     | '/admin/cms/footer'
+    | '/admin/cms/invoice'
     | '/admin/cms/testimonials'
     | '/admin/customers/$id'
     | '/admin/orders/$id'
@@ -1069,12 +1141,16 @@ export interface FileRouteTypes {
     | '/admin/quotations/new'
     | '/admin/salesmen/$id'
     | '/salesman/customers/$id'
+    | '/salesman/orders/$id'
+    | '/salesman/quotations/$id'
     | '/salesman/quotations/new'
     | '/api/public/analytics/events'
     | '/api/public/prompts/$intentKey'
     | '/lovable/email/queue/process'
     | '/admin/orders/'
     | '/admin/quotations/$id/edit'
+    | '/api/public/orders/$id/pdf'
+    | '/api/public/quotations/$token/pdf'
     | '/api/public/quotations/$token/print'
     | '/catalog/$brand/$model/$year/$engine'
   fileRoutesByTo: FileRoutesByTo
@@ -1131,6 +1207,7 @@ export interface FileRouteTypes {
     | '/salesman/ai-leads'
     | '/salesman/carts'
     | '/salesman/conversations'
+    | '/salesman/customer-activity'
     | '/salesman/customers'
     | '/salesman/followups'
     | '/salesman/notifications'
@@ -1157,7 +1234,9 @@ export interface FileRouteTypes {
     | '/admin/ai-assistant/conversations'
     | '/admin/ai-assistant/leads'
     | '/admin/ai-assistant/prompts'
+    | '/admin/cms/banners'
     | '/admin/cms/footer'
+    | '/admin/cms/invoice'
     | '/admin/cms/testimonials'
     | '/admin/customers/$id'
     | '/admin/orders/$id'
@@ -1167,12 +1246,16 @@ export interface FileRouteTypes {
     | '/admin/quotations/new'
     | '/admin/salesmen/$id'
     | '/salesman/customers/$id'
+    | '/salesman/orders/$id'
+    | '/salesman/quotations/$id'
     | '/salesman/quotations/new'
     | '/api/public/analytics/events'
     | '/api/public/prompts/$intentKey'
     | '/lovable/email/queue/process'
     | '/admin/orders'
     | '/admin/quotations/$id/edit'
+    | '/api/public/orders/$id/pdf'
+    | '/api/public/quotations/$token/pdf'
     | '/api/public/quotations/$token/print'
     | '/catalog/$brand/$model/$year/$engine'
   id:
@@ -1234,6 +1317,7 @@ export interface FileRouteTypes {
     | '/_authenticated/salesman/ai-leads'
     | '/_authenticated/salesman/carts'
     | '/_authenticated/salesman/conversations'
+    | '/_authenticated/salesman/customer-activity'
     | '/_authenticated/salesman/customers'
     | '/_authenticated/salesman/followups'
     | '/_authenticated/salesman/notifications'
@@ -1260,7 +1344,9 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/ai-assistant/conversations'
     | '/_authenticated/admin/ai-assistant/leads'
     | '/_authenticated/admin/ai-assistant/prompts'
+    | '/_authenticated/admin/cms/banners'
     | '/_authenticated/admin/cms/footer'
+    | '/_authenticated/admin/cms/invoice'
     | '/_authenticated/admin/cms/testimonials'
     | '/_authenticated/admin/customers/$id'
     | '/_authenticated/admin/orders/$id'
@@ -1270,12 +1356,16 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/quotations/new'
     | '/_authenticated/admin/salesmen/$id'
     | '/_authenticated/salesman/customers/$id'
+    | '/_authenticated/salesman/orders/$id'
+    | '/_authenticated/salesman/quotations/$id'
     | '/_authenticated/salesman/quotations/new'
     | '/api/public/analytics/events'
     | '/api/public/prompts/$intentKey'
     | '/lovable/email/queue/process'
     | '/_authenticated/admin/orders/'
     | '/_authenticated/admin/quotations/$id/edit'
+    | '/api/public/orders/$id/pdf'
+    | '/api/public/quotations/$token/pdf'
     | '/api/public/quotations/$token/print'
     | '/catalog/$brand/$model/$year/$engine'
   fileRoutesById: FileRoutesById
@@ -1317,6 +1407,8 @@ export interface RootRouteChildren {
   ApiPublicAnalyticsEventsRoute: typeof ApiPublicAnalyticsEventsRoute
   ApiPublicPromptsIntentKeyRoute: typeof ApiPublicPromptsIntentKeyRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
+  ApiPublicOrdersIdPdfRoute: typeof ApiPublicOrdersIdPdfRoute
+  ApiPublicQuotationsTokenPdfRoute: typeof ApiPublicQuotationsTokenPdfRoute
   ApiPublicQuotationsTokenPrintRoute: typeof ApiPublicQuotationsTokenPrintRoute
 }
 
@@ -1749,6 +1841,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSalesmanConversationsRouteImport
       parentRoute: typeof AuthenticatedSalesmanRoute
     }
+    '/_authenticated/salesman/customer-activity': {
+      id: '/_authenticated/salesman/customer-activity'
+      path: '/customer-activity'
+      fullPath: '/salesman/customer-activity'
+      preLoaderRoute: typeof AuthenticatedSalesmanCustomerActivityRouteImport
+      parentRoute: typeof AuthenticatedSalesmanRoute
+    }
     '/_authenticated/salesman/customers': {
       id: '/_authenticated/salesman/customers'
       path: '/customers'
@@ -1903,11 +2002,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAiAssistantPromptsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/cms/banners': {
+      id: '/_authenticated/admin/cms/banners'
+      path: '/cms/banners'
+      fullPath: '/admin/cms/banners'
+      preLoaderRoute: typeof AuthenticatedAdminCmsBannersRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/cms/footer': {
       id: '/_authenticated/admin/cms/footer'
       path: '/cms/footer'
       fullPath: '/admin/cms/footer'
       preLoaderRoute: typeof AuthenticatedAdminCmsFooterRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/cms/invoice': {
+      id: '/_authenticated/admin/cms/invoice'
+      path: '/cms/invoice'
+      fullPath: '/admin/cms/invoice'
+      preLoaderRoute: typeof AuthenticatedAdminCmsInvoiceRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/cms/testimonials': {
@@ -1980,6 +2093,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSalesmanCustomersIdRouteImport
       parentRoute: typeof AuthenticatedSalesmanCustomersRoute
     }
+    '/_authenticated/salesman/orders/$id': {
+      id: '/_authenticated/salesman/orders/$id'
+      path: '/$id'
+      fullPath: '/salesman/orders/$id'
+      preLoaderRoute: typeof AuthenticatedSalesmanOrdersIdRouteImport
+      parentRoute: typeof AuthenticatedSalesmanOrdersRoute
+    }
+    '/_authenticated/salesman/quotations/$id': {
+      id: '/_authenticated/salesman/quotations/$id'
+      path: '/$id'
+      fullPath: '/salesman/quotations/$id'
+      preLoaderRoute: typeof AuthenticatedSalesmanQuotationsIdRouteImport
+      parentRoute: typeof AuthenticatedSalesmanQuotationsRoute
+    }
     '/_authenticated/salesman/quotations/new': {
       id: '/_authenticated/salesman/quotations/new'
       path: '/new'
@@ -2014,6 +2141,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/quotations/$id/edit'
       preLoaderRoute: typeof AuthenticatedAdminQuotationsIdEditRouteImport
       parentRoute: typeof AuthenticatedAdminQuotationsIdRoute
+    }
+    '/api/public/orders/$id/pdf': {
+      id: '/api/public/orders/$id/pdf'
+      path: '/api/public/orders/$id/pdf'
+      fullPath: '/api/public/orders/$id/pdf'
+      preLoaderRoute: typeof ApiPublicOrdersIdPdfRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/quotations/$token/pdf': {
+      id: '/api/public/quotations/$token/pdf'
+      path: '/api/public/quotations/$token/pdf'
+      fullPath: '/api/public/quotations/$token/pdf'
+      preLoaderRoute: typeof ApiPublicQuotationsTokenPdfRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/quotations/$token/print': {
       id: '/api/public/quotations/$token/print'
@@ -2137,7 +2278,9 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAiAssistantConversationsRoute: typeof AuthenticatedAdminAiAssistantConversationsRoute
   AuthenticatedAdminAiAssistantLeadsRoute: typeof AuthenticatedAdminAiAssistantLeadsRoute
   AuthenticatedAdminAiAssistantPromptsRoute: typeof AuthenticatedAdminAiAssistantPromptsRoute
+  AuthenticatedAdminCmsBannersRoute: typeof AuthenticatedAdminCmsBannersRoute
   AuthenticatedAdminCmsFooterRoute: typeof AuthenticatedAdminCmsFooterRoute
+  AuthenticatedAdminCmsInvoiceRoute: typeof AuthenticatedAdminCmsInvoiceRoute
   AuthenticatedAdminCmsTestimonialsRoute: typeof AuthenticatedAdminCmsTestimonialsRoute
   AuthenticatedAdminCustomersIdRoute: typeof AuthenticatedAdminCustomersIdRoute
   AuthenticatedAdminOrdersIdRoute: typeof AuthenticatedAdminOrdersIdRoute
@@ -2180,7 +2323,9 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminAiAssistantLeadsRoute,
   AuthenticatedAdminAiAssistantPromptsRoute:
     AuthenticatedAdminAiAssistantPromptsRoute,
+  AuthenticatedAdminCmsBannersRoute: AuthenticatedAdminCmsBannersRoute,
   AuthenticatedAdminCmsFooterRoute: AuthenticatedAdminCmsFooterRoute,
+  AuthenticatedAdminCmsInvoiceRoute: AuthenticatedAdminCmsInvoiceRoute,
   AuthenticatedAdminCmsTestimonialsRoute:
     AuthenticatedAdminCmsTestimonialsRoute,
   AuthenticatedAdminCustomersIdRoute: AuthenticatedAdminCustomersIdRoute,
@@ -2206,12 +2351,29 @@ const AuthenticatedSalesmanCustomersRouteWithChildren =
     AuthenticatedSalesmanCustomersRouteChildren,
   )
 
+interface AuthenticatedSalesmanOrdersRouteChildren {
+  AuthenticatedSalesmanOrdersIdRoute: typeof AuthenticatedSalesmanOrdersIdRoute
+}
+
+const AuthenticatedSalesmanOrdersRouteChildren: AuthenticatedSalesmanOrdersRouteChildren =
+  {
+    AuthenticatedSalesmanOrdersIdRoute: AuthenticatedSalesmanOrdersIdRoute,
+  }
+
+const AuthenticatedSalesmanOrdersRouteWithChildren =
+  AuthenticatedSalesmanOrdersRoute._addFileChildren(
+    AuthenticatedSalesmanOrdersRouteChildren,
+  )
+
 interface AuthenticatedSalesmanQuotationsRouteChildren {
+  AuthenticatedSalesmanQuotationsIdRoute: typeof AuthenticatedSalesmanQuotationsIdRoute
   AuthenticatedSalesmanQuotationsNewRoute: typeof AuthenticatedSalesmanQuotationsNewRoute
 }
 
 const AuthenticatedSalesmanQuotationsRouteChildren: AuthenticatedSalesmanQuotationsRouteChildren =
   {
+    AuthenticatedSalesmanQuotationsIdRoute:
+      AuthenticatedSalesmanQuotationsIdRoute,
     AuthenticatedSalesmanQuotationsNewRoute:
       AuthenticatedSalesmanQuotationsNewRoute,
   }
@@ -2225,10 +2387,11 @@ interface AuthenticatedSalesmanRouteChildren {
   AuthenticatedSalesmanAiLeadsRoute: typeof AuthenticatedSalesmanAiLeadsRoute
   AuthenticatedSalesmanCartsRoute: typeof AuthenticatedSalesmanCartsRoute
   AuthenticatedSalesmanConversationsRoute: typeof AuthenticatedSalesmanConversationsRoute
+  AuthenticatedSalesmanCustomerActivityRoute: typeof AuthenticatedSalesmanCustomerActivityRoute
   AuthenticatedSalesmanCustomersRoute: typeof AuthenticatedSalesmanCustomersRouteWithChildren
   AuthenticatedSalesmanFollowupsRoute: typeof AuthenticatedSalesmanFollowupsRoute
   AuthenticatedSalesmanNotificationsRoute: typeof AuthenticatedSalesmanNotificationsRoute
-  AuthenticatedSalesmanOrdersRoute: typeof AuthenticatedSalesmanOrdersRoute
+  AuthenticatedSalesmanOrdersRoute: typeof AuthenticatedSalesmanOrdersRouteWithChildren
   AuthenticatedSalesmanQuotationsRoute: typeof AuthenticatedSalesmanQuotationsRouteWithChildren
   AuthenticatedSalesmanIndexRoute: typeof AuthenticatedSalesmanIndexRoute
 }
@@ -2238,12 +2401,15 @@ const AuthenticatedSalesmanRouteChildren: AuthenticatedSalesmanRouteChildren = {
   AuthenticatedSalesmanCartsRoute: AuthenticatedSalesmanCartsRoute,
   AuthenticatedSalesmanConversationsRoute:
     AuthenticatedSalesmanConversationsRoute,
+  AuthenticatedSalesmanCustomerActivityRoute:
+    AuthenticatedSalesmanCustomerActivityRoute,
   AuthenticatedSalesmanCustomersRoute:
     AuthenticatedSalesmanCustomersRouteWithChildren,
   AuthenticatedSalesmanFollowupsRoute: AuthenticatedSalesmanFollowupsRoute,
   AuthenticatedSalesmanNotificationsRoute:
     AuthenticatedSalesmanNotificationsRoute,
-  AuthenticatedSalesmanOrdersRoute: AuthenticatedSalesmanOrdersRoute,
+  AuthenticatedSalesmanOrdersRoute:
+    AuthenticatedSalesmanOrdersRouteWithChildren,
   AuthenticatedSalesmanQuotationsRoute:
     AuthenticatedSalesmanQuotationsRouteWithChildren,
   AuthenticatedSalesmanIndexRoute: AuthenticatedSalesmanIndexRoute,
@@ -2361,6 +2527,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAnalyticsEventsRoute: ApiPublicAnalyticsEventsRoute,
   ApiPublicPromptsIntentKeyRoute: ApiPublicPromptsIntentKeyRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
+  ApiPublicOrdersIdPdfRoute: ApiPublicOrdersIdPdfRoute,
+  ApiPublicQuotationsTokenPdfRoute: ApiPublicQuotationsTokenPdfRoute,
   ApiPublicQuotationsTokenPrintRoute: ApiPublicQuotationsTokenPrintRoute,
 }
 export const routeTree = rootRouteImport

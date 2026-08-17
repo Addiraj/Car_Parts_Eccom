@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { useAuth } from "@/hooks/use-auth";
+import { useServerFn } from "@tanstack/react-start";
+import { listThreads, createThread, deleteThread as deleteThreadFn } from "@/lib/ai-chat.functions";
 
 type Thread = { id: string; title: string };
 
@@ -27,6 +29,10 @@ export function AssistantLauncher() {
   const [showAuthDialog, setShowAuthDialog] = React.useState(false);
   const auth = useAuth();
   const navigate = useNavigate();
+
+  const fetchListThreads = useServerFn(listThreads);
+  const fetchCreateThread = useServerFn(createThread);
+  const fetchDeleteThread = useServerFn(deleteThreadFn);
 
   React.useEffect(() => setMounted(true), []);
 
@@ -44,39 +50,43 @@ export function AssistantLauncher() {
 
   const refresh = React.useCallback(async () => {
     if (!currentUserId) { setThreads([]); return; }
-    const { data } = await supabase
-      .from("ai_chat_threads")
-      .select("id, title, vehicle_context")
-      .order("last_message_at", { ascending: false })
-      .limit(80);
-    const filtered = (data ?? []).filter((t: any) => {
-      const src = (t.vehicle_context as any)?.source;
-      return src !== "avatar";
-    });
-    setThreads(filtered.map((t: any) => ({ id: t.id, title: t.title })) as Thread[]);
-  }, [currentUserId]);
+    try {
+      const data = await fetchListThreads();
+      const filtered = (data ?? []).filter((t: any) => {
+        const src = (t.vehicle_context as any)?.source;
+        return src !== "avatar";
+      });
+      setThreads(filtered.map((t: any) => ({ id: t.id, title: t.title })) as Thread[]);
+    } catch (error) {
+      console.error(error);
+      setThreads([]);
+    }
+  }, [currentUserId, fetchListThreads]);
 
   React.useEffect(() => { if (open) refresh(); }, [open, refresh, threadId]);
 
   const newThread = async (): Promise<string | null> => {
     if (!isLoggedIn) { toast.error("Please sign in to start a conversation"); return null; }
-    const insertObj = supabaseUserId ? { user_id: supabaseUserId, title: "New conversation" } : { title: "New conversation" };
-    const { data, error } = await supabase
-      .from("ai_chat_threads")
-      .insert(insertObj as never)
-      .select("id")
-      .single();
-    if (error || !data) { toast.error(error?.message ?? "Failed to create"); return null; }
-    const id = (data as { id: string }).id;
-    setThreadId(id);
-    refresh();
-    return id;
+    try {
+      const data = await fetchCreateThread({ data: { title: "New conversation" } });
+      const id = data.id;
+      setThreadId(id);
+      refresh();
+      return id;
+    } catch (error: any) {
+      toast.error(error?.message ?? "Failed to create");
+      return null;
+    }
   };
 
   const deleteThread = async (id: string) => {
-    await supabase.from("ai_chat_threads").delete().eq("id", id);
-    if (threadId === id) setThreadId(null);
-    refresh();
+    try {
+      await fetchDeleteThread({ data: { id } });
+      if (threadId === id) setThreadId(null);
+      refresh();
+    } catch (error) {
+      toast.error("Failed to delete thread");
+    }
   };
 
   if (!mounted) return null;

@@ -1,11 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createMiddleware } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "./admin.functions";
 import { z } from "zod";
 import { models } from "@/lib/db/index.server";
 import { Op } from "@/lib/db/op.server";
+import bcrypt from "bcryptjs";
 
 async function hasRole(userId: string, role: string) {
   const r = await models.user_roles.findOne({ where: { user_id: userId, role } });
@@ -151,47 +151,55 @@ export const adminGetSalesman = createServerFn({ method: "GET" })
 
 export const adminCreateSalesman = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .validator((d: unknown) =>
-    SalesmanInput.extend({ password: z.string().min(8).max(72) }).parse(d),
+  .validator(
+    SalesmanInput.extend({ password: z.string().min(8).max(72) })
   )
   .handler(async ({ data, context }: any) => {
     const { password, ...rest } = data;
-    const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-      email: rest.email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: rest.full_name, role: "salesman" },
-    });
-    if (createErr) throw new Error(createErr.message);
-    const uid = created.user!.id;
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // mark as salesman role
-    await models.user_roles.create({ user_id: uid, role: "salesman" });
+    // Check if user already exists in PostgreSQL
+    const existingUser = await models.users.findOne({ where: { email: rest.email } });
+    let uid: string;
 
-    try {
-      await models.salesmen.create({
-        id: uid,
-        employee_id: rest.employee_id || null,
-        full_name: rest.full_name,
+    if (existingUser) {
+      uid = existingUser.id;
+    } else {
+      const newUser = await models.users.create({
+        id: crypto.randomUUID(),
         email: rest.email,
-        phone: rest.phone || null,
-        photo_url: rest.photo_url || null,
-        territory: rest.territory || null,
-        joining_date: rest.joining_date || null,
-        created_by: context.userId,
-      });
-    } catch (insErr: any) {
-      // best-effort cleanup
-      try { await supabaseAdmin.auth.admin.deleteUser(uid); } catch {}
-      throw new Error(insErr.message);
+        raw_user_meta_data: { full_name: rest.full_name, role: "salesman" },
+        password_hash: hashedPassword,
+      } as any);
+      uid = newUser.id;
     }
+
+    // Assign salesman role in PostgreSQL
+    await models.user_roles.findOrCreate({
+      where: { user_id: uid, role: "salesman" },
+      defaults: { user_id: uid, role: "salesman" }
+    });
+
+    // Create salesman profile in PostgreSQL
+    await models.salesmen.create({
+      id: uid,
+      employee_id: rest.employee_id || null,
+      full_name: rest.full_name,
+      email: rest.email,
+      phone: rest.phone || null,
+      photo_url: rest.photo_url || null,
+      territory: rest.territory || null,
+      joining_date: rest.joining_date || null,
+      created_by: context.userId,
+    });
+
     return { id: uid };
   });
 
 export const adminUpdateSalesman = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .validator((d: unknown) =>
-    SalesmanInput.partial().extend({ id: z.string().uuid() }).parse(d),
+  .validator(
+    SalesmanInput.partial().extend({ id: z.string().uuid() })
   )
   .handler(async ({ data }) => {
     const { id, ...rest } = data;
@@ -203,8 +211,8 @@ export const adminUpdateSalesman = createServerFn({ method: "POST" })
 
 export const adminSetSalesmanStatus = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .validator((d: { id: string; status: "active" | "inactive" }) =>
-    z.object({ id: z.string().uuid(), status: z.enum(["active", "inactive"]) }).parse(d),
+  .validator(
+    z.object({ id: z.string().uuid(), status: z.enum(["active", "inactive"]) })
   )
   .handler(async ({ data }) => {
     await models.salesmen.update({ status: data.status }, { where: { id: data.id } });
@@ -213,22 +221,23 @@ export const adminSetSalesmanStatus = createServerFn({ method: "POST" })
 
 export const adminResetSalesmanPassword = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .validator((d: { id: string; password: string }) =>
-    z.object({ id: z.string().uuid(), password: z.string().min(8).max(72) }).parse(d),
+  .validator(
+    z.object({ id: z.string().uuid(), password: z.string().min(8).max(72) })
   )
   .handler(async ({ data }) => {
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(data.id, { password: data.password });
-    if (error) throw new Error(error.message);
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+    await models.users.update({ password_hash: hashedPassword } as any, { where: { id: data.id } });
     return { ok: true };
   });
 
 export const adminDeleteSalesman = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
-  .validator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data }) => {
     await models.customer_assignments.destroy({ where: { salesman_id: data.id } });
     await models.salesmen.destroy({ where: { id: data.id } });
-    try { await supabaseAdmin.auth.admin.deleteUser(data.id); } catch {}
+    await models.user_roles.destroy({ where: { user_id: data.id } });
+    await models.users.destroy({ where: { id: data.id } });
     return { ok: true };
   });
 
@@ -715,4 +724,146 @@ export const salesmanSearchCustomersForQuotation = createServerFn({ method: "GET
       limit: 20
     });
     return rows.map(r => r.get({ plain: true }));
+  });
+
+export const salesmanAllCustomerActivities = createServerFn({ method: "GET" })
+  .middleware([requireSalesmanOrAdmin])
+  .validator((d: { filter?: string; limit?: number }) =>
+    z.object({ filter: z.string().optional(), limit: z.number().int().min(1).max(500).optional() }).parse(d))
+  .handler(async ({ data, context }: any) => {
+    // 1. Get my customers
+    let customerIds: string[] = [];
+    if (!context.isAdmin) {
+      customerIds = await getMyCustomerIds(context.userId);
+      if (!customerIds.length) {
+        return { activities: [], stats: { activeToday: 0, partViewsToday: 0, searchesToday: 0, cartAddsToday: 0 } };
+      }
+    }
+
+    // 2. Fetch stats for today
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    
+    const todayWhere: any = { created_at: { [Op.gte]: startOfToday } };
+    if (!context.isAdmin) {
+      todayWhere.customer_id = { [Op.in]: customerIds };
+    }
+
+    const todayActivities = await models.customer_activities.findAll({
+      attributes: ["customer_id", "activity_type", "metadata"],
+      where: todayWhere
+    });
+
+    const activeCustomers = new Set<string>();
+    let partViewsToday = 0;
+    let searchesToday = 0;
+    let cartAddsToday = 0;
+
+    for (const row of todayActivities) {
+      const act = row.get({ plain: true });
+      activeCustomers.add(act.customer_id);
+      if (act.activity_type === "part_viewed") partViewsToday++;
+      if (act.activity_type === "catalog_viewed") searchesToday++; // Assuming catalog_viewed correlates with searches
+      if (act.activity_type === "cart_item_added") cartAddsToday++;
+    }
+
+    const stats = {
+      activeToday: activeCustomers.size,
+      partViewsToday,
+      searchesToday,
+      cartAddsToday
+    };
+
+    // 3. Fetch feed list with filter
+    const feedWhere: any = {};
+    if (!context.isAdmin) {
+      feedWhere.customer_id = { [Op.in]: customerIds };
+    }
+
+    if (data.filter && data.filter !== "all") {
+      switch (data.filter) {
+        case "parts-searches":
+          feedWhere.activity_type = { [Op.in]: ["part_viewed", "catalog_viewed", "wishlist_added"] };
+          break;
+        case "cart":
+          feedWhere.activity_type = { [Op.in]: ["cart_item_added", "cart_item_removed"] };
+          break;
+        case "ai":
+          feedWhere.activity_type = { [Op.in]: ["ai_prompt", "ai_vin_asked", "ai_part_asked"] };
+          break;
+        case "orders":
+          feedWhere.activity_type = { [Op.in]: ["quotation_created", "order_placed"] };
+          break;
+        case "notes-followups":
+          feedWhere.activity_type = { [Op.in]: ["note_added", "followup_created", "followup_completed", "followup_cancelled"] };
+          break;
+      }
+    }
+
+    const activitiesRows = await models.customer_activities.findAll({
+      attributes: ["id", "activity_type", "entity_type", "entity_id", "metadata", "actor_id", "created_at", "customer_id"],
+      where: feedWhere,
+      order: [["created_at", "DESC"]],
+      limit: data.limit ?? 100
+    });
+
+    const activities = activitiesRows.map(r => r.get({ plain: true }));
+
+    // 4. Resolve customer names
+    const actCustIds = Array.from(new Set(activities.map(a => a.customer_id)));
+    let namesById = new Map<string, string>();
+    if (actCustIds.length) {
+      const profsRows = await models.profiles.findAll({
+        attributes: ["id", "full_name", "company_name"],
+        where: { id: { [Op.in]: actCustIds } }
+      });
+      for (const p of profsRows) {
+        const pl = p.get({ plain: true });
+        namesById.set(pl.id, pl.company_name || pl.full_name || "Customer");
+      }
+    }
+
+    const resolvedActivities = activities.map(a => ({
+      ...a,
+      customer_name: namesById.get(a.customer_id) ?? "Unknown Customer"
+    }));
+
+    return { activities: resolvedActivities, stats };
+  });
+
+export const salesmanGetOrder = createServerFn({ method: "GET" })
+  .middleware([requireSalesmanOrAdmin])
+  .validator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }: any) => {
+    const order = await models.orders.findOne({ where: { id: data.id } });
+    if (!order) throw new Error("Order not found");
+    
+    if (!context.isAdmin) {
+      const assigned = await models.salesmen_customers.findOne({ 
+        where: { salesman_id: context.userId, customer_id: order.user_id }
+      });
+      if (!assigned) throw new Error("Forbidden");
+    }
+
+    const [items, events, profile] = await Promise.all([
+      models.order_items.findAll({ where: { order_id: data.id } }),
+      models.order_events.findAll({ where: { order_id: data.id }, order: [["created_at", "DESC"]] }),
+      order.user_id ? models.profiles.findOne({ attributes: ["id", "full_name", "customer_type", "phone"], where: { id: order.user_id } }) : Promise.resolve(null),
+    ]);
+    
+    let email: string | null = null;
+    if (order.user_id) {
+      try {
+        const u = await models.users.findOne({ where: { id: order.user_id } });
+        email = u?.email ?? null;
+      } catch {}
+    }
+    
+    return { 
+      order: order.get({ plain: true }), 
+      items: items.map(i => i.get({ plain: true })), 
+      events: events.map(e => e.get({ plain: true })), 
+      profile: profile ? profile.get({ plain: true }) : null, 
+      email 
+    };
   });

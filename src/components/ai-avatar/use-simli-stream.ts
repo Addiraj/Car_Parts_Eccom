@@ -240,6 +240,8 @@ export function useSimliStream() {
         const msg = e?.message || "Salone connect failed";
         const friendly = /max user sessions|concurrent/i.test(msg)
           ? "Salone live session limit reached. Please wait a moment and reload — an old session is still active."
+          : /INVALID_FACE_ID/i.test(msg)
+          ? "The avatar face is still processing (or invalid). If you just uploaded it, please wait a few minutes for Simli to finish processing and try again."
           : msg;
         toast.error(friendly);
         await cleanup("error");

@@ -1,11 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
+import bcrypt from "bcryptjs";
+import { models } from "./db/index.server";
 
 const DEMO_PASSWORD = "Lov@ble-Demo-2026!";
 const DEMO_ADMIN = { email: "admin@demo.cpd", password: DEMO_PASSWORD, full_name: "Demo Admin" };
 const DEMO_SUPER = { email: "superadmin@demo.cpd", password: "SuperAdmin@2026!", full_name: "Demo Super Admin" };
-
-import bcrypt from "bcryptjs";
-import { models } from "./db/index.server";
 
 async function ensureDemoUser(
   creds: { email: string; password: string; full_name: string },

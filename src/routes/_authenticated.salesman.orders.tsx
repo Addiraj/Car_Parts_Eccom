@@ -22,7 +22,7 @@ function MyOrders() {
           <tbody className="divide-y">
             {rows.map((o) => (
               <tr key={o.id}>
-                <td className="px-3 py-2 font-mono text-xs"><Link to="/admin/orders/$id" params={{ id: o.id }} className="text-primary hover:underline">{o.order_number}</Link></td>
+                <td className="px-3 py-2 font-mono text-xs"><Link to="/salesman/orders/$id" params={{ id: o.id }} className="text-primary hover:underline">{o.order_number}</Link></td>
                 <td className="px-3 py-2 text-xs capitalize">{o.status}</td>
                 <td className="px-3 py-2 text-xs">{o.payment_status ?? "—"}</td>
                 <td className="px-3 py-2 text-right font-mono">{formatAED(Number(o.total ?? 0))}</td>

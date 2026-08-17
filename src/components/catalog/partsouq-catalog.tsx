@@ -399,7 +399,7 @@ export function PartsouqCatalog({
             </ul>
           </ScrollArea>
 
-          <div className="border-t lg:border-t-0 p-4">
+          <ScrollArea className="border-t lg:border-t-0 p-4 max-h-[60vh] lg:max-h-[760px]">
             {diagrams.length === 0 ? (
               <div className="h-full min-h-[280px] flex items-center justify-center text-sm text-muted-foreground">
                 No diagrams available
@@ -417,7 +417,7 @@ export function PartsouqCatalog({
                 ))}
               </div>
             )}
-          </div>
+          </ScrollArea>
         </div>
       )}
 

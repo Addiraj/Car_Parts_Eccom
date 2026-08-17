@@ -55,8 +55,10 @@ const navGroups: Array<{ labelKey: string; items: NavItem[]; superOnly?: boolean
   ]},
 
   { labelKey: "adminGroup.cms", superOnly: true, items: [
+    { to: "/admin/cms/banners", labelKey: "admin.cmsBanners", icon: ImageIcon },
     { to: "/admin/cms/testimonials", labelKey: "admin.cmsTestimonials", icon: MessageSquareQuote },
     { to: "/admin/cms/footer", labelKey: "admin.cmsFooter", icon: PanelBottom },
+    { to: "/admin/cms/invoice", labelKey: "admin.cmsInvoice", icon: FileText },
   ]},
   { labelKey: "adminGroup.ai", items: [
     { to: "/admin/ai-assistant/conversations", labelKey: "admin.aiConversations", icon: MessagesSquare },

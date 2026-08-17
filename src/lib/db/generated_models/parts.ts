@@ -35,11 +35,12 @@ export interface partsAttributes {
   gar_price?: number;
   export_price?: number;
   low_stock_threshold: number;
+  unique_value?: string;
 }
 
 export type partsPk = "id";
 export type partsId = parts[partsPk];
-export type partsOptionalAttributes = "id" | "oem_number" | "description" | "specs" | "price" | "currency" | "stock" | "brand_id" | "manufacturer" | "is_oem" | "category_id" | "images" | "search_vec" | "created_at" | "updated_at" | "category_tag" | "ind_price" | "gar_price" | "export_price" | "low_stock_threshold";
+export type partsOptionalAttributes = "id" | "oem_number" | "description" | "specs" | "price" | "currency" | "stock" | "brand_id" | "manufacturer" | "is_oem" | "category_id" | "images" | "search_vec" | "created_at" | "updated_at" | "category_tag" | "ind_price" | "gar_price" | "export_price" | "low_stock_threshold" | "unique_value";
 export type partsCreationAttributes = Optional<partsAttributes, partsOptionalAttributes>;
 
 export class parts extends Model<partsAttributes, partsCreationAttributes> implements partsAttributes {
@@ -55,16 +56,12 @@ export class parts extends Model<partsAttributes, partsCreationAttributes> imple
   brand_id?: string;
   manufacturer?: string;
   is_oem!: boolean;
-  category_id?: string;
-  images!: string[];
-  search_vec?: any;
-  created_at!: Date;
-  updated_at!: Date;
   category_tag?: string;
   ind_price?: number;
   gar_price?: number;
   export_price?: number;
   low_stock_threshold!: number;
+  unique_value?: string;
 
   // parts belongsTo brands via brand_id
   brand!: brands;
@@ -295,6 +292,11 @@ export class parts extends Model<partsAttributes, partsCreationAttributes> imple
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 5
+    },
+    unique_value: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      unique: "parts_unique_value_key"
     }
   }, {
     sequelize,
@@ -360,10 +362,10 @@ export class parts extends Model<partsAttributes, partsCreationAttributes> imple
         ]
       },
       {
-        name: "parts_part_number_uq",
+        name: "parts_unique_value_key",
         unique: true,
         fields: [
-          { name: "part_number" },
+          { name: "unique_value" },
         ]
       },
       {

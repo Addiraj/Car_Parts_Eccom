@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Printer, Truck, RefreshCcw, Save } from "lucide-react";
+import { ArrowLeft, Printer, Truck, RefreshCcw, Save, Download } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/orders/$id")({
   component: AdminOrderDetail,
@@ -122,7 +122,10 @@ function AdminOrderDetail() {
           <ArrowLeft className="h-4 w-4" /> Back
         </Link>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => window.print()}><Printer className="mr-1 h-4 w-4" /> Print invoice</Button>
+          <Button variant="outline" onClick={() => window.print()}><Printer className="mr-1 h-4 w-4" /> Print</Button>
+          <a href={`/api/public/orders/${o.id}/pdf`} target="_blank" rel="noreferrer" download>
+            <Button variant="outline"><Download className="mr-1 h-4 w-4" /> Download PDF</Button>
+          </a>
           {o.status !== "refunded" && o.status !== "cancelled" && (
             <Button variant="outline" onClick={() => setRefundOpen(true)}><RefreshCcw className="mr-1 h-4 w-4" /> Refund</Button>
           )}

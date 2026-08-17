@@ -36,7 +36,7 @@ export class site_settings extends Model<site_settingsAttributes, site_settingsC
     schema: 'public',
     hasTrigger: true,
     timestamps: true,
-    createdAt: "created_at",
+    createdAt: false,
     updatedAt: "updated_at",
     indexes: [
       {

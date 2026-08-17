@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
@@ -32,6 +33,7 @@ const Schema = z.object({
 function ContactPage() {
   const { t } = useI18n();
   const { user } = useAuth();
+  const submitContactFn = useServerFn(submitContact);
   const [form, setForm] = useState({ name: "", email: "", phone: "", subject: "", message: "" });
 
   useEffect(() => {
@@ -46,7 +48,7 @@ function ContactPage() {
 
   const mut = useMutation({
     mutationFn: (data: { name: string; email: string; phone?: string | null; subject: string; message: string }) =>
-      submitContact({ data }),
+      submitContactFn({ data }),
     onSuccess: () => {
       toast.success(t("contactSuccess"));
       setForm({ name: user?.email ? form.name : "", email: user?.email || "", phone: "", subject: "", message: "" });

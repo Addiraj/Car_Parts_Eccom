@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -53,31 +54,37 @@ const blank = (): EditorState => ({
 
 function AdminOffersPage() {
   const qc = useQueryClient();
+  const listOffersFn = useServerFn(adminListOffers);
+  const getOfferFn = useServerFn(adminGetOffer);
+  const dupFn = useServerFn(adminDuplicateOffer);
+  const delFn = useServerFn(adminDeleteOffer);
+  const setStatusFn = useServerFn(adminSetOfferStatus);
+
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<OfferStatus | "all">("all");
   const [editor, setEditor] = useState<EditorState>(blank());
 
   const { data: offers = [], isLoading } = useQuery({
     queryKey: ["admin-offers", q, statusFilter],
-    queryFn: () => adminListOffers({ data: { q, status: statusFilter } }),
+    queryFn: () => listOffersFn({ data: { q, status: statusFilter } }),
   });
 
   const dup = useMutation({
-    mutationFn: (id: string) => adminDuplicateOffer({ data: { id } }),
+    mutationFn: (id: string) => dupFn({ data: { id } }),
     onSuccess: () => { toast.success("Duplicated"); qc.invalidateQueries({ queryKey: ["admin-offers"] }); },
   });
   const del = useMutation({
-    mutationFn: (id: string) => adminDeleteOffer({ data: { id } }),
+    mutationFn: (id: string) => delFn({ data: { id } }),
     onSuccess: () => { toast.success("Deleted"); qc.invalidateQueries({ queryKey: ["admin-offers"] }); },
   });
   const setStatus = useMutation({
-    mutationFn: (v: { id: string; status: OfferStatus }) => adminSetOfferStatus({ data: v }),
+    mutationFn: (v: { id: string; status: OfferStatus }) => setStatusFn({ data: v }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-offers"] }),
   });
 
   const openCreate = () => setEditor({ ...blank(), open: true });
   const openEdit = async (id: string) => {
-    const row: any = await adminGetOffer({ data: { id } });
+    const row: any = await getOfferFn({ data: { id } });
     setEditor({
       open: true,
       id: row.id,
@@ -204,31 +211,45 @@ function StatusBadge({ status }: { status: OfferStatus }) {
 
 function OfferEditor({ state, setState, onClose }: { state: EditorState; setState: (s: EditorState) => void; onClose: () => void }) {
   const qc = useQueryClient();
+  const listManufacturersFn = useServerFn(adminListPartManufacturersForOffer);
+  const searchPartsFn = useServerFn(adminSearchPartsForOffer);
+  const upsertOfferFn = useServerFn(adminUpsertOffer);
+
   const upd = (patch: Partial<EditorState>) => setState({ ...state, ...patch });
   const scrollerRef = useRef<HTMLDivElement | null>(null);
 
   const { data: manufacturers = [] } = useQuery({
     queryKey: ["admin-offer-manufacturers"],
-    queryFn: () => adminListPartManufacturersForOffer(),
+    queryFn: () => listManufacturersFn(),
   });
 
   const [partQuery, setPartQuery] = useState("");
   const { data: partResults = [] } = useQuery({
     queryKey: ["admin-offer-parts", partQuery],
-    queryFn: () => adminSearchPartsForOffer({ data: { q: partQuery, limit: 30 } }),
+    queryFn: () => searchPartsFn({ data: { q: partQuery, limit: 30 } }),
   });
   const [pickedParts, setPickedParts] = useState<Map<string, { id: string; part_number: string; name: string }>>(() => {
     const m = new Map();
-    for (const id of state.product_ids) m.set(id, { id, part_number: id.slice(0, 8), name: "(loaded)" });
+    for (const id of state.product_ids) m.set(id, { id, part_number: id.slice(0, 8), name: "(selected)" });
     return m;
   });
 
-  // hydrate picked-part labels when editing
-  useMemo(() => {
-    if (state.id && state.product_ids.length && pickedParts.size && Array.from(pickedParts.values())[0]?.name === "(loaded)") {
-      adminSearchPartsForOffer({ data: { q: "", limit: 100 } });
+  // hydrate picked-part labels when results match
+  useEffect(() => {
+    if (partResults.length > 0) {
+      setPickedParts((prev) => {
+        let changed = false;
+        const next = new Map(prev);
+        for (const p of partResults) {
+          if (next.has(p.id)) {
+            next.set(p.id, { id: p.id, part_number: p.part_number, name: p.name });
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
     }
-  }, [state.id]);
+  }, [partResults]);
 
   const togglePart = (p: { id: string; part_number: string; name: string }) => {
     const m = new Map(pickedParts);
@@ -238,7 +259,7 @@ function OfferEditor({ state, setState, onClose }: { state: EditorState; setStat
   };
 
   const save = useMutation({
-    mutationFn: () => adminUpsertOffer({
+    mutationFn: () => upsertOfferFn({
       data: {
         id: state.id,
         offer_name: state.offer_name,
@@ -271,33 +292,22 @@ function OfferEditor({ state, setState, onClose }: { state: EditorState; setStat
 
   useEffect(() => {
     const prevBody = document.body.style.overflow;
-    const prevHtml = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prevBody;
-      document.documentElement.style.overflow = prevHtml;
     };
   }, []);
 
-  const scrollModal = (e: React.WheelEvent<HTMLDivElement>) => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    e.preventDefault();
-    e.stopPropagation();
-    el.scrollTop += e.deltaY;
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-background/80 p-4 backdrop-blur" onClick={onClose} onWheel={scrollModal}>
-      <div onClick={(e) => e.stopPropagation()} onWheel={scrollModal}
-        className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border bg-surface shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl border bg-surface shadow-2xl overflow-hidden">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-surface/95 px-6 py-4 backdrop-blur">
           <h2 className="text-xl font-bold">{state.id ? "Edit offer" : "New offer"}</h2>
           <button onClick={onClose} className="rounded p-1.5 hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
 
-        <div ref={scrollerRef} data-offer-modal-scroll className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
         <div className="grid gap-5 md:grid-cols-2">
           <Field label="Offer name">
             <input value={state.offer_name} onChange={(e) => upd({ offer_name: e.target.value })}
