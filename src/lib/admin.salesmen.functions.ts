@@ -162,6 +162,7 @@ export const adminCreateSalesman = createServerFn({ method: "POST" })
     const existingUser = await models.users.findOne({ where: { email: rest.email } });
     let uid: string;
 
+    let isNewUser = false;
     if (existingUser) {
       uid = existingUser.id;
     } else {
@@ -172,26 +173,34 @@ export const adminCreateSalesman = createServerFn({ method: "POST" })
         password_hash: hashedPassword,
       } as any);
       uid = newUser.id;
+      isNewUser = true;
     }
 
-    // Assign salesman role in PostgreSQL
-    await models.user_roles.findOrCreate({
-      where: { user_id: uid, role: "salesman" },
-      defaults: { user_id: uid, role: "salesman" }
-    });
+    try {
+      // Assign salesman role in PostgreSQL
+      await models.user_roles.findOrCreate({
+        where: { user_id: uid, role: "salesman" },
+        defaults: { user_id: uid, role: "salesman" }
+      });
 
-    // Create salesman profile in PostgreSQL
-    await models.salesmen.create({
-      id: uid,
-      employee_id: rest.employee_id || null,
-      full_name: rest.full_name,
-      email: rest.email,
-      phone: rest.phone || null,
-      photo_url: rest.photo_url || null,
-      territory: rest.territory || null,
-      joining_date: rest.joining_date || null,
-      created_by: context.userId,
-    });
+      // Create salesman profile in PostgreSQL
+      await models.salesmen.create({
+        id: uid,
+        employee_id: rest.employee_id || null,
+        full_name: rest.full_name,
+        email: rest.email,
+        phone: rest.phone || null,
+        photo_url: rest.photo_url || null,
+        territory: rest.territory || null,
+        joining_date: rest.joining_date || null,
+        created_by: context.userId,
+      });
+    } catch (err) {
+      if (isNewUser) {
+        await models.users.destroy({ where: { id: uid } });
+      }
+      throw err;
+    }
 
     return { id: uid };
   });
