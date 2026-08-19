@@ -53,6 +53,48 @@
         } catch (e) {}
       })();
     </script>
+    <script>
+      // Minimal Buffer shim for environments where Node Buffer is not available (mobile WebView)
+      (function () {
+        try {
+          if (typeof window.Buffer !== 'undefined') return;
+          function toBase64(bytes) {
+            var binary = '';
+            var len = bytes.length;
+            for (var i = 0; i < len; i++) binary += String.fromCharCode(bytes[i]);
+            return btoa(binary);
+          }
+          function fromBase64(b64) {
+            var binary = atob(b64);
+            var len = binary.length;
+            var bytes = new Uint8Array(len);
+            for (var i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+            return bytes;
+          }
+          var BufferShim = /** @class */ (function () {
+            function BufferShim(arr) {
+              this._arr = arr instanceof Uint8Array ? arr : new Uint8Array(arr);
+            }
+            BufferShim.from = function (input, encoding) {
+              if (encoding === 'base64') return new BufferShim(fromBase64(input));
+              if (typeof input === 'string') return new BufferShim(new TextEncoder().encode(input));
+              if (input instanceof ArrayBuffer || ArrayBuffer.isView(input)) return new BufferShim(new Uint8Array(input));
+              return new BufferShim(input);
+            };
+            BufferShim.prototype.toString = function (encoding) {
+              if (!encoding || encoding === 'utf8' || encoding === 'utf-8') return new TextDecoder().decode(this._arr);
+              if (encoding === 'base64') return toBase64(this._arr);
+              return new TextDecoder().decode(this._arr);
+            };
+            BufferShim.isBuffer = function (b) { return b && b._arr instanceof Uint8Array; };
+            return BufferShim;
+          }());
+          window.Buffer = BufferShim;
+        } catch (e) {
+          // ignore shim failures - app will still try other fallbacks
+        }
+      })();
+    </script>
   </head>
   <body class="overflow-x-hidden bg-background text-foreground antialiased select-none-touch">
     <div id="root"></div>
