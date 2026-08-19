@@ -11,7 +11,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "cap:sync": "npx cap sync android",
-    "cap:build": "cd android; .\\gradlew.bat assembleDebug"
+    "cap:build": "cd android && .\\gradlew.bat assembleDebug"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.0",
