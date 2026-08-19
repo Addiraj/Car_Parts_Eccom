@@ -1,3 +1,7 @@
+import { Buffer } from 'buffer';
+if (typeof (globalThis as any).Buffer === 'undefined') {
+  (globalThis as any).Buffer = Buffer;
+}
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
