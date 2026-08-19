@@ -1,0 +1,6 @@
+{
+  "appId": "com.addiraj.carparts",
+  "appName": "Car Parts",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
