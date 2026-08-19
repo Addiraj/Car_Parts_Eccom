@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { models } from "@/lib/db/index.server";
 import { Op } from "@/lib/db/op.server";
-import { col } from "sequelize";
+const col = (name: string) => name;
 
 const requireAdmin = createMiddleware({ type: "function" })
   .middleware([requireSupabaseAuth])

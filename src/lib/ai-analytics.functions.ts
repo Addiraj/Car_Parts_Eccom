@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "./admin.functions";
 import { models } from "@/lib/db/index.server";
-import { Op } from "sequelize";
+import { Op } from "@/lib/db/op.server";
 
 type RangeInput = { range: "30d" | "12w" | "custom"; from?: string; to?: string };
 

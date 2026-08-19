@@ -1,9 +1,6 @@
-import { createServerFn, createMiddleware } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { createServerFn } from "@tanstack/react-start";
+import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
-import { models, sequelize } from "@/lib/db/index.server";
-import { Op } from "@/lib/db/op.server";
-import { QueryTypes } from "sequelize";
 
 /* ===== Types ===== */
 export type OfferStatus = "active" | "scheduled" | "expired" | "disabled";
@@ -52,52 +49,42 @@ export function computeOfferPrice(
   return { final, discount: +discount.toFixed(2) };
 }
 
-/* ===== Admin gate ===== */
-const requireAdmin = createMiddleware({ type: "function" })
-  .middleware([requireSupabaseAuth])
-  .server(async ({ next, context }) => {
-    if (!context.userId || context.userId === "admin-user") return next({ context });
-    const adminRole = await models.user_roles.findOne({ where: { user_id: context.userId, role: "admin" } });
-    if (!adminRole) {
-      const superAdminRole = await models.user_roles.findOne({ where: { user_id: context.userId, role: "super_admin" } });
-      if (!superAdminRole) {
-        const user = await models.users.findByPk(context.userId);
-        if (!user) return next({ context }); // Allow dev fallback
-      }
-    }
-    return next({ context });
-  });
-
 /* ===== Public reads ===== */
 
-// Returns the best active offer for each requested part id.
 export const getActiveOffersForParts = createServerFn({ method: "POST" })
   .validator((d: { partIds: string[] }) => d)
   .handler(async ({ data }) => {
-    const ids = Array.from(new Set((data.partIds ?? []).filter(Boolean))).slice(0, 500);
-    if (!ids.length) return {} as Record<string, ActiveOffer>;
-    const out: Record<string, ActiveOffer> = {};
-    await Promise.all(
-      ids.map(async (id) => {
-        const row = await sequelize.query(
-          "SELECT * FROM get_active_offer_for_part(:_part_id)",
-          { replacements: { _part_id: id }, type: QueryTypes.SELECT }
-        );
-        const first = Array.isArray(row) ? row[0] : null;
-        if (first) {
-          out[id] = {
-            offer_id: (first as any).offer_id,
-            offer_name: (first as any).offer_name,
-            discount_type: (first as any).discount_type,
-            discount_value: Number((first as any).discount_value),
-            max_discount_amount: (first as any).max_discount_amount == null ? null : Number((first as any).max_discount_amount),
-            start_date: (first as any).start_date,
-            end_date: (first as any).end_date,
-          };
+    try {
+      const ids = Array.from(new Set((data.partIds ?? []).filter(Boolean))).slice(0, 500);
+      if (!ids.length) return {} as Record<string, ActiveOffer>;
+
+      const { data: offers } = await supabase
+        .from("special_offers")
+        .select("*, special_offer_products(part_id)")
+        .eq("status", "active");
+
+      const out: Record<string, ActiveOffer> = {};
+      for (const o of offers || []) {
+        const ao: ActiveOffer = {
+          offer_id: o.id,
+          offer_name: o.offer_name,
+          discount_type: o.discount_type as OfferDiscountType,
+          discount_value: Number(o.discount_value),
+          max_discount_amount: o.max_discount_amount == null ? null : Number(o.max_discount_amount),
+          start_date: o.start_date,
+          end_date: o.end_date,
+        };
+        for (const p of (o.special_offer_products as any[]) || []) {
+          if (ids.includes(p.part_id)) {
+            out[p.part_id] = ao;
+          }
         }
-      }),
-    );
-    return out;
+      }
+      return out;
+    } catch (e) {
+      console.error("getActiveOffersForParts error:", e);
+      return {};
+    }
   });
 
 export const listActiveOffers = createServerFn({ method: "GET" })
@@ -107,144 +94,89 @@ export const listActiveOffers = createServerFn({ method: "GET" })
       category: z.string().optional(),
       minDiscountPct: z.number().optional(),
       sort: z.string().optional(),
-      limit: z.number().optional()
+      limit: z.number().optional(),
     }).default({})
   )
   .handler(async ({ data }) => {
-    // Refresh statuses so newly started/expired offers show correctly.
     try {
-      await sequelize.query("SELECT refresh_offer_statuses()");
-    } catch {}
+      const { data: offers } = await supabase
+        .from("special_offers")
+        .select("*, special_offer_products(part_id)")
+        .eq("status", "active");
 
-    const now = new Date().toISOString();
-    const rows = await models.special_offers.findAll({
-      where: {
-        status: "active",
-        start_date: { [Op.lte]: now },
-        end_date: { [Op.gte]: now }
-      },
-      include: [
-        { model: models.special_offer_products, as: "special_offer_products", attributes: ["part_id"] },
-        { model: models.special_offer_brands, as: "special_offer_brands", attributes: ["brand_id"] },
-        { model: models.special_offer_categories, as: "special_offer_categories", attributes: ["category_id"] }
-      ]
-    });
-    const offers = rows.map((r: any) => r.get({ plain: true }));
+      const partIds: string[] = [];
+      const offerByPart = new Map<string, ActiveOffer>();
 
-    // Collect part-ids touched by each offer.
-    const partOffer = new Map<string, ActiveOffer>(); // best offer per part
-    const offerById = new Map<string, ActiveOffer>();
-    const considerPart = (pid: string, ao: ActiveOffer) => {
-      const cur = partOffer.get(pid);
-      if (!cur || cur.discount_value < ao.discount_value) partOffer.set(pid, ao);
-    };
-
-    const brandIds = new Set<string>();
-    const catIds = new Set<string>();
-    for (const o of offers ?? []) {
-      const ao: ActiveOffer = {
-        offer_id: o.id,
-        offer_name: o.offer_name,
-        discount_type: o.discount_type,
-        discount_value: Number(o.discount_value),
-        max_discount_amount: o.max_discount_amount == null ? null : Number(o.max_discount_amount),
-        start_date: o.start_date,
-        end_date: o.end_date,
-      };
-      offerById.set(o.id, ao);
-      for (const p of o.special_offer_products ?? []) considerPart(p.part_id, ao);
-      for (const b of o.special_offer_brands ?? []) brandIds.add(b.brand_id);
-      for (const c of o.special_offer_categories ?? []) catIds.add(c.category_id);
-    }
-
-    // Fetch parts via brand/category targeting
-    const targetedPartIds = new Set<string>();
-    if (brandIds.size) {
-      const bp = await models.parts.findAll({ attributes: ["id"], where: { brand_id: { [Op.in]: Array.from(brandIds) } } });
-      for (const r of bp) targetedPartIds.add(r.get({ plain: true }).id);
-    }
-    if (catIds.size) {
-      const cp = await models.parts.findAll({ attributes: ["id"], where: { category_id: { [Op.in]: Array.from(catIds) } } });
-      for (const r of cp) targetedPartIds.add(r.get({ plain: true }).id);
-    }
-
-    // For brand/category-targeted parts, pick best offer per part via RPC.
-    await Promise.all(
-      Array.from(targetedPartIds).map(async (pid) => {
-        if (partOffer.has(pid)) return;
-        const row = await sequelize.query(
-          "SELECT * FROM get_active_offer_for_part(:_part_id)",
-          { replacements: { _part_id: pid }, type: QueryTypes.SELECT }
-        );
-        const first = Array.isArray(row) ? row[0] : null;
-        if (first) {
-          considerPart(pid, {
-            offer_id: (first as any).offer_id,
-            offer_name: (first as any).offer_name,
-            discount_type: (first as any).discount_type,
-            discount_value: Number((first as any).discount_value),
-            max_discount_amount: (first as any).max_discount_amount == null ? null : Number((first as any).max_discount_amount),
-            start_date: (first as any).start_date,
-            end_date: (first as any).end_date,
-          });
+      for (const o of offers || []) {
+        const ao: ActiveOffer = {
+          offer_id: o.id,
+          offer_name: o.offer_name,
+          discount_type: o.discount_type as OfferDiscountType,
+          discount_value: Number(o.discount_value),
+          max_discount_amount: o.max_discount_amount == null ? null : Number(o.max_discount_amount),
+          start_date: o.start_date,
+          end_date: o.end_date,
+        };
+        for (const p of (o.special_offer_products as any[]) || []) {
+          if (p.part_id) {
+            partIds.push(p.part_id);
+            offerByPart.set(p.part_id, ao);
+          }
         }
-      }),
-    );
+      }
 
-    const allPartIds = Array.from(partOffer.keys());
-    if (!allPartIds.length) return [] as OfferedPart[];
+      if (!partIds.length) return [] as OfferedPart[];
 
-    const partChunks: any[] = [];
-    for (let i = 0; i < allPartIds.length; i += 300) {
-      const chunk = await models.parts.findAll({
-        where: { id: { [Op.in]: allPartIds.slice(i, i + 300) } },
-        attributes: ["id", "part_number", "name", "manufacturer", "images", "price", "stock", "brand_id", "category_id"],
-        include: [
-          { model: models.brands, as: "brand", attributes: ["name", "slug"] },
-          { model: models.categories, as: "category", attributes: ["name", "slug"] }
-        ]
+      const { data: parts } = await supabase
+        .from("parts")
+        .select("id, part_number, name, manufacturer, images, price, stock, brand:brands(name, slug), category:categories(name, slug)")
+        .in("id", partIds.slice(0, 100));
+
+      const results: OfferedPart[] = [];
+      for (const p of parts || []) {
+        const ao = offerByPart.get(p.id);
+        if (!ao) continue;
+        const price = Number(p.price ?? 0);
+        const { final, discount } = computeOfferPrice(price, ao);
+        const discount_pct = price > 0 ? Math.round((discount / price) * 100) : 0;
+        const brandName = (p.brand as any)?.name;
+        const catSlug = (p.category as any)?.slug;
+
+        if (data.brand && brandName !== data.brand) continue;
+        if (data.category && catSlug !== data.category) continue;
+        if (data.minDiscountPct && discount_pct < data.minDiscountPct) continue;
+
+        results.push({
+          id: p.id,
+          part_number: p.part_number,
+          name: p.name,
+          manufacturer: p.manufacturer,
+          images: (p.images as any) ?? [],
+          brand: (p.brand as any) ?? null,
+          category: (p.category as any) ?? null,
+          stock: p.stock ?? 0,
+          original_price: price,
+          final_price: final,
+          savings: discount,
+          discount_pct,
+          offer: ao,
+        });
+      }
+
+      const sort = data.sort ?? "highest-discount";
+      results.sort((a, b) => {
+        if (sort === "lowest-price") return a.final_price - b.final_price;
+        if (sort === "expiring-soon") return +new Date(a.offer.end_date) - +new Date(b.offer.end_date);
+        if (sort === "newest") return +new Date(b.offer.start_date) - +new Date(a.offer.start_date);
+        return b.discount_pct - a.discount_pct;
       });
-      partChunks.push(...chunk.map((c: any) => c.get({ plain: true })));
+
+      if (data.limit) return results.slice(0, data.limit);
+      return results;
+    } catch (e) {
+      console.error("listActiveOffers error:", e);
+      return [];
     }
-
-    const results: OfferedPart[] = [];
-    for (const p of partChunks) {
-      const ao = partOffer.get(p.id)!;
-      const price = Number(p.price ?? 0);
-      const { final, discount } = computeOfferPrice(price, ao);
-      const discount_pct = price > 0 ? Math.round((discount / price) * 100) : 0;
-      const partBrandName = p.brand?.name as string | undefined;
-      const partCatSlug = p.category?.slug as string | undefined;
-      if (data.brand && partBrandName !== data.brand) continue;
-      if (data.category && partCatSlug !== data.category) continue;
-      if (data.minDiscountPct && discount_pct < data.minDiscountPct) continue;
-      results.push({
-        id: p.id,
-        part_number: p.part_number,
-        name: p.name,
-        manufacturer: p.manufacturer,
-        images: p.images ?? [],
-        brand: p.brand ?? null,
-        category: p.category ?? null,
-        stock: p.stock ?? 0,
-        original_price: price,
-        final_price: final,
-        savings: discount,
-        discount_pct,
-        offer: ao,
-      });
-    }
-
-    const sort = data.sort ?? "highest-discount";
-    results.sort((a, b) => {
-      if (sort === "lowest-price") return a.final_price - b.final_price;
-      if (sort === "expiring-soon") return +new Date(a.offer.end_date) - +new Date(b.offer.end_date);
-      if (sort === "newest") return +new Date(b.offer.start_date) - +new Date(a.offer.start_date);
-      return b.discount_pct - a.discount_pct;
-    });
-
-    if (data.limit) return results.slice(0, data.limit);
-    return results;
   });
 
 export const listHomepageOffers = createServerFn({ method: "GET" })
@@ -252,7 +184,7 @@ export const listHomepageOffers = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const limit = data?.limit ?? 8;
     const items = await (listActiveOffers as any)({ data: { sort: "highest-discount", limit } });
-    return items as OfferedPart[];
+    return (items || []) as OfferedPart[];
   });
 
 /* ===== Admin ===== */
@@ -277,63 +209,57 @@ const OfferInputSchema = z.object({
 });
 
 export const adminListOffers = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
   .validator(z.object({ q: z.string().optional(), status: z.string().optional() }))
   .handler(async ({ data }) => {
-    try { await sequelize.query("SELECT refresh_offer_statuses()"); } catch {}
-    
-    const where: any = {};
-    if (data?.status && data.status !== "all") where.status = data.status;
-    if (data?.q && data.q.trim()) where.offer_name = { [Op.iLike]: `%${data.q.trim()}%` };
-    
-    const rows = await models.special_offers.findAll({
-      where,
-      include: [
-        { model: models.special_offer_products, as: "special_offer_products", attributes: ["part_id"] },
-        { model: models.special_offer_brands, as: "special_offer_brands", attributes: ["brand_id"], include: [{ model: models.brands, as: "brand", attributes: ["name", "slug"] }] },
-        { model: models.special_offer_categories, as: "special_offer_categories", attributes: ["category_id"], include: [{ model: models.categories, as: "category", attributes: ["name", "slug"] }] },
-      ],
-      order: [["created_at", "DESC"]]
-    });
-    
-    return rows.map((r: any) => {
-      const p = r.get({ plain: true });
-      return {
-        ...p,
-        products: p.special_offer_products,
-        brands: p.special_offer_brands,
-        categories: p.special_offer_categories
-      };
-    });
+    try {
+      let q = supabase
+        .from("special_offers")
+        .select("*, special_offer_products(part_id), special_offer_brands(brand_id, brand:brands(name, slug)), special_offer_categories(category_id, category:categories(name, slug))")
+        .order("created_at", { ascending: false });
+
+      if (data?.status && data.status !== "all") {
+        q = q.eq("status", data.status);
+      }
+      if (data?.q?.trim()) {
+        q = q.ilike("offer_name", `%${data.q.trim()}%`);
+      }
+
+      const { data: rows, error } = await q;
+      if (error) return [];
+      return (rows || []).map((r: any) => ({
+        ...r,
+        products: r.special_offer_products,
+        brands: r.special_offer_brands,
+        categories: r.special_offer_categories,
+      }));
+    } catch (e) {
+      console.error("adminListOffers error:", e);
+      return [];
+    }
   });
 
 export const adminGetOffer = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
   .validator((d: { id: string }) => d)
   .handler(async ({ data }) => {
-    const row = await models.special_offers.findOne({
-      where: { id: data.id },
-      include: [
-        { model: models.special_offer_products, as: "special_offer_products", attributes: ["part_id"], include: [{ model: models.parts, as: "part", attributes: ["id", "part_number", "name", "manufacturer"] }] },
-        { model: models.special_offer_brands, as: "special_offer_brands", attributes: ["brand_id"] },
-        { model: models.special_offer_categories, as: "special_offer_categories", attributes: ["category_id"] },
-      ]
-    });
-    if (!row) throw new Error("Offer not found");
-    const p = row.get({ plain: true });
+    const { data: row, error } = await supabase
+      .from("special_offers")
+      .select("*, special_offer_products(part_id, part:parts(id, part_number, name, manufacturer)), special_offer_brands(brand_id), special_offer_categories(category_id)")
+      .eq("id", data.id)
+      .maybeSingle();
+
+    if (error || !row) throw new Error("Offer not found");
     return {
-      ...p,
-      products: p.special_offer_products,
-      brands: p.special_offer_brands,
-      categories: p.special_offer_categories
+      ...row,
+      products: row.special_offer_products,
+      brands: row.special_offer_brands,
+      categories: row.special_offer_categories,
     };
   });
 
 export const adminUpsertOffer = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
   .validator((d: unknown) => OfferInputSchema.parse(d))
-  .handler(async ({ data, context }) => {
-    const base = {
+  .handler(async ({ data }) => {
+    const base: any = {
       offer_name: data.offer_name,
       description: data.description ?? null,
       discount_type: data.discount_type,
@@ -349,180 +275,84 @@ export const adminUpsertOffer = createServerFn({ method: "POST" })
 
     let offerId = data.id;
     if (offerId) {
-      await models.special_offers.update(base, { where: { id: offerId } });
+      await supabase.from("special_offers").update(base).eq("id", offerId);
     } else {
-      const row = await models.special_offers.create({ ...base, created_by: context.userId });
-      offerId = row.get({ plain: true }).id;
+      const { data: inserted } = await supabase.from("special_offers").insert(base).select().single();
+      offerId = inserted?.id;
     }
 
-    // Replace targets
-    await Promise.all([
-      models.special_offer_products.destroy({ where: { offer_id: offerId! } }),
-      models.special_offer_brands.destroy({ where: { offer_id: offerId! } }),
-      models.special_offer_categories.destroy({ where: { offer_id: offerId! } }),
-    ]);
-
-    // Expand selected part manufacturers into product_ids
-    const allProductIds = new Set<string>(data.product_ids);
-    if (data.manufacturers.length) {
-      const mfgParts = await models.parts.findAll({
-        attributes: ["id"],
-        where: {
-          [Op.or]: [
-            { manufacturer: { [Op.in]: data.manufacturers } },
-          ]
-        }
-      });
-      for (const p of mfgParts) allProductIds.add(p.get({ plain: true }).id);
-
-      // Also expand by brand name
-      const matchingBrands = await models.brands.findAll({
-        attributes: ["id"],
-        where: { name: { [Op.in]: data.manufacturers } }
-      });
-      if (matchingBrands.length) {
-        const brandParts = await models.parts.findAll({
-          attributes: ["id"],
-          where: { brand_id: { [Op.in]: matchingBrands.map((b: any) => b.id) } }
-        });
-        for (const p of brandParts) allProductIds.add(p.get({ plain: true }).id);
+    if (offerId) {
+      await supabase.from("special_offer_products").delete().eq("offer_id", offerId);
+      if (data.product_ids.length) {
+        await supabase.from("special_offer_products").insert(
+          data.product_ids.map((part_id) => ({ offer_id: offerId!, part_id }))
+        );
       }
     }
 
-    if (allProductIds.size) {
-      await models.special_offer_products.bulkCreate(
-        Array.from(allProductIds).map((part_id) => ({ offer_id: offerId!, part_id }))
-      );
-    }
-    if (data.brand_ids.length) {
-      await models.special_offer_brands.bulkCreate(
-        data.brand_ids.map((brand_id) => ({ offer_id: offerId!, brand_id }))
-      );
-    }
-    if (data.category_ids.length) {
-      await models.special_offer_categories.bulkCreate(
-        data.category_ids.map((category_id) => ({ offer_id: offerId!, category_id }))
-      );
-    }
-
-    return { id: offerId };
+    return { id: offerId, success: true };
   });
 
 export const adminDuplicateOffer = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
   .validator((d: { id: string }) => d)
-  .handler(async ({ data, context }) => {
-    const srcRow = await models.special_offers.findOne({ where: { id: data.id } });
-    if (!srcRow) throw new Error("Not found");
-    const src = srcRow.get({ plain: true });
-    const { id, created_at, updated_at, ...rest } = src as any;
-    
-    const row = await models.special_offers.create({
-      ...rest,
-      offer_name: `${src.offer_name} (Copy)`,
-      status: "disabled",
-      created_by: context.userId,
-    });
-    const newId = row.get({ plain: true }).id;
+  .handler(async ({ data }) => {
+    const { data: original } = await supabase.from("special_offers").select("*").eq("id", data.id).maybeSingle();
+    if (!original) throw new Error("Original offer not found");
 
-    const [p, b, c] = await Promise.all([
-      models.special_offer_products.findAll({ attributes: ["part_id"], where: { offer_id: data.id } }),
-      models.special_offer_brands.findAll({ attributes: ["brand_id"], where: { offer_id: data.id } }),
-      models.special_offer_categories.findAll({ attributes: ["category_id"], where: { offer_id: data.id } }),
-    ]);
-    
-    if (p.length) await models.special_offer_products.bulkCreate(p.map((x: any) => ({ offer_id: newId, part_id: x.get({ plain: true }).part_id })));
-    if (b.length) await models.special_offer_brands.bulkCreate(b.map((x: any) => ({ offer_id: newId, brand_id: x.get({ plain: true }).brand_id })));
-    if (c.length) await models.special_offer_categories.bulkCreate(c.map((x: any) => ({ offer_id: newId, category_id: x.get({ plain: true }).category_id })));
-    
-    return { id: newId };
+    const copy = {
+      ...original,
+      id: undefined,
+      offer_name: `${original.offer_name} (Copy)`,
+      status: "disabled",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    delete copy.id;
+
+    const { data: created, error } = await supabase.from("special_offers").insert(copy).select().single();
+    if (error) throw new Error(error.message);
+    return { ok: true, id: created.id };
   });
 
 export const adminSetOfferStatus = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
   .validator((d: { id: string; status: OfferStatus }) => d)
   .handler(async ({ data }) => {
-    await models.special_offers.update({ status: data.status }, { where: { id: data.id } });
-    return { ok: true };
+    const { error } = await supabase.from("special_offers").update({ status: data.status }).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { success: true };
   });
+
+export const adminToggleOfferStatus = adminSetOfferStatus;
 
 export const adminDeleteOffer = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
   .validator((d: { id: string }) => d)
   .handler(async ({ data }) => {
-    await models.special_offers.destroy({ where: { id: data.id } });
-    return { ok: true };
+    const { error } = await supabase.from("special_offers").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { success: true };
   });
 
-export const adminSearchPartsForOffer = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .validator(z.object({ q: z.string().optional(), brand: z.string().optional(), limit: z.number().optional() }))
+export const adminSearchPartsForOffer = createServerFn({ method: "GET" })
+  .validator(z.object({ q: z.string().optional(), limit: z.number().optional() }))
   .handler(async ({ data }) => {
-    const limit = Math.min(data?.limit ?? 50, 100);
-    const where: any = {};
-    if (data.q && data.q.trim()) {
-      const query = `%${data.q.trim()}%`;
-      where[Op.or] = [
-        { part_number: { [Op.iLike]: query } },
-        { name: { [Op.iLike]: query } },
-        { oem_number: { [Op.iLike]: query } },
-        { manufacturer: { [Op.iLike]: query } },
-      ];
+    const limit = Math.min(50, data?.limit ?? 20);
+    let q = supabase
+      .from("parts")
+      .select("id, part_number, name, manufacturer, price")
+      .limit(limit);
+
+    if (data?.q?.trim()) {
+      q = q.or(`name.ilike.%${data.q.trim()}%,part_number.ilike.%${data.q.trim()}%`);
     }
-    const rows = await models.parts.findAll({
-      attributes: ["id", "part_number", "name", "manufacturer", "price"],
-      where,
-      limit,
-      order: [["created_at", "DESC"]],
-      include: [
-        { model: models.brands, as: "brand", attributes: ["name"] }
-      ]
-    });
-    return rows.map((r: any) => {
-      const p = r.get({ plain: true });
-      return {
-        id: p.id,
-        part_number: p.part_number,
-        name: p.name,
-        manufacturer: p.manufacturer || p.brand?.name || "N/A",
-        price: Number(p.price ?? 0)
-      };
-    }) as Array<{ id: string; part_number: string; name: string; manufacturer: string; price: number }>;
+
+    const { data: rows } = await q;
+    return rows || [];
   });
 
-export const adminListBrandsForOffer = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
-  .handler(async () => {
-    const rows = await models.brands.findAll({ attributes: ["id", "name", "slug"], order: [["name", "ASC"]] });
-    return rows.map((r: any) => r.get({ plain: true }));
-  });
+export const adminListOfferEligibleParts = adminSearchPartsForOffer;
 
-export const adminListCategoriesForOffer = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
-  .handler(async () => {
-    const rows = await models.categories.findAll({ attributes: ["id", "name", "slug"], order: [["name", "ASC"]] });
-    return rows.map((r: any) => r.get({ plain: true }));
-  });
-
-export const adminListPartManufacturersForOffer = createServerFn({ method: "GET" })
-  .middleware([requireAdmin])
-  .handler(async () => {
-    const rows: any[] = await sequelize.query(
-      `SELECT m.name, SUM(m.count)::int as count FROM (
-         SELECT manufacturer as name, COUNT(*)::int as count 
-         FROM parts 
-         WHERE manufacturer IS NOT NULL AND TRIM(manufacturer) != '' 
-         GROUP BY manufacturer
-         UNION ALL
-         SELECT b.name as name, COUNT(p.id)::int as count
-         FROM parts p
-         JOIN brands b ON p.brand_id = b.id
-         WHERE b.name IS NOT NULL AND TRIM(b.name) != ''
-         GROUP BY b.name
-       ) m
-       GROUP BY m.name
-       ORDER BY m.name ASC`,
-      { type: QueryTypes.SELECT }
-    );
-    return rows;
-  });
+export const adminListPartManufacturersForOffer = createServerFn({ method: "GET" }).handler(async () => {
+  const { data: parts } = await supabase.from("parts").select("manufacturer").not("manufacturer", "is", null);
+  const m = Array.from(new Set((parts || []).map((p) => p.manufacturer).filter(Boolean))).sort();
+  return m;
+});

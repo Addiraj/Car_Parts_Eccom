@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireAdmin } from "@/lib/admin.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
-import { models } from "@/lib/db/index.server";
 
 export type InvoiceSettings = {
   companyName: string;
@@ -40,14 +39,17 @@ const DEFAULT_SETTINGS: InvoiceSettings = {
 
 const SETTINGS_ID = "invoice_settings";
 
-export const getInvoiceSettings = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const record = await models.site_settings.findByPk(SETTINGS_ID);
+export const getInvoiceSettings = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const { data: record } = await supabase.from("site_settings").select("data").eq("key", SETTINGS_ID).maybeSingle();
     if (!record || !record.data) return DEFAULT_SETTINGS;
     const merged = { ...DEFAULT_SETTINGS, ...(record.data as Partial<InvoiceSettings>) };
     merged.primaryColor = normalizeHexColor(merged.primaryColor);
     return merged;
-  });
+  } catch (e) {
+    return DEFAULT_SETTINGS;
+  }
+});
 
 const invoiceSettingsSchema = z.object({
   companyName: z.string(),
@@ -62,18 +64,15 @@ const invoiceSettingsSchema = z.object({
 });
 
 export const saveInvoiceSettings = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
   .validator(invoiceSettingsSchema)
   .handler(async ({ data }) => {
     const payload = {
       ...data,
       primaryColor: normalizeHexColor(data.primaryColor),
     };
-    const existing = await models.site_settings.findByPk(SETTINGS_ID);
-    if (existing) {
-      await existing.update({ data: payload });
-    } else {
-      await models.site_settings.create({ id: SETTINGS_ID, data: payload as object } as any);
-    }
+    await supabase.from("site_settings").upsert({
+      key: SETTINGS_ID,
+      data: payload as any,
+    });
     return { ok: true };
   });

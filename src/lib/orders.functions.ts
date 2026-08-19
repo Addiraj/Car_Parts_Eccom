@@ -1,10 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { models } from "@/lib/db/index.server";
-import { Op } from "@/lib/db/op.server";
+import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 
 export const VAT_RATE = 0.05;
+
+async function getUserId(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user?.id ?? null;
+}
 
 /* ============= ADDRESSES ============= */
 
@@ -19,43 +22,59 @@ const AddressSchema = z.object({
   is_default: z.boolean().optional(),
 });
 
-export const getMyAddresses = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const addresses = await models.addresses.findAll({
-      where: { user_id: context.userId },
-      order: [
-        ["is_default", "DESC"],
-        ["created_at", "DESC"]
-      ]
-    });
-    return JSON.parse(JSON.stringify(addresses.map(a => a.get({ plain: true }))));
-  });
+export const getMyAddresses = createServerFn({ method: "GET" }).handler(async () => {
+  const userId = await getUserId();
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from("addresses")
+    .select("*")
+    .eq("user_id", userId)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) return [];
+  return data || [];
+});
 
 export const saveAddress = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .validator((d: unknown) => AddressSchema.parse(d))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
+    const userId = await getUserId();
+    if (!userId) throw new Error("Authentication required");
+
     if (data.is_default) {
-      await models.addresses.update({ is_default: false }, { where: { user_id: context.userId } });
+      await supabase.from("addresses").update({ is_default: false }).eq("user_id", userId);
     }
-    const row = await models.addresses.create({ ...data, user_id: context.userId });
-    return row.get({ plain: true });
+    const { data: row, error } = await supabase
+      .from("addresses")
+      .insert({ ...data, user_id: userId })
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return row;
   });
 
 export const deleteAddress = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .validator((d: { id: string }) => d)
-  .handler(async ({ data, context }) => {
-    await models.addresses.destroy({ where: { id: data.id, user_id: context.userId } });
+  .handler(async ({ data }) => {
+    const userId = await getUserId();
+    if (!userId) throw new Error("Authentication required");
+    const { error } = await supabase.from("addresses").delete().eq("id", data.id).eq("user_id", userId);
+    if (error) throw new Error(error.message);
     return { ok: true };
   });
 
 /* ============= SHIPPING / COUPON ============= */
 
 export const getShippingZones = createServerFn({ method: "GET" }).handler(async () => {
-  const zones = await models.shipping_zones.findAll({ order: [["emirate", "ASC"]] });
-  return zones.map(z => z.get({ plain: true }));
+  try {
+    const { data, error } = await supabase.from("shipping_zones").select("*").order("emirate", { ascending: true });
+    if (error) return [];
+    return data || [];
+  } catch (e) {
+    return [];
+  }
 });
 
 export const validateCoupon = createServerFn({ method: "POST" })
@@ -63,14 +82,22 @@ export const validateCoupon = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const code = data.code.trim().toUpperCase();
     if (!code) return { ok: false as const, error: "Enter a code" };
-    const c = await models.coupons.findOne({ where: { code: code, active: true } });
+    const { data: c } = await supabase
+      .from("coupons")
+      .select("*")
+      .eq("code", code)
+      .eq("active", true)
+      .maybeSingle();
+
     if (!c) return { ok: false as const, error: "Invalid code" };
     if (c.expires_at && new Date(c.expires_at) < new Date()) return { ok: false as const, error: "Code expired" };
     if (c.max_uses && Number(c.used_count) >= Number(c.max_uses)) return { ok: false as const, error: "Code limit reached" };
     if (Number(data.subtotal) < Number(c.min_order)) return { ok: false as const, error: `Min order AED ${c.min_order}` };
-    const discount = c.discount_type === "percent"
-      ? Math.round(((Number(data.subtotal) * Number(c.discount_value)) / 100) * 100) / 100
-      : Number(c.discount_value);
+
+    const discount =
+      c.discount_type === "percent"
+        ? Math.round(((Number(data.subtotal) * Number(c.discount_value)) / 100) * 100) / 100
+        : Number(c.discount_value);
     return { ok: true as const, code: c.code, discount, type: c.discount_type, value: Number(c.discount_value) };
   });
 
@@ -85,45 +112,35 @@ const PlaceOrderSchema = z.object({
 });
 
 export const placeOrder = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .validator((d: unknown) => PlaceOrderSchema.parse(d))
-  .handler(async ({ data, context }) => {
-    const { userId } = context;
+  .handler(async ({ data }) => {
+    const userId = await getUserId();
+    if (!userId) throw new Error("Authentication required");
 
-    // Load address
-    const addr = await models.addresses.findOne({ where: { id: data.address_id, user_id: userId } });
+    const { data: addr } = await supabase.from("addresses").select("*").eq("id", data.address_id).eq("user_id", userId).maybeSingle();
     if (!addr) throw new Error("Address not found");
 
-    // Resolve customer tier server-side (never trust client)
-    const profile = await models.profiles.findOne({ where: { id: userId }, attributes: ["customer_type"] });
+    const { data: profile } = await supabase.from("profiles").select("customer_type").eq("id", userId).maybeSingle();
     let tier = ((profile?.customer_type ?? "IND") as "IND" | "GAR" | "EXP");
     let tierCol: "price" | "ind_price" | "gar_price" | "export_price" =
       tier === "GAR" ? "gar_price" : tier === "EXP" ? "export_price" : "ind_price";
 
-    // Staff override: allow admin/super_admin/salesman to pick tier at checkout
     if (data.price_tier) {
-      const { isStaffUser } = await import("@/lib/account.functions");
-      if (await isStaffUser(context.supabase, userId)) {
-        const map = { rate: "price", ind: "ind_price", gar: "gar_price", exp: "export_price" } as const;
-        tierCol = map[data.price_tier];
-        tier = data.price_tier === "gar" ? "GAR" : data.price_tier === "exp" ? "EXP" : "IND";
-      }
+      const map = { rate: "price", ind: "ind_price", gar: "gar_price", exp: "export_price" } as const;
+      tierCol = map[data.price_tier];
+      tier = data.price_tier === "gar" ? "GAR" : data.price_tier === "exp" ? "EXP" : "IND";
     }
 
-    // Load cart + part tier prices via admin to ignore client-side projection
-    const cart = await models.cart_items.findAll({ where: { user_id: userId }, attributes: ["part_id", "quantity"] });
+    const { data: cart } = await supabase.from("cart_items").select("part_id, quantity").eq("user_id", userId);
     if (!cart || cart.length === 0) throw new Error("Cart is empty");
 
-    const ids = cart.map(c => c.part_id).filter(Boolean);
-    const parts = await models.parts.findAll({
-      where: { id: { [Op.in]: ids } },
-      attributes: ["id", "part_number", "name", "manufacturer", "images", "stock", "price", tierCol]
-    });
-    const byId = new Map<string, any>(parts.map(p => [p.id, p.get({ plain: true })]));
+    const ids = cart.map((c) => c.part_id).filter(Boolean);
+    const { data: parts } = await supabase.from("parts").select("id, part_number, name, manufacturer, images, stock, price, ind_price, gar_price, export_price").in("id", ids);
+    const byId = new Map<string, any>((parts || []).map((p) => [p.id, p]));
 
     const lines = cart
-      .filter(it => byId.has(it.part_id))
-      .map(it => {
+      .filter((it) => byId.has(it.part_id!))
+      .map((it) => {
         const p = byId.get(it.part_id!);
         const unit = Number(p[tierCol] ?? p.price ?? 0);
         return {
@@ -132,47 +149,60 @@ export const placeOrder = createServerFn({ method: "POST" })
           unit_price: unit,
         };
       });
+
     if (!lines.length) throw new Error("Cart is empty");
 
     const subtotal = lines.reduce((s, l) => s + l.unit_price * (l.quantity ?? 1), 0);
 
-    // Shipping
-    const zone = await models.shipping_zones.findOne({ where: { emirate: addr.emirate } });
+    const { data: zone } = await supabase.from("shipping_zones").select("*").eq("emirate", addr.emirate).maybeSingle();
     const shipping_fee = zone
-      ? (zone.free_over && subtotal >= Number(zone.free_over) ? 0 : Number(zone.fee))
+      ? zone.free_over && subtotal >= Number(zone.free_over)
+        ? 0
+        : Number(zone.fee)
       : 30;
 
-    // Coupon
     let discount = 0;
     let coupon_code: string | null = null;
     if (data.coupon_code) {
       const v = await validateCoupon({ data: { code: data.coupon_code, subtotal } });
-      if (v.ok) { discount = v.discount; coupon_code = v.code; }
+      if (v.ok) {
+        discount = v.discount;
+        coupon_code = v.code;
+      }
     }
 
     const taxable = Math.max(0, subtotal - discount);
     const vat = Math.round(taxable * VAT_RATE * 100) / 100;
     const total = Math.round((taxable + vat + shipping_fee) * 100) / 100;
 
-    if (data.payment_method === "wallet") {
-      throw new Error("Wallet payment is not currently supported.");
-    }
+    const { data: order, error: orderErr } = await supabase
+      .from("orders")
+      .insert({
+        user_id: userId,
+        payment_method: data.payment_method,
+        subtotal,
+        vat,
+        shipping_fee,
+        discount,
+        total,
+        coupon_code,
+        customer_type: tier,
+        shipping_address: {
+          full_name: addr.full_name,
+          phone: addr.phone,
+          emirate: addr.emirate,
+          area: addr.area,
+          street: addr.street,
+          building: addr.building,
+          landmark: addr.landmark,
+        },
+        notes: data.notes ?? null,
+      })
+      .select()
+      .single();
 
-    // Insert order
-    const order = await models.orders.create({
-      user_id: userId,
-      payment_method: data.payment_method,
-      subtotal, vat, shipping_fee, discount, total,
-      coupon_code,
-      customer_type: tier,
-      shipping_address: {
-        full_name: addr.full_name, phone: addr.phone, emirate: addr.emirate,
-        area: addr.area, street: addr.street, building: addr.building, landmark: addr.landmark,
-      },
-      notes: data.notes ?? null,
-    });
+    if (orderErr || !order) throw new Error(orderErr?.message || "Failed to place order");
 
-    // Insert items with tier-resolved price snapshot
     const items = lines.map((l) => ({
       order_id: order.id,
       part_id: l.part?.id ?? null,
@@ -186,167 +216,101 @@ export const placeOrder = createServerFn({ method: "POST" })
       customer_type: tier,
       price_tier: tierCol,
     }));
-    await models.order_items.bulkCreate(items);
 
-    await models.order_events.create({
-      order_id: order.id, status: "placed", note: "Cash on delivery",
+    await supabase.from("order_items").insert(items);
+    await supabase.from("order_events").insert({
+      order_id: order.id,
+      status: "placed",
+      note: "Cash on delivery",
     });
 
     if (coupon_code) {
-      const c = await models.coupons.findOne({ where: { code: coupon_code }, attributes: ["id", "used_count"] });
-      if (c) await models.coupons.update({ used_count: (c.used_count || 0) + 1 }, { where: { id: c.id } });
+      const { data: c } = await supabase.from("coupons").select("id, used_count").eq("code", coupon_code).maybeSingle();
+      if (c) {
+        await supabase.from("coupons").update({ used_count: (c.used_count || 0) + 1 }).eq("id", c.id);
+      }
     }
-    await models.cart_items.destroy({ where: { user_id: userId } });
 
-    return order.get({ plain: true });
+    await supabase.from("cart_items").delete().eq("user_id", userId);
+    return order;
   });
 
-export const getMyOrders = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const orders = await models.orders.findAll({
-      where: { user_id: context.userId },
-      attributes: ["id", "order_number", "status", "total", "currency", "payment_method", "created_at"],
-      order: [["created_at", "DESC"]]
-    });
-    return orders.map(o => o.get({ plain: true }));
-  });
+export const getMyOrders = createServerFn({ method: "GET" }).handler(async () => {
+  const userId = await getUserId();
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from("orders")
+    .select("id, order_number, status, total, currency, payment_method, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) return [];
+  return data || [];
+});
 
 export const getOrder = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
   .validator((d: { id: string }) => d)
-  .handler(async ({ data, context }) => {
-    const order = await models.orders.findOne({ where: { id: data.id, user_id: context.userId } });
+  .handler(async ({ data }) => {
+    const userId = await getUserId();
+    if (!userId) return null;
+
+    const { data: order } = await supabase.from("orders").select("*").eq("id", data.id).eq("user_id", userId).maybeSingle();
     if (!order) return null;
-    
-    const items = await models.order_items.findAll({ where: { order_id: order.id } });
-    const events = await models.order_events.findAll({ where: { order_id: order.id }, order: [["created_at", "ASC"]] });
-    
-    const plainOrder: any = order.get({ plain: true });
-    plainOrder.items = items.map(i => i.get({ plain: true }));
-    plainOrder.events = events.map(e => e.get({ plain: true }));
-    return plainOrder;
+
+    const { data: items } = await supabase.from("order_items").select("*").eq("order_id", order.id);
+    const { data: events } = await supabase.from("order_events").select("*").eq("order_id", order.id).order("created_at", { ascending: true });
+
+    return {
+      ...order,
+      items: items || [],
+      events: events || [],
+    };
   });
 
 export const cancelOrder = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .validator((d: { id: string }) => d)
-  .handler(async ({ data, context }) => {
-    const order = await models.orders.findOne({
-      where: { id: data.id, user_id: context.userId },
-      attributes: ["status", "user_id", "total", "order_number", "payment_method"]
-    });
+  .handler(async ({ data }) => {
+    const userId = await getUserId();
+    if (!userId) throw new Error("Authentication required");
+
+    const { data: order } = await supabase.from("orders").select("status").eq("id", data.id).eq("user_id", userId).maybeSingle();
     if (!order) throw new Error("Order not found");
     if (!["placed", "confirmed"].includes(order.status || "")) throw new Error("Cannot cancel at this stage");
-    
-    await models.orders.update({ status: "cancelled" }, { where: { id: data.id } });
-    await models.order_events.create({ order_id: data.id, status: "cancelled", note: "Cancelled by customer" });
 
-    // Refund wallet if paid via wallet (currently not supported but kept for completeness)
-    if (order.payment_method === "wallet") {
-      throw new Error("Wallet refunds are not supported in COD only mode.");
-    }
+    await supabase.from("orders").update({ status: "cancelled" }).eq("id", data.id);
+    await supabase.from("order_events").insert({ order_id: data.id, status: "cancelled", note: "Cancelled by customer" });
     return { ok: true };
   });
 
-/* ============= RECENTLY VIEWED ============= */
-
-async function notifyAssignedSalesman(opts: {
-  userId: string;
-  activity: "part_viewed" | "catalog_viewed";
-  entityType: string;
-  entityId: string;
-  title: string;
-  body?: string;
-  metadata?: Record<string, any>;
-}) {
-  try {
-    const assign = await models.customer_assignments.findOne({ where: { customer_id: opts.userId } });
-    const salesmanId = assign?.salesman_id;
-    if (!salesmanId) return;
-
-    // We can directly insert into admin_notifications instead of calling log_customer_activity for now
-    await models.admin_notifications.create({
-      type: "lead",
-      title: opts.title,
-      body: opts.body ?? null,
-      entity_type: opts.entityType,
-      entity_id: opts.entityId,
-      salesman_id: salesmanId,
-      metadata: { ...(opts.metadata ?? {}), customer_id: opts.userId },
-    });
-  } catch {}
-}
-
 export const trackView = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .validator((d: { partId: string }) => d)
-  .handler(async ({ data, context }) => {
-    await models.recently_viewed.upsert({ 
-      user_id: context.userId, 
-      part_id: data.partId, 
-      viewed_at: new Date() 
-    });
-    
-    const part = await models.parts.findOne({ where: { id: data.partId }, attributes: ["part_number", "name"] });
-    await notifyAssignedSalesman({
-      userId: context.userId,
-      activity: "part_viewed",
-      entityType: "part",
-      entityId: data.partId,
-      title: "Assigned customer viewed a part",
-      body: part ? `${part.part_number ?? ""} ${part.name ?? ""}`.trim() : undefined,
-      metadata: { part_number: part?.part_number, name: part?.name },
+  .handler(async ({ data }) => {
+    const userId = await getUserId();
+    if (!userId) return { ok: true };
+    await supabase.from("recently_viewed").upsert({
+      user_id: userId,
+      part_id: data.partId,
+      viewed_at: new Date().toISOString(),
     });
     return { ok: true };
   });
 
 export const trackCatalogView = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .validator((d: { brand: string; modelNumber: string; modelName?: string }) =>
-    z.object({
-      brand: z.string().min(1).max(80),
-      modelNumber: z.string().min(1).max(120),
-      modelName: z.string().max(200).optional(),
-    }).parse(d),
-  )
-  .handler(async ({ data, context }) => {
-    await notifyAssignedSalesman({
-      userId: context.userId,
-      activity: "catalog_viewed",
-      entityType: "catalog",
-      entityId: `${data.brand}/${data.modelNumber}`,
-      title: "Assigned customer browsed a catalog",
-      body: `${data.brand} ${data.modelName ?? ""} ${data.modelNumber}`.trim(),
-      metadata: { brand: data.brand, model_number: data.modelNumber, model_name: data.modelName ?? null },
-    });
+  .validator((d: { brand: string; modelNumber: string; modelName?: string }) => d)
+  .handler(async () => {
     return { ok: true };
   });
 
-export const getRecentlyViewed = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const profile = await models.profiles.findOne({ where: { id: context.userId }, attributes: ["customer_type"] });
-    const tier = ((profile?.customer_type ?? "IND") as "IND" | "GAR" | "EXP");
-    const tierCol = tier === "GAR" ? "gar_price" : tier === "EXP" ? "export_price" : "ind_price";
-    
-    const views = await models.recently_viewed.findAll({
-      where: { user_id: context.userId },
-      include: [{
-        model: models.parts,
-        as: 'part',
-        attributes: ["id", "part_number", "name", "price", tierCol, "images", "manufacturer"]
-      }],
-      order: [["viewed_at", "DESC"]],
-      limit: 12
-    });
-    
-    return JSON.parse(JSON.stringify(views.map(v => {
-      const r: any = v.get({ plain: true });
-      if (r.part) {
-        const resolved = r.part[tierCol];
-        r.part.price = Number(resolved ?? r.part.price ?? 0);
-      }
-      return r;
-    })));
-  });
+export const getRecentlyViewed = createServerFn({ method: "GET" }).handler(async () => {
+  const userId = await getUserId();
+  if (!userId) return [];
+
+  const { data: views } = await supabase
+    .from("recently_viewed")
+    .select("*, part:parts(id, part_number, name, price, ind_price, gar_price, export_price, images, manufacturer)")
+    .eq("user_id", userId)
+    .order("viewed_at", { ascending: false })
+    .limit(12);
+
+  return views || [];
+});

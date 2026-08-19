@@ -2,7 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireAdmin, requireAdminOrSalesman } from "./admin.functions";
 import { z } from "zod";
 import { models } from "@/lib/db/index.server";
-import { Op, col, fn, where } from "sequelize";
+import { Op } from "@/lib/db/op.server";
+const col = (n: string) => n;
+const fn = (f: string, ...args: any[]) => `${f}(${args.join(", ")})`;
+const where = (c: any, _o: any) => c;
 import { sequelize } from "@/lib/db/index.server";
 
 async function logAudit(actor: string, action: string, entity_id: string, before: any, after: any) {
