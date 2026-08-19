@@ -41,7 +41,7 @@ const SETTINGS_ID = "invoice_settings";
 
 export const getInvoiceSettings = createServerFn({ method: "GET" }).handler(async () => {
   try {
-    const { data: record } = await supabase.from("site_settings").select("data").eq("key", SETTINGS_ID).maybeSingle();
+    const { data: record } = await supabase.from("site_settings").select("data").eq("id", SETTINGS_ID).maybeSingle();
     if (!record || !record.data) return DEFAULT_SETTINGS;
     const merged = { ...DEFAULT_SETTINGS, ...(record.data as Partial<InvoiceSettings>) };
     merged.primaryColor = normalizeHexColor(merged.primaryColor);
@@ -71,7 +71,7 @@ export const saveInvoiceSettings = createServerFn({ method: "POST" })
       primaryColor: normalizeHexColor(data.primaryColor),
     };
     await supabase.from("site_settings").upsert({
-      key: SETTINGS_ID,
+      id: SETTINGS_ID,
       data: payload as any,
     });
     return { ok: true };

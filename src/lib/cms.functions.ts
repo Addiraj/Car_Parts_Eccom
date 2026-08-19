@@ -62,7 +62,7 @@ export const getFooterSettings = createServerFn({ method: "GET" }).handler(async
     const { data, error } = await supabase
       .from("site_settings")
       .select("data")
-      .eq("key", "footer")
+      .eq("id", "footer")
       .maybeSingle();
     if (error) {
       console.warn("Error fetching footer settings from Supabase:", error.message);

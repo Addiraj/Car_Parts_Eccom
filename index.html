@@ -1,6 +1,32 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+      // Very early Buffer shim: minimal and synchronous. Placed before any other scripts.
+      try {
+        if (typeof window !== 'undefined' && typeof window.Buffer === 'undefined') {
+          (function () {
+            function b64toUint8Array(b64) {
+              var binary = atob(b64);
+              var len = binary.length;
+              var arr = new Uint8Array(len);
+              for (var i = 0; i < len; i++) arr[i] = binary.charCodeAt(i);
+              return arr;
+            }
+            var BufferShimEarly = function (arr) { this._arr = arr instanceof Uint8Array ? arr : new Uint8Array(arr); };
+            BufferShimEarly.from = function (input, enc) {
+              if (enc === 'base64') return new BufferShimEarly(b64toUint8Array(input));
+              if (typeof input === 'string') return new BufferShimEarly(new TextEncoder().encode(input));
+              if (input instanceof ArrayBuffer || ArrayBuffer.isView(input)) return new BufferShimEarly(new Uint8Array(input));
+              return new BufferShimEarly(input);
+            };
+            BufferShimEarly.prototype.toString = function (enc) { return (enc === 'base64') ? btoa(String.fromCharCode.apply(null, Array.from(this._arr))) : new TextDecoder().decode(this._arr); };
+            BufferShimEarly.isBuffer = function (b) { return b && b._arr instanceof Uint8Array; };
+            window.Buffer = BufferShimEarly;
+          })();
+        }
+      } catch (e) {}
+    </script>
     <meta charset="UTF-8" />
     <meta
       name="viewport"
@@ -52,6 +78,30 @@
           }
         } catch (e) {}
       })();
+    </script>
+    <script>
+      // Suppress known Capacitor timing error where safe-area CSS injection touches a missing element
+      // This avoids a noisy "Cannot read property 'style' of null" crash while preserving other errors.
+      window.addEventListener('error', function (ev) {
+        try {
+          var msg = ev && ev.message ? ev.message : '';
+          if (typeof msg === 'string' && msg.indexOf("Cannot read property 'style' of null") !== -1) {
+            console.warn('[Runtime] Suppressed safe-area injection timing error:', msg);
+            ev.preventDefault && ev.preventDefault();
+            return true;
+          }
+        } catch (e) {}
+      });
+      window.addEventListener('unhandledrejection', function (ev) {
+        try {
+          var reason = ev && ev.reason ? (ev.reason.message || ev.reason) : '';
+          if (typeof reason === 'string' && reason.indexOf("Cannot read property 'style' of null") !== -1) {
+            console.warn('[Runtime] Suppressed safe-area injection timing unhandled rejection:', reason);
+            ev.preventDefault && ev.preventDefault();
+            return true;
+          }
+        } catch (e) {}
+      });
     </script>
     <script>
       // Minimal Buffer shim for environments where Node Buffer is not available (mobile WebView)

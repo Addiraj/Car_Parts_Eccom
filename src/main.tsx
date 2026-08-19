@@ -1,6 +1,14 @@
 import { Buffer } from 'buffer';
-if (typeof (globalThis as any).Buffer === 'undefined') {
-  (globalThis as any).Buffer = Buffer;
+// Ensure Buffer available on globalThis and window early
+try {
+  if (typeof (globalThis as any).Buffer === 'undefined') {
+    (globalThis as any).Buffer = Buffer;
+  }
+  if (typeof (window as any).Buffer === 'undefined') {
+    (window as any).Buffer = Buffer;
+  }
+} catch (e) {
+  // ignore; fallback Buffer shim in index.html will apply
 }
 import React from "react";
 import ReactDOM from "react-dom/client";
