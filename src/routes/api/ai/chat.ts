@@ -35,14 +35,15 @@ async function authUser(request: Request) {
 
   // 2. Try Supabase auth token
   try {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_PUBLISHABLE_KEY;
-    if (url && key) {
-      const sb = createClient(url, key, { auth: { persistSession: false } });
-      const { data } = await sb.auth.getUser(token);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    if (supabaseAdmin) {
+      const { data, error } = await supabaseAdmin.auth.getUser(token);
       if (data?.user?.id) return data.user.id;
+      if (error) console.error("[authUser] Supabase token error:", error);
     }
-  } catch {}
+  } catch (e) {
+    console.error("[authUser] Supabase client import error:", e);
+  }
 
   // 3. Fallback for non-empty token string
   if (token && token.length > 10) return "authenticated-user";

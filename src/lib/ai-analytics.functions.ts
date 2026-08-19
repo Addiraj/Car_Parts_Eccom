@@ -194,6 +194,159 @@ export const aiAnalyticsExportCsv = createServerFn({ method: "POST" })
   });
 
 // ============================================================
+// Web Analytics — Part Demand
+// ============================================================
+
+const COMMON_PART_NAMES = [
+  "Brake Pad", "Boot", "Maxi Flush", "Air Filter", "Dipstick", "Brake Disc", "Atf", "Waterpump", "Thermostat", "Engine Oil", "Spark Plug", "Battery", "Wiper", "Alternator", "Starter", "Radiator", "Shock Absorber", "Strut", "Control Arm", "Tie Rod", "Wheel Bearing", "Clutch", "Timing Belt", "Serpentine Belt", "Fuel Pump", "Fuel Injector", "Oxygen Sensor"
+];
+
+function extractPartNameFromText(text?: string | null): string | undefined {
+  if (!text) return undefined;
+  const t = text.toLowerCase();
+  for (const name of COMMON_PART_NAMES) {
+    if (t.includes(name.toLowerCase())) {
+      return name;
+    }
+  }
+  return undefined;
+}
+
+export const webPartDemandStats = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator(rangeValidator)
+  .handler(async ({ data }) => {
+    const { from, to } = computeWindow(data);
+
+    // 1. Fetch Web catalog activities
+    const webActivities = await models.customer_activities.findAll({
+      attributes: ["activity_type", "metadata", "created_at", "customer_id", "actor_id"],
+      where: {
+        activity_type: { [Op.in]: ["part_viewed", "catalog_viewed"] },
+        created_at: {
+          [Op.gte]: from.toISOString(),
+          [Op.lte]: to.toISOString()
+        }
+      }
+    });
+
+    // 2. Fetch AI Avatar searches (messages & threads)
+    const aiMsgs = await models.ai_chat_messages.findAll({
+      attributes: ["thread_id", "user_message", "bot_response", "created_at"],
+      where: {
+        role: "user",
+        created_at: {
+          [Op.gte]: from.toISOString(),
+          [Op.lte]: to.toISOString()
+        }
+      }
+    });
+    const threadIds = Array.from(new Set(aiMsgs.map(m => m.thread_id).filter(Boolean)));
+    const aiThreads = threadIds.length ? await models.ai_chat_threads.findAll({
+      attributes: ["id", "user_id", "guest_token"],
+      where: { id: { [Op.in]: threadIds as string[] } }
+    }) : [];
+    const threadMap = new Map(aiThreads.map(t => [t.id, t.user_id ?? `guest:${t.guest_token ?? ""}`]));
+
+    // Fetch user profiles to attach names
+    const allUserIds = new Set<string>();
+    webActivities.forEach(a => { if (a.customer_id) allUserIds.add(a.customer_id); if (a.actor_id) allUserIds.add(a.actor_id); });
+    aiThreads.forEach(t => { if (t.user_id) allUserIds.add(t.user_id); });
+    const userProfiles = allUserIds.size ? await models.profiles.findAll({
+      attributes: ["id", "full_name"],
+      where: { id: { [Op.in]: Array.from(allUserIds) } }
+    }) : [];
+    const profileMap = new Map(userProfiles.map(p => [p.id, p.full_name]));
+
+    const partNumbersCount = new Map<string, number>();
+    const itemNamesCount = new Map<string, number>();
+    
+    // structure for table: Customer -> { parts, items, total, last_activity }
+    const userStats = new Map<string, { name: string, parts: Set<string>, items: Set<string>, total: number, last_seen: Date }>();
+
+    const trackUserActivity = (userId: string | null, partNo?: string, itemName?: string, dateStr?: string) => {
+      const uKey = userId ?? "Guest";
+      const uName = userId ? (profileMap.get(userId) ?? `User ${userId.slice(0, 8)}`) : "Guest User";
+      const cur = userStats.get(uKey) ?? { name: uName, parts: new Set(), items: new Set(), total: 0, last_seen: new Date(0) };
+      cur.total += 1;
+      if (partNo) cur.parts.add(partNo);
+      if (itemName) cur.items.add(itemName);
+      if (dateStr) {
+        const d = new Date(dateStr);
+        if (d > cur.last_seen) cur.last_seen = d;
+      }
+      userStats.set(uKey, cur);
+    };
+
+    // Process Web Activities
+    for (const a of webActivities) {
+      const meta = (a.metadata ?? {}) as any;
+      const partNo = meta.part_number || meta.oem_number || meta.query;
+      const itemName = meta.part_name || meta.name || extractPartNameFromText(meta.query || meta.search_query);
+      
+      if (partNo) {
+        const p = partNo.toUpperCase();
+        partNumbersCount.set(p, (partNumbersCount.get(p) ?? 0) + 1);
+      }
+      if (itemName) {
+        // capitalize words
+        const i = itemName.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        itemNamesCount.set(i, (itemNamesCount.get(i) ?? 0) + 1);
+      }
+      
+      const uId = a.customer_id || a.actor_id || null;
+      if (partNo || itemName) {
+        trackUserActivity(uId, partNo, itemName, String(a.created_at));
+      }
+    }
+
+    // Process AI Avatar Messages
+    for (const m of aiMsgs) {
+      const partNo = extractPartFromText(m.user_message, m.bot_response);
+      const itemName = extractPartNameFromText(m.user_message) ?? extractPartNameFromText(m.bot_response);
+      
+      if (partNo) {
+        partNumbersCount.set(partNo, (partNumbersCount.get(partNo) ?? 0) + 1);
+      }
+      if (itemName) {
+        itemNamesCount.set(itemName, (itemNamesCount.get(itemName) ?? 0) + 1);
+      }
+
+      if (partNo || itemName) {
+        const uId = threadMap.get(m.thread_id);
+        trackUserActivity(uId, partNo, itemName, String(m.created_at));
+      }
+    }
+
+    const topPartNumbers = Array.from(partNumbersCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([value, count]) => ({ value, count }));
+
+    const topItemNames = Array.from(itemNamesCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([value, count]) => ({ value, count }));
+
+    const userSearchActivity = Array.from(userStats.values())
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 50)
+      .map(u => ({
+        customer: u.name,
+        part_numbers: u.parts.size,
+        item_names: u.items.size,
+        total_searches: u.total,
+        last_activity: u.last_seen.toISOString()
+      }));
+
+    return {
+      topPartNumbers,
+      topItemNames,
+      userSearchActivity
+    };
+  });
+
+// ============================================================
 // WhatsApp analytics — wa_chat_logs + wa_analytics_events
 // ============================================================
 

@@ -12,7 +12,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import * as React from "react";
 import { Download, Users, Clock, ChevronRight, MessageSquare, ChevronDown, Search } from "lucide-react";
 import {
-  aiAnalyticsKpis, aiQueryVolume, aiUniqueUsers, aiAnalyticsExportCsv,
+  aiAnalyticsKpis, aiQueryVolume, aiUniqueUsers, aiAnalyticsExportCsv, webPartDemandStats,
   waKpis, waQueryVolume, waTopUsers, waRecentConversations, waEventStats, waExportCsv,
 } from "@/lib/ai-analytics.functions";
 import { toast } from "sonner";
@@ -44,6 +44,7 @@ function AnalyticsPage() {
   const volFn = useServerFn(aiQueryVolume);
   const usersFn = useServerFn(aiUniqueUsers);
   const exportFn = useServerFn(aiAnalyticsExportCsv);
+  const webPartsFn = useServerFn(webPartDemandStats);
 
   const waKpisFn = useServerFn(waKpis);
   const waVolFn = useServerFn(waQueryVolume);
@@ -129,6 +130,7 @@ function AnalyticsPage() {
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="usage">Usage &amp; Adoption</TabsTrigger>
+          {source !== "whatsapp" && <TabsTrigger value="web-parts">Part Demand (Web)</TabsTrigger>}
           {source !== "web" && <TabsTrigger value="vin">VIN Search</TabsTrigger>}
           {source !== "web" && <TabsTrigger value="parts">Part Demand</TabsTrigger>}
           {source !== "web" && <TabsTrigger value="whatsapp">WhatsApp Logs</TabsTrigger>}
@@ -246,6 +248,13 @@ function AnalyticsPage() {
             </Card>
           ) : null}
         </TabsContent>
+
+        {source !== "whatsapp" && (
+          <TabsContent value="web-parts" className="space-y-4">
+            <WebPartDemandPanel payload={payload} fn={webPartsFn}
+              range={range} from={from} to={to} setRange={setRange} setFrom={setFrom} setTo={setTo} exportFn={exportFn} />
+          </TabsContent>
+        )}
 
         {source !== "web" && (
           <>
@@ -497,3 +506,137 @@ function KpiCard({
     </Card>
   );
 }
+
+function WebPartDemandPanel({ payload, fn, exportFn, range, from, to, setRange, setFrom, setTo }: {
+  payload: any; fn: any; exportFn: any;
+  range: RangeKey; from: string; to: string;
+  setRange: (r: RangeKey) => void; setFrom: (s: string) => void; setTo: (s: string) => void;
+}) {
+  const q = useQuery({ queryKey: ["web-parts", payload], queryFn: () => fn({ data: payload }) });
+  const data: any = q.data ?? {};
+  
+  const topParts = data.topPartNumbers ?? [];
+  const topItems = data.topItemNames ?? [];
+  const users = data.userSearchActivity ?? [];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight">Part Demand Intelligence</h2>
+          <p className="text-sm text-muted-foreground">Website &amp; AI avatar searches — part numbers, item names and who searched.</p>
+        </div>
+        <div className="flex items-center gap-2 mt-2 md:mt-0">
+          <RangePicker range={range} from={from} to={to} setRange={setRange} setFrom={setFrom} setTo={setTo} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Top Part Numbers */}
+        <Card className="border-border/60 bg-card/60 backdrop-blur">
+          <CardHeader className="flex flex-row items-center gap-2 pb-2">
+            <Search className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-base">Most Searched Part Numbers</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {q.isLoading ? (
+              <div className="text-sm text-muted-foreground">Loading...</div>
+            ) : topParts.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No data found.</div>
+            ) : (
+              <div className="space-y-4 mt-2">
+                {topParts.map((item: any, i: number) => {
+                  const max = topParts[0].count;
+                  const pct = Math.max(2, (item.count / max) * 100);
+                  return (
+                    <div key={i} className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between text-sm font-medium">
+                        <span className="font-mono">{item.value}</span>
+                        <span>{item.count}</span>
+                      </div>
+                      <div className="h-2 w-full bg-muted/50 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#185adb] rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Top Item Names */}
+        <Card className="border-border/60 bg-card/60 backdrop-blur">
+          <CardHeader className="flex flex-row items-center gap-2 pb-2">
+            <MessageSquare className="h-5 w-5 text-muted-foreground" />
+            <CardTitle className="text-base">Most Searched Item Names</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {q.isLoading ? (
+              <div className="text-sm text-muted-foreground">Loading...</div>
+            ) : topItems.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No data found.</div>
+            ) : (
+              <div className="space-y-4 mt-2">
+                {topItems.map((item: any, i: number) => {
+                  const max = topItems[0].count;
+                  const pct = Math.max(2, (item.count / max) * 100);
+                  return (
+                    <div key={i} className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between text-sm font-medium">
+                        <span className="capitalize">{item.value}</span>
+                        <span>{item.count}</span>
+                      </div>
+                      <div className="h-2 w-full bg-muted/50 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#185adb] rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="border-border/60 bg-card/60 backdrop-blur">
+        <CardHeader>
+          <CardTitle className="text-base">User Search Activity</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-auto rounded-md border border-border/60">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-left">
+                <tr>
+                  <th className="p-3 font-semibold">Customer</th>
+                  <th className="p-3 font-semibold text-center">Part numbers</th>
+                  <th className="p-3 font-semibold text-center">Item names</th>
+                  <th className="p-3 font-semibold text-center">Total searches</th>
+                  <th className="p-3 font-semibold text-right">Last activity</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {q.isLoading ? (
+                  <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">Loading...</td></tr>
+                ) : users.length === 0 ? (
+                  <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">No user search activity found.</td></tr>
+                ) : (
+                  users.map((u: any, i: number) => (
+                    <tr key={i} className="hover:bg-muted/20">
+                      <td className="p-3 font-medium">{u.customer}</td>
+                      <td className="p-3 text-center">{u.part_numbers}</td>
+                      <td className="p-3 text-center">{u.item_names}</td>
+                      <td className="p-3 text-center font-bold">{u.total_searches}</td>
+                      <td className="p-3 text-right text-muted-foreground">{new Date(u.last_activity).toLocaleString()}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+

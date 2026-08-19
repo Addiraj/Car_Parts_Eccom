@@ -270,7 +270,7 @@ export function useSimliStream() {
     restoreAudio();
 
     const { data: sess } = await supabase.auth.getSession();
-    const token = sess.session?.access_token;
+    const token = sess.session?.access_token || (typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null);
     if (!token) { toast.error("Sign in to use the avatar"); return; }
     if (runId !== speechRunIdRef.current) return;
 
