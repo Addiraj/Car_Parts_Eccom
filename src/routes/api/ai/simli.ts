@@ -16,12 +16,10 @@ async function verifyToken(token: string) {
   }
 
   try {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_PUBLISHABLE_KEY;
-    if (url && key) {
-      const sb = createClient(url, key, { auth: { persistSession: false } });
-      const { data: u } = await sb.auth.getUser(token);
-      if (u?.user?.id) return u.user.id;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    if (supabaseAdmin) {
+      const { data } = await supabaseAdmin.auth.getUser(token);
+      if (data?.user?.id) return data.user.id;
     }
   } catch {}
 
