@@ -119,10 +119,15 @@ export function Header() {
         initial={{ y: -40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, ease }}
-        className={cn(
-          "fixed inset-x-0 top-0 z-50 transition-all duration-500",
-          scrolled ? "glass-strong" : "bg-transparent",
-        )}
+       // className={cn(
+        //   "fixed inset-x-0 top-0 z-50 transition-all duration-500",
+        //   scrolled ? "glass-strong" : "bg-transparent",
+        // )}
+      className={cn(
+  "fixed inset-x-0 top-0 z-50 transition-all duration-500 pt-[env(safe-area-inset-top,0px)]",
+  scrolled ? "glass-strong" : "bg-transparent",
+)}
+
       >
         <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between gap-6 px-5 md:h-20 md:px-10">
           {/* Brand */}
@@ -298,7 +303,7 @@ function MobileMenu({ onClose, isAdmin, user, cartCount, wishCount }: { onClose:
       transition={{ duration: 0.4, ease }}
       className="fixed inset-0 z-[60] bg-background/95 backdrop-blur-2xl"
     >
-      <div className="flex h-16 items-center justify-between px-5">
+      <div className="flex h-[calc(4rem+env(safe-area-inset-top,0px))] items-end justify-between px-5 pb-2 pt-[env(safe-area-inset-top,0px)]">
         <span className="font-display text-base">FINE LAND</span>
         <button onClick={onClose} className="h-10 w-10 rounded-full text-foreground/80 hover:text-foreground"><X className="mx-auto h-5 w-5" /></button>
       </div>

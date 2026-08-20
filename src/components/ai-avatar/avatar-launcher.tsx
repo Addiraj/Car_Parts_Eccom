@@ -50,7 +50,8 @@ export function AvatarLauncher() {
     <button
       onClick={handleClick}
       className={cn(
-        "fixed bottom-5 right-[200px] z-[60] flex items-center gap-2 rounded-full pl-3 pr-4 py-3",
+        // "fixed bottom-5 right-[200px] z-[60] flex items-center gap-2 rounded-full pl-3 pr-4 py-3",
+        "fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] right-[200px] z-[60] flex items-center gap-2 rounded-full pl-3 pr-4 py-3",
         "bg-gradient-to-br from-blue-600 to-indigo-700 text-white",
         "shadow-[0_10px_30px_-10px_rgba(59,130,246,0.7)] ring-1 ring-blue-400/30",
         "hover:scale-105 transition-transform",

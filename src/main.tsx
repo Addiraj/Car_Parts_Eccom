@@ -29,7 +29,9 @@ if (rootElement && !rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <React.StrictMode>
-      <RouterProvider router={router} />
-    </React.StrictMode>
+  <div className="app-safe-area">
+    <RouterProvider router={router} />
+  </div>
+</React.StrictMode>
   );
 }

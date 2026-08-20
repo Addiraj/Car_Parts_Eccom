@@ -85,11 +85,39 @@ function InnerShell() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       {!disableSmoothScroll && <SmoothScroll />}
-      {!hideChrome && <Header />}
+      
+      {/* {!hideChrome && <Header />}
+      
       <main className="flex-1">
         {!hideChrome && <div className="h-16 md:h-20" aria-hidden />}
         <Outlet />
-      </main>
+      </main> */}
+
+
+
+{!hideChrome && <Header />}
+<main className="flex-1">
+  {!hideChrome && (
+    <div
+      className="h-[calc(4rem+env(safe-area-inset-top,0px))] md:h-[calc(5rem+env(safe-area-inset-top,0px))]"
+      aria-hidden
+    />
+  )}
+
+  <div className={!hideChrome ? "relative z-0" : ""}>
+    <Outlet />
+  </div>
+</main>
+{/* <main className="flex-1">
+  {!hideChrome && (
+    <div
+      className="h-[calc(4rem+env(safe-area-inset-top))] md:h-[calc(5rem+env(safe-area-inset-top))]"
+      aria-hidden
+    />
+  )}
+  <Outlet />
+</main> */}
+
       {!hideChrome && <Footer />}
       <FloatingThemeToggle />
       <AssistantLauncher />

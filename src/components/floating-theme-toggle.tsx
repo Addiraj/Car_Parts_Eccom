@@ -12,7 +12,8 @@ export function FloatingThemeToggle() {
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       title={isDark ? "Light mode" : "Dark mode"}
       suppressHydrationWarning
-      className="fixed bottom-5 left-5 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/60 bg-surface/80 text-foreground/80 shadow-lg backdrop-blur-md transition hover:border-primary/50 hover:text-foreground"
+      className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] left-5 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/60 bg-surface/80 text-foreground/80 shadow-lg backdrop-blur-md transition hover:border-primary/50 hover:text-foreground"
+      // className="fixed bottom-5 left-5 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/60 bg-surface/80 text-foreground/80 shadow-lg backdrop-blur-md transition hover:border-primary/50 hover:text-foreground"
     >
       <span suppressHydrationWarning className="contents">
         {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}

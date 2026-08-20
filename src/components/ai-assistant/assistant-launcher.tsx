@@ -100,7 +100,8 @@ export function AssistantLauncher() {
     <button
       onClick={handleLauncherClick}
       className={cn(
-        "fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-full pl-3 pr-4 py-3",
+        // "fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-full pl-3 pr-4 py-3",
+        "fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] right-5 z-[60] flex items-center gap-2 rounded-full pl-3 pr-4 py-3",
         "bg-primary text-primary-foreground",
         "shadow-2xl ring-1 ring-black/10 hover:scale-105 transition-transform",
         open ? "opacity-0 pointer-events-none" : "opacity-100",
