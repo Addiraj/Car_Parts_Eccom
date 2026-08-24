@@ -8,23 +8,29 @@ import { projectPart, type CustomerType } from "@/lib/pricing";
 import { QueryTypes } from "sequelize";
 
 /**
- * Read the caller's customer tier from the request bearer token (if present).
- * Catalog endpoints are public, so unauthenticated callers default to IND.
+ * Read the caller's customer tier and staff role from the request bearer token (if present).
+ * Catalog endpoints are public, so unauthenticated callers default to IND and not staff.
  */
-async function viewerTier(): Promise<CustomerType> {
+async function viewerContext(): Promise<{ tier: CustomerType; isStaff: boolean }> {
   try {
     const auth = getRequestHeader("authorization") || getRequestHeader("Authorization");
-    if (!auth) return "IND";
+    if (!auth) return { tier: "IND", isStaff: false };
     const token = auth.replace(/^Bearer\s+/i, "").trim();
-    if (!token) return "IND";
+    if (!token) return { tier: "IND", isStaff: false };
     // TODO: When Auth is fully migrated, verify standard JWT instead of Supabase
     const { data } = await supabaseAdmin.auth.getUser(token);
-    if (!data.user) return "IND";
+    if (!data.user) return { tier: "IND", isStaff: false };
     const profile = await models.profiles.findOne({ where: { id: data.user.id }});
     const t = (profile?.customer_type ?? "IND") as CustomerType;
-    return t === "GAR" || t === "EXP" ? t : "IND";
+    const tier = t === "GAR" || t === "EXP" ? t : "IND";
+    
+    const roleRow = await models.user_roles.findOne({ 
+      where: { user_id: data.user.id, role: { [Op.in]: ['admin', 'superadmin', 'salesman'] } }
+    });
+    
+    return { tier, isStaff: !!roleRow };
   } catch {
-    return "IND";
+    return { tier: "IND", isStaff: false };
   }
 }
 
@@ -94,7 +100,7 @@ export const getCategories = createServerFn({ method: "GET" }).handler(async () 
 export const getCategoryParts = createServerFn({ method: "GET" })
   .validator((d: { categorySlug: string; engineId?: string | null }) => d)
   .handler(async ({ data }) => {
-    const tier = await viewerTier();
+    const { tier, isStaff } = await viewerContext();
     const cat = await models.categories.findOne({
       where: { slug: data.categorySlug },
       attributes: ["id", "name", "slug", "parent_id"]
@@ -115,7 +121,16 @@ export const getCategoryParts = createServerFn({ method: "GET" })
 
     return {
       category: cat.get({ plain: true }),
-      parts: parts.map(p => projectPart(p.get({ plain: true }), tier)),
+      parts: parts.map(p => {
+        const plain = p.get({ plain: true });
+        const projected: any = projectPart(plain, tier);
+        if (isStaff) {
+          projected.ind_price = plain.ind_price;
+          projected.gar_price = plain.gar_price;
+          projected.export_price = plain.export_price;
+        }
+        return projected;
+      }),
       diagrams: diagrams.map(d => d.get({ plain: true })),
       viewerTier: tier,
     };
@@ -124,7 +139,7 @@ export const getCategoryParts = createServerFn({ method: "GET" })
 export const getPart = createServerFn({ method: "GET" })
   .validator((d: { id: string }) => d)
   .handler(async ({ data }) => {
-    const tier = await viewerTier();
+    const { tier } = await viewerContext();
     let isAdmin = false;
     try {
       const auth = getRequestHeader("authorization") || getRequestHeader("Authorization");
@@ -189,7 +204,7 @@ export const getPart = createServerFn({ method: "GET" })
 export const getDiagram = createServerFn({ method: "GET" })
   .validator((d: { id: string }) => d)
   .handler(async ({ data }) => {
-    const tier = await viewerTier();
+    const { tier } = await viewerContext();
     const diagramRow = await models.diagrams.findOne({
       where: { id: data.id },
       attributes: ["id", "title", "image_url", "width", "height", "category_id", "engine_id"]
@@ -226,19 +241,28 @@ export const getDiagram = createServerFn({ method: "GET" })
   });
 
 export const getFeaturedParts = createServerFn({ method: "GET" }).handler(async () => {
-  const tier = await viewerTier();
+  const { tier, isStaff } = await viewerContext();
   const parts = await models.parts.findAll({
     attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "images", "manufacturer", "is_oem"],
     order: [["created_at", "DESC"]],
     limit: 8
   });
-  return parts.map(p => projectPart(p.get({ plain: true }), tier));
+  return parts.map(p => {
+    const plain = p.get({ plain: true });
+    const projected: any = projectPart(plain, tier);
+    if (isStaff) {
+      projected.ind_price = plain.ind_price;
+      projected.gar_price = plain.gar_price;
+      projected.export_price = plain.export_price;
+    }
+    return projected;
+  });
 });
 
 export const listPartsPaged = createServerFn({ method: "GET" })
   .validator((d: { page?: number; pageSize?: number } = {}) => d)
   .handler(async ({ data }) => {
-    const tier = await viewerTier();
+    const { tier, isStaff } = await viewerContext();
     const page = Math.max(1, Math.floor(data.page ?? 1));
     const pageSize = Math.min(60, Math.max(1, Math.floor(data.pageSize ?? 24)));
     const offset = (page - 1) * pageSize;
@@ -251,7 +275,16 @@ export const listPartsPaged = createServerFn({ method: "GET" })
     });
 
     return {
-      items: items.map(p => projectPart(p.get({ plain: true }), tier)),
+      items: items.map(p => {
+        const plain = p.get({ plain: true });
+        const projected: any = projectPart(plain, tier);
+        if (isStaff) {
+          projected.ind_price = plain.ind_price;
+          projected.gar_price = plain.gar_price;
+          projected.export_price = plain.export_price;
+        }
+        return projected;
+      }),
       total: count,
       page,
       pageSize,
@@ -264,7 +297,7 @@ export const listPartsPaged = createServerFn({ method: "GET" })
 export const searchParts = createServerFn({ method: "GET" })
   .validator((d: { q: string; limit?: number }) => d)
   .handler(async ({ data }) => {
-    const tier = await viewerTier();
+    const { tier, isStaff } = await viewerContext();
     const q = data.q.trim();
     if (!q) return { parts: [], categories: [], expanded: null, viewerTier: tier };
     const limit = Math.min(80, Math.max(1, data.limit ?? 40));
@@ -333,7 +366,15 @@ export const searchParts = createServerFn({ method: "GET" })
     });
 
     return {
-      parts: Array.from(byId.values()).slice(0, limit).map((p) => projectPart(p as any, tier)),
+      parts: Array.from(byId.values()).slice(0, limit).map((p) => {
+        const projected: any = projectPart(p as any, tier);
+        if (isStaff) {
+          projected.ind_price = (p as any).ind_price;
+          projected.gar_price = (p as any).gar_price;
+          projected.export_price = (p as any).export_price;
+        }
+        return projected;
+      }),
       categories: categories.map((c: any) => c.get({ plain: true })),
       expanded: effective !== q ? effective : null,
       viewerTier: tier,

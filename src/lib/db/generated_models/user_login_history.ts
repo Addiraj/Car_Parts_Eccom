@@ -12,12 +12,14 @@ export interface user_login_historyAttributes {
   browser?: string;
   os?: string;
   location?: string;
+  method?: string;
   login_time: Date;
+  logout_time?: Date;
 }
 
 export type user_login_historyPk = "id";
 export type user_login_historyId = user_login_history[user_login_historyPk];
-export type user_login_historyOptionalAttributes = "id" | "session_id" | "ip_address" | "user_agent" | "device_type" | "browser" | "os" | "location" | "login_time";
+export type user_login_historyOptionalAttributes = "id" | "session_id" | "ip_address" | "user_agent" | "device_type" | "browser" | "os" | "location" | "method" | "login_time" | "logout_time";
 export type user_login_historyCreationAttributes = Optional<user_login_historyAttributes, user_login_historyOptionalAttributes>;
 
 export class user_login_history extends Model<user_login_historyAttributes, user_login_historyCreationAttributes> implements user_login_historyAttributes {
@@ -30,7 +32,9 @@ export class user_login_history extends Model<user_login_historyAttributes, user
   browser?: string;
   os?: string;
   location?: string;
+  method?: string;
   login_time!: Date;
+  logout_time?: Date;
 
   // user_login_history belongsTo users via user_id
   user!: users;
@@ -86,6 +90,14 @@ export class user_login_history extends Model<user_login_historyAttributes, user
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: Sequelize.Sequelize.fn('now')
+    },
+    logout_time: {
+      type: DataTypes.DATE,
+      allowNull: true
+    },
+    method: {
+      type: DataTypes.TEXT,
+      allowNull: true
     }
   }, {
     sequelize,

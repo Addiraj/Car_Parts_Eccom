@@ -157,6 +157,16 @@ if (typeof window === 'undefined') {
           CREATE INDEX IF NOT EXISTS quotations_customer_idx ON public.quotations (customer_id);
           CREATE INDEX IF NOT EXISTS quotations_status_idx ON public.quotations (status);
 
+          -- Login History Extensions
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='user_login_history' AND column_name='logout_time') THEN
+              ALTER TABLE public.user_login_history ADD COLUMN logout_time TIMESTAMPTZ;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='user_login_history' AND column_name='method') THEN
+              ALTER TABLE public.user_login_history ADD COLUMN method TEXT;
+            END IF;
+          END $$;
+
           -- Stored functions
           DROP FUNCTION IF EXISTS refresh_offer_statuses();
           CREATE OR REPLACE FUNCTION refresh_offer_statuses() RETURNS void AS $f$

@@ -2758,6 +2758,8 @@ export type Database = {
           ip_address: string | null
           location: string | null
           login_time: string
+          logout_time: string | null
+          method: string | null
           os: string | null
           session_id: string | null
           user_agent: string | null
@@ -2770,6 +2772,8 @@ export type Database = {
           ip_address?: string | null
           location?: string | null
           login_time?: string
+          logout_time?: string | null
+          method?: string | null
           os?: string | null
           session_id?: string | null
           user_agent?: string | null
@@ -2782,6 +2786,8 @@ export type Database = {
           ip_address?: string | null
           location?: string | null
           login_time?: string
+          logout_time?: string | null
+          method?: string | null
           os?: string | null
           session_id?: string | null
           user_agent?: string | null

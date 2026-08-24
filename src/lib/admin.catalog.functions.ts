@@ -255,6 +255,16 @@ export const adminBulkDeleteParts = createServerFn({ method: "POST" })
     return { ok: true, deleted: data.ids.length };
   });
 
+export const adminDeleteAllParts = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async ({ context }) => {
+    const count = await models.parts.count();
+    if (count === 0) return { ok: true, deleted: 0 };
+    await models.parts.destroy({ where: {}, truncate: true, cascade: true });
+    await audit("part.delete_all", "part", null, null, { deleted: count }, context.userId);
+    return { ok: true, deleted: count };
+  });
+
 export const adminExportPartsCsv = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .validator((d: { q?: string; brand?: string }) => d)

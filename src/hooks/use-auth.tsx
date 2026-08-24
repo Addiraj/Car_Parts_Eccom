@@ -50,7 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (p) setProfile(p);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      if (session) {
+        const { logLogout } = await import("@/lib/security.functions");
+        await logLogout();
+      }
+    } catch { /* ignore */ }
     localStorage.removeItem("jwt_token");
     setSession(null);
     setUser(null);

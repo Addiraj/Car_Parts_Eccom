@@ -34,6 +34,29 @@ export const logLogin = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const logLogout = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    // Find the most recent active session and set logout_time
+    const { data: latestSession } = await (context.supabase as any)
+      .from("user_login_history")
+      .select("id")
+      .eq("user_id", context.userId)
+      .is("logout_time", null)
+      .order("login_time", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestSession?.id) {
+      await (context.supabase as any)
+        .from("user_login_history")
+        .update({ logout_time: new Date().toISOString() })
+        .eq("id", latestSession.id);
+    }
+    
+    return { ok: true };
+  });
+
 export const listMyLogins = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

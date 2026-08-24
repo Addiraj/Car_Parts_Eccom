@@ -7,6 +7,7 @@ import { Search as SearchIcon } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { PartThumb } from "@/components/part-thumb";
+import { PartCard } from "@/components/part-card";
 
 const schema = z.object({ q: z.string().optional().default("") });
 
@@ -61,23 +62,10 @@ function SearchPage() {
           <div className="mt-6 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             {query.data.parts.length}
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {query.data.parts.map((p: any) => (
-              <Link key={p.id} to="/parts/$id" params={{ id: p.id }}
-                className="group overflow-hidden rounded-lg border bg-surface hover:border-primary hover:shadow-md">
-                <div className="relative aspect-square bg-surface-2">
-                  <PartThumb src={p.images?.[0]} alt={p.name} />
-                  {p.manufacturer && (
-                    <span className="absolute left-2 top-2 rounded border bg-background/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground shadow-sm">
-                      {p.manufacturer}
-                    </span>
-                  )}
-                </div>
-                <div className="p-3">
-                  <div className="font-mono text-[10px] text-muted-foreground">{p.part_number}</div>
-                  <div className="mt-1 line-clamp-2 text-sm font-medium">{p.name}</div>
-                  {!isAdmin && <div className="mt-2 text-sm font-bold text-primary">{formatAED(Number(p.price))}</div>}
-                </div>
+              <Link key={p.id} to="/parts/$id" params={{ id: p.id }} className="group block">
+                <PartCard part={p} />
               </Link>
             ))}
           </div>

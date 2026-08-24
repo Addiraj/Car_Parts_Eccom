@@ -630,6 +630,89 @@ export const adminListTeam = createServerFn({ method: "GET" })
     return { items };
   });
 
+export const adminListLoginHistory = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .validator((d: { search?: string; status?: "All" | "Active" | "Inactive"; from?: string; to?: string; page?: number; pageSize?: number } = {}) => d)
+  .handler(async ({ data }) => {
+    const page = Math.max(1, data.page ?? 1);
+    const pageSize = Math.min(100, data.pageSize ?? 50);
+
+    const where: any = {};
+    if (data.status === "Active") where.logout_time = null;
+    if (data.status === "Inactive") where.logout_time = { [Op.not]: null };
+
+    if (data.from || data.to) {
+      where.login_time = {};
+      if (data.from) where.login_time[Op.gte] = new Date(data.from);
+      if (data.to) {
+        const toDate = new Date(data.to);
+        toDate.setHours(23, 59, 59, 999);
+        where.login_time[Op.lte] = toDate;
+      }
+    }
+
+    let userIdsFromSearch: string[] | null = null;
+    if (data.search && data.search.trim()) {
+      const s = data.search.trim();
+      const usersLike = await models.users.findAll({ attributes: ["id"], where: { email: { [Op.iLike]: `%${s}%` } } });
+      const profilesLike = await models.profiles.findAll({ attributes: ["id"], where: { full_name: { [Op.iLike]: `%${s}%` } } });
+      userIdsFromSearch = [...usersLike.map(u => u.id), ...profilesLike.map(p => p.id)];
+      if (userIdsFromSearch.length === 0) {
+        return { items: [], total: 0, page, pageSize };
+      }
+      where.user_id = { [Op.in]: userIdsFromSearch };
+    }
+
+    const { rows, count } = await models.user_login_history.findAndCountAll({
+      where,
+      order: [["login_time", "DESC"]],
+      limit: pageSize,
+      offset: (page - 1) * pageSize
+    });
+
+    const historyItems = rows.map((r: any) => r.get({ plain: true }));
+    const ids = Array.from(new Set(historyItems.map(h => h.user_id)));
+
+    let emailById = new Map<string, string>();
+    let profById = new Map<string, any>();
+    let rolesById = new Map<string, string[]>();
+
+    if (ids.length > 0) {
+      const [usersRows, profilesRows, rolesRows] = await Promise.all([
+        models.users.findAll({ attributes: ["id", "email"], where: { id: { [Op.in]: ids } } }),
+        models.profiles.findAll({ attributes: ["id", "full_name", "customer_type"], where: { id: { [Op.in]: ids } } }),
+        models.user_roles.findAll({ attributes: ["user_id", "role"], where: { user_id: { [Op.in]: ids } } })
+      ]);
+      usersRows.forEach(u => { if (u.email) emailById.set(u.id, u.email as string); });
+      profilesRows.forEach(p => profById.set(p.id, p.get({ plain: true })));
+      rolesRows.forEach(r => {
+        const arr = rolesById.get(r.user_id) ?? [];
+        arr.push(r.role);
+        rolesById.set(r.user_id, arr);
+      });
+    }
+
+    const items = historyItems.map(h => {
+      const p = profById.get(h.user_id) || {};
+      const r = rolesById.get(h.user_id) || [];
+      
+      let typeDisplay = "Customer";
+      if (r.includes("super_admin")) typeDisplay = "Super Admin";
+      else if (r.includes("admin")) typeDisplay = "Admin";
+      else if (r.includes("salesman")) typeDisplay = "Salesman";
+      else if (p.customer_type) typeDisplay = p.customer_type;
+
+      return {
+        ...h,
+        email: emailById.get(h.user_id) ?? "—",
+        full_name: p.full_name ?? "—",
+        type: typeDisplay,
+      };
+    });
+
+    return { items, total: count, page, pageSize };
+  });
+
 
 export const adminUpdateUserCustomerType = createServerFn({ method: "POST" })
   .middleware([requireAdmin])

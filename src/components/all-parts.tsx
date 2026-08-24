@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { Reveal, TiltCard } from "@/components/motion-primitives";
 import { PartThumb } from "@/components/part-thumb";
+import { PartCard } from "@/components/part-card";
 
 export const homePartsQO = (page: number) =>
   queryOptions({
@@ -82,31 +83,10 @@ export function AllParts({ page, basePath }: Props) {
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading page {page}…
             </div>
           )}
-          <div className={`grid grid-cols-2 gap-5 md:grid-cols-3 lg:grid-cols-4 transition-opacity duration-200 ${isFetching ? "opacity-60" : "opacity-100"}`}>
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 transition-opacity duration-200 ${isFetching ? "opacity-60" : "opacity-100"}`}>
             {items.map((p: any) => (
               <Link key={p.id} to="/parts/$id" params={{ id: p.id }} className="group block">
-                <TiltCard className="relative aspect-[4/5] overflow-hidden bg-surface">
-                  <PartThumb
-                    src={p.images?.[0]}
-                    alt={p.name}
-                    imgClassName="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/85 via-background/10 to-transparent" />
-                  <div className="absolute inset-x-0 bottom-0 p-4 md:p-5">
-                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                      {p.part_number}
-                    </div>
-                    <div className="mt-1.5 line-clamp-2 font-display text-base leading-tight md:text-lg">{p.name}</div>
-                    <div className="mt-3 flex items-center justify-between">
-                      {!isAdmin && <div className="text-sm tabular-nums">{formatAED(Number(p.price))}</div>}
-                      {p.manufacturer && (
-                        <span className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
-                          {p.manufacturer}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </TiltCard>
+                <PartCard part={p} />
               </Link>
             ))}
           </div>

@@ -50,6 +50,7 @@ import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminCreditManagementRouteImport } from './routes/_authenticated.admin.credit-management'
 import { Route as AuthenticatedAdminFollowupsRouteImport } from './routes/_authenticated.admin.followups'
 import { Route as AuthenticatedAdminInventoryRouteImport } from './routes/_authenticated.admin.inventory'
+import { Route as AuthenticatedAdminLoginHistoryRouteImport } from './routes/_authenticated.admin.login-history'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated.admin.notifications'
 import { Route as AuthenticatedAdminPartsRouteImport } from './routes/_authenticated.admin.parts'
 import { Route as AuthenticatedAdminPaymentSettingsRouteImport } from './routes/_authenticated.admin.payment-settings'
@@ -330,6 +331,12 @@ const AuthenticatedAdminInventoryRoute =
   AuthenticatedAdminInventoryRouteImport.update({
     id: '/inventory',
     path: '/inventory',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminLoginHistoryRoute =
+  AuthenticatedAdminLoginHistoryRouteImport.update({
+    id: '/login-history',
+    path: '/login-history',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminNotificationsRoute =
@@ -757,6 +764,7 @@ export interface FileRoutesByFullPath {
   '/admin/credit-management': typeof AuthenticatedAdminCreditManagementRoute
   '/admin/followups': typeof AuthenticatedAdminFollowupsRoute
   '/admin/inventory': typeof AuthenticatedAdminInventoryRoute
+  '/admin/login-history': typeof AuthenticatedAdminLoginHistoryRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/parts': typeof AuthenticatedAdminPartsRouteWithChildren
   '/admin/payment-settings': typeof AuthenticatedAdminPaymentSettingsRoute
@@ -862,6 +870,7 @@ export interface FileRoutesByTo {
   '/admin/credit-management': typeof AuthenticatedAdminCreditManagementRoute
   '/admin/followups': typeof AuthenticatedAdminFollowupsRoute
   '/admin/inventory': typeof AuthenticatedAdminInventoryRoute
+  '/admin/login-history': typeof AuthenticatedAdminLoginHistoryRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/parts': typeof AuthenticatedAdminPartsRouteWithChildren
   '/admin/payment-settings': typeof AuthenticatedAdminPaymentSettingsRoute
@@ -973,6 +982,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/credit-management': typeof AuthenticatedAdminCreditManagementRoute
   '/_authenticated/admin/followups': typeof AuthenticatedAdminFollowupsRoute
   '/_authenticated/admin/inventory': typeof AuthenticatedAdminInventoryRoute
+  '/_authenticated/admin/login-history': typeof AuthenticatedAdminLoginHistoryRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/parts': typeof AuthenticatedAdminPartsRouteWithChildren
   '/_authenticated/admin/payment-settings': typeof AuthenticatedAdminPaymentSettingsRoute
@@ -1084,6 +1094,7 @@ export interface FileRouteTypes {
     | '/admin/credit-management'
     | '/admin/followups'
     | '/admin/inventory'
+    | '/admin/login-history'
     | '/admin/notifications'
     | '/admin/parts'
     | '/admin/payment-settings'
@@ -1189,6 +1200,7 @@ export interface FileRouteTypes {
     | '/admin/credit-management'
     | '/admin/followups'
     | '/admin/inventory'
+    | '/admin/login-history'
     | '/admin/notifications'
     | '/admin/parts'
     | '/admin/payment-settings'
@@ -1299,6 +1311,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/credit-management'
     | '/_authenticated/admin/followups'
     | '/_authenticated/admin/inventory'
+    | '/_authenticated/admin/login-history'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/parts'
     | '/_authenticated/admin/payment-settings'
@@ -1699,6 +1712,13 @@ declare module '@tanstack/react-router' {
       path: '/inventory'
       fullPath: '/admin/inventory'
       preLoaderRoute: typeof AuthenticatedAdminInventoryRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/login-history': {
+      id: '/_authenticated/admin/login-history'
+      path: '/login-history'
+      fullPath: '/admin/login-history'
+      preLoaderRoute: typeof AuthenticatedAdminLoginHistoryRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/notifications': {
@@ -2258,6 +2278,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminCreditManagementRoute: typeof AuthenticatedAdminCreditManagementRoute
   AuthenticatedAdminFollowupsRoute: typeof AuthenticatedAdminFollowupsRoute
   AuthenticatedAdminInventoryRoute: typeof AuthenticatedAdminInventoryRoute
+  AuthenticatedAdminLoginHistoryRoute: typeof AuthenticatedAdminLoginHistoryRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminPartsRoute: typeof AuthenticatedAdminPartsRouteWithChildren
   AuthenticatedAdminPaymentSettingsRoute: typeof AuthenticatedAdminPaymentSettingsRoute
@@ -2296,6 +2317,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminCreditManagementRoute,
   AuthenticatedAdminFollowupsRoute: AuthenticatedAdminFollowupsRoute,
   AuthenticatedAdminInventoryRoute: AuthenticatedAdminInventoryRoute,
+  AuthenticatedAdminLoginHistoryRoute: AuthenticatedAdminLoginHistoryRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminPartsRoute: AuthenticatedAdminPartsRouteWithChildren,
   AuthenticatedAdminPaymentSettingsRoute:

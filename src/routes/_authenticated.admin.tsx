@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 // JWT auth check is done in beforeLoad via localStorage
 import { checkIsAdmin } from "@/lib/admin.functions";
 import { useI18n } from "@/lib/i18n";
-import { LayoutDashboard, Package, ShoppingBag, Image as ImageIcon, Users, Users2, BarChart3, Mail, Tag, Crown, Boxes, Warehouse, ArrowUpDown, FileBarChart, MessageSquareQuote, PanelBottom, FileText, UserCog, UserPlus, Trophy, Calendar, ScrollText, Bot, MessagesSquare, UserSearch, Sparkles, PanelLeftClose, PanelLeftOpen, Bell, Wallet, Settings, Activity } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingBag, Image as ImageIcon, Users, Users2, BarChart3, Mail, Tag, Crown, Boxes, Warehouse, ArrowUpDown, FileBarChart, MessageSquareQuote, PanelBottom, FileText, UserCog, UserPlus, Trophy, Calendar, ScrollText, Bot, MessagesSquare, UserSearch, Sparkles, PanelLeftClose, PanelLeftOpen, Bell, Wallet, Settings, Activity, LogIn } from "lucide-react";
 import { NotificationBell } from "@/components/admin/notification-bell";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -75,6 +75,7 @@ const navGroups: Array<{ labelKey: string; items: NavItem[]; superOnly?: boolean
     { to: "/admin/reports", labelKey: "admin.reports", icon: FileBarChart },
     { to: "/admin/analytics", labelKey: "admin.analytics", icon: BarChart3 },
     { to: "/admin/audit-logs", labelKey: "admin.auditLogs", icon: ScrollText },
+    { to: "/admin/login-history", labelKey: "admin.loginHistory", icon: LogIn, superOnly: true },
     { to: "/admin/sre-monitor", labelKey: "admin.sreMonitor", icon: Activity },
   ]},
 ];

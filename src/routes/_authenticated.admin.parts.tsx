@@ -15,7 +15,7 @@ import {
   adminGetImportErrors,
   type ImportRowError,
 } from "@/lib/admin.functions";
-import { adminBulkUpdateParts, adminBulkDeleteParts, adminExportPartsCsv } from "@/lib/admin.catalog.functions";
+import { adminBulkUpdateParts, adminBulkDeleteParts, adminExportPartsCsv, adminDeleteAllParts } from "@/lib/admin.catalog.functions";
 import { formatAED } from "@/lib/format";
 import { toast } from "sonner";
 import { Plus, Trash2, Upload, ChevronLeft, ChevronRight, Download, AlertCircle, Pencil } from "lucide-react";
@@ -159,6 +159,27 @@ function BrowsePanel() {
           }}
           className="flex items-center gap-1.5 rounded-md border bg-surface px-3 py-2 text-sm font-semibold"
         ><Download className="h-4 w-4" /> Export CSV</button>
+        <button
+          onClick={async () => {
+            if (!confirm(`Are you absolutely sure you want to delete ALL parts in the database? This action cannot be undone.`)) return;
+            const doubleCheck = prompt(`Type "DELETE ALL" to confirm:`);
+            if (doubleCheck !== "DELETE ALL") {
+              toast.error("Aborted delete all.");
+              return;
+            }
+            try {
+              const r: any = await adminDeleteAllParts();
+              toast.success(`Deleted all ${r.deleted} parts successfully.`);
+              setPage(1);
+              setSelected(new Set());
+              qc.invalidateQueries({ queryKey: ["admin-parts"] });
+              qc.invalidateQueries({ queryKey: ["admin-part-brands"] });
+            } catch (e: any) { toast.error(e.message); }
+          }}
+          className="flex items-center gap-1.5 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+        >
+          <Trash2 className="h-4 w-4" /> Delete all parts
+        </button>
         <button
           onClick={() => setOpen((o) => !o)}
           className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"
@@ -686,7 +707,7 @@ function ImportPanel() {
             <h2 className="text-lg font-semibold">Import parts from CSV or Excel</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Accepts .csv, .xlsx, .xls — columns: Category Name, Part Number, Brand, Brand Part No., Description, Unique Value, Quantity, Rate, IND, GAR, EXPORT.
-              Existing parts (same Part Number + Brand) are updated; new ones are inserted. Handles 50,000+ rows in batches of {BATCH}.
+              Existing parts (matching Unique Value) are updated (including changes to part number or category); if Unique Value is new or changes, a new row is inserted. Handles 50,000+ rows in batches of {BATCH}.
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <input
