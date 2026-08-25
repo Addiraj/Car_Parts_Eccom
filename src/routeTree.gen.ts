@@ -61,6 +61,7 @@ import { Route as AuthenticatedAdminSalesmenRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminSpecialOffersRouteImport } from './routes/_authenticated.admin.special-offers'
 import { Route as AuthenticatedAdminSreMonitorRouteImport } from './routes/_authenticated.admin.sre-monitor'
 import { Route as AuthenticatedAdminSre_monitorRouteImport } from './routes/_authenticated.admin.sre_monitor'
+import { Route as AuthenticatedAdminStaffRouteImport } from './routes/_authenticated.admin.staff'
 import { Route as AuthenticatedAdminStockMovementsRouteImport } from './routes/_authenticated.admin.stock-movements'
 import { Route as AuthenticatedAdminTeamRouteImport } from './routes/_authenticated.admin.team'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated.admin.users'
@@ -398,6 +399,11 @@ const AuthenticatedAdminSre_monitorRoute =
     path: '/sre_monitor',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminStaffRoute = AuthenticatedAdminStaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminStockMovementsRoute =
   AuthenticatedAdminStockMovementsRouteImport.update({
     id: '/stock-movements',
@@ -775,6 +781,7 @@ export interface FileRoutesByFullPath {
   '/admin/special-offers': typeof AuthenticatedAdminSpecialOffersRoute
   '/admin/sre-monitor': typeof AuthenticatedAdminSreMonitorRoute
   '/admin/sre_monitor': typeof AuthenticatedAdminSre_monitorRoute
+  '/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/admin/stock-movements': typeof AuthenticatedAdminStockMovementsRoute
   '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -881,6 +888,7 @@ export interface FileRoutesByTo {
   '/admin/special-offers': typeof AuthenticatedAdminSpecialOffersRoute
   '/admin/sre-monitor': typeof AuthenticatedAdminSreMonitorRoute
   '/admin/sre_monitor': typeof AuthenticatedAdminSre_monitorRoute
+  '/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/admin/stock-movements': typeof AuthenticatedAdminStockMovementsRoute
   '/admin/team': typeof AuthenticatedAdminTeamRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -993,6 +1001,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/special-offers': typeof AuthenticatedAdminSpecialOffersRoute
   '/_authenticated/admin/sre-monitor': typeof AuthenticatedAdminSreMonitorRoute
   '/_authenticated/admin/sre_monitor': typeof AuthenticatedAdminSre_monitorRoute
+  '/_authenticated/admin/staff': typeof AuthenticatedAdminStaffRoute
   '/_authenticated/admin/stock-movements': typeof AuthenticatedAdminStockMovementsRoute
   '/_authenticated/admin/team': typeof AuthenticatedAdminTeamRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -1105,6 +1114,7 @@ export interface FileRouteTypes {
     | '/admin/special-offers'
     | '/admin/sre-monitor'
     | '/admin/sre_monitor'
+    | '/admin/staff'
     | '/admin/stock-movements'
     | '/admin/team'
     | '/admin/users'
@@ -1211,6 +1221,7 @@ export interface FileRouteTypes {
     | '/admin/special-offers'
     | '/admin/sre-monitor'
     | '/admin/sre_monitor'
+    | '/admin/staff'
     | '/admin/stock-movements'
     | '/admin/team'
     | '/admin/users'
@@ -1322,6 +1333,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/special-offers'
     | '/_authenticated/admin/sre-monitor'
     | '/_authenticated/admin/sre_monitor'
+    | '/_authenticated/admin/staff'
     | '/_authenticated/admin/stock-movements'
     | '/_authenticated/admin/team'
     | '/_authenticated/admin/users'
@@ -1789,6 +1801,13 @@ declare module '@tanstack/react-router' {
       path: '/sre_monitor'
       fullPath: '/admin/sre_monitor'
       preLoaderRoute: typeof AuthenticatedAdminSre_monitorRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/staff': {
+      id: '/_authenticated/admin/staff'
+      path: '/staff'
+      fullPath: '/admin/staff'
+      preLoaderRoute: typeof AuthenticatedAdminStaffRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/stock-movements': {
@@ -2289,6 +2308,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminSpecialOffersRoute: typeof AuthenticatedAdminSpecialOffersRoute
   AuthenticatedAdminSreMonitorRoute: typeof AuthenticatedAdminSreMonitorRoute
   AuthenticatedAdminSre_monitorRoute: typeof AuthenticatedAdminSre_monitorRoute
+  AuthenticatedAdminStaffRoute: typeof AuthenticatedAdminStaffRoute
   AuthenticatedAdminStockMovementsRoute: typeof AuthenticatedAdminStockMovementsRoute
   AuthenticatedAdminTeamRoute: typeof AuthenticatedAdminTeamRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
@@ -2330,6 +2350,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminSpecialOffersRoute: AuthenticatedAdminSpecialOffersRoute,
   AuthenticatedAdminSreMonitorRoute: AuthenticatedAdminSreMonitorRoute,
   AuthenticatedAdminSre_monitorRoute: AuthenticatedAdminSre_monitorRoute,
+  AuthenticatedAdminStaffRoute: AuthenticatedAdminStaffRoute,
   AuthenticatedAdminStockMovementsRoute: AuthenticatedAdminStockMovementsRoute,
   AuthenticatedAdminTeamRoute: AuthenticatedAdminTeamRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
