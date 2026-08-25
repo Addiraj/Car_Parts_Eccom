@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 // JWT auth check is done in beforeLoad via localStorage
 import { checkIsAdmin } from "@/lib/admin.functions";
 import { useI18n } from "@/lib/i18n";
-import { LayoutDashboard, Package, ShoppingBag, Image as ImageIcon, Users, Users2, BarChart3, Mail, Tag, Crown, Boxes, Warehouse, ArrowUpDown, FileBarChart, MessageSquareQuote, PanelBottom, FileText, UserCog, UserPlus, Trophy, Calendar, ScrollText, Bot, MessagesSquare, UserSearch, Sparkles, PanelLeftClose, PanelLeftOpen, Bell, Wallet, Settings, Activity, LogIn } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingBag, Image as ImageIcon, Users, Users2, BarChart3, Mail, Tag, Crown, Boxes, Warehouse, ArrowUpDown, FileBarChart, MessageSquareQuote, PanelBottom, FileText, UserCog, UserPlus, Trophy, Calendar, ScrollText, Bot, MessagesSquare, UserSearch, Sparkles, PanelLeftClose, PanelLeftOpen, Bell, Wallet, Settings, Activity, LogIn, ShieldAlert } from "lucide-react";
 import { NotificationBell } from "@/components/admin/notification-bell";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -50,6 +50,7 @@ const navGroups: Array<{ labelKey: string; items: NavItem[]; superOnly?: boolean
   { labelKey: "adminGroup.salesTeam", items: [
     { to: "/admin/team", labelKey: "admin.team", icon: Users2 },
     { to: "/admin/salesmen", labelKey: "admin.salesmen", icon: UserCog },
+    { to: "/admin/staff", labelKey: "admin.staffAccounts", icon: ShieldAlert, superOnly: true },
     { to: "/admin/assignments", labelKey: "admin.assignments", icon: UserPlus },
     { to: "/admin/performance", labelKey: "admin.performance", icon: Trophy },
   ]},

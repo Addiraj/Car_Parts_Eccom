@@ -104,8 +104,8 @@ function Login() {
             <p className="mt-1 text-sm text-muted-foreground">{t("welcomeBack")}</p>
             <div className="mt-6 space-y-4">
               <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wider">{t("email")}</span>
-                <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full rounded-md border bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+                <span className="text-xs font-semibold uppercase tracking-wider">{t("email")} / Username</span>
+                <input required type="text" value={email} onChange={(e) => setEmail(e.target.value.trim().toLowerCase())} className="mt-1 w-full rounded-md border bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" autoCapitalize="none" autoCorrect="off" />
               </label>
               <label className="block">
                 <span className="text-xs font-semibold uppercase tracking-wider">{t("password")}</span>

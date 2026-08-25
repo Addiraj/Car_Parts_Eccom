@@ -7,7 +7,7 @@ import { models } from "./db/index.server";
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret_for_dev_only_change_in_prod";
 
 export const login = createServerFn({ method: "POST" })
-  .validator(z.object({ email: z.string().email(), password: z.string().min(1) }))
+  .validator(z.object({ email: z.string().min(1), password: z.string().min(1) }))
   .handler(async ({ data: { email, password } }) => {
     const user = await models.users.findOne({ where: { email } });
     if (!user || !user.password_hash) {
