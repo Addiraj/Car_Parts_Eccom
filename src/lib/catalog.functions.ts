@@ -490,7 +490,7 @@ const SERVICE_GROUPS: ServiceGroup[] = [
     label: "Brake Pad Set",
     include: /(BRAKE\s*PAD|BRAKEPAD|DISC\s*BRAKE\s*PAD|DISK\s*BRAKE\s*PAD|BRAKE\s*LINING|BRAKE\s*SHOE|LINING.*BRAKE|BRAKE.*LINING)/i,
     ilike: ["BRAKE PAD", "BRAKEPAD", "DISC BRAKE PAD", "DISK BRAKE PAD", "BRAKE LINING", "BRAKE SHOE"],
-    exclude: /MULTIDISK|PARKING\s*BRAKE|BRAKE\s*DISC\s*(?!PAD)|BRAKE\s*DISK\s*(?!PAD)|BRAKE\s*CALIPER|SENSOR|CABLE|HOSE|LINE|PEDAL|SPRING|BOLT|SCREW|PIN|PLATE|RING/i,
+    exclude: /MULTIDISK|PARKING\s*BRAKE|BRAKE\s*DISC\s*(?!PAD)|BRAKE\s*DISK\s*(?!PAD)|BRAKE\s*CALIPER|SENSOR|CABLE|HOSE|LINE|PEDAL|SPRING|BOLT|SCREW|PIN|PLATE|RING|PASTE|LITERATURE|INFORMATION|WEAR|INDICATOR|GREASE/i,
   },
   { key: "wiper_blade", label: "Wiper Blade", include: /(WIPER\s*BLADE|WINDSHIELD\s*WIPER|WIPER\s*RUBBER)/i, ilike: ["WIPER BLADE", "WINDSHIELD WIPER", "WIPER RUBBER"], exclude: /MOTOR|ARM|LINKAGE|RELAY|SWITCH|TANK|NOZZLE/i },
 ];
@@ -524,7 +524,7 @@ async function appendServicePartsCategory(catalog: any): Promise<any> {
     };
     type ServiceBucket = { group: ServiceGroup; image: string; diagramName: string; parts: MatchedCatalogPart[]; seen: Set<string> };
 
-    const matchesByGroup = new Map<string, ServiceBucket>();
+    const matchesByGroup = new Map<string, ServiceBucket[]>();
 
     const matchGroup = (text: unknown, partSpecificText?: unknown) => {
       const normalized = normalizeCatalogKey(text);
@@ -548,13 +548,17 @@ async function appendServicePartsCategory(catalog: any): Promise<any> {
         : (typeof diagram?.thumbnail_url === "string" ? diagram.thumbnail_url : "");
       const diagramName = String(diagram?.diagram_name ?? group.label);
       const key = group.key;
-      let bucket = matchesByGroup.get(key);
+      let buckets = matchesByGroup.get(key);
+      if (!buckets) {
+        buckets = [];
+        matchesByGroup.set(key, buckets);
+      }
+      let bucket = buckets.find(b => b.diagramName === diagramName);
       if (!bucket) {
         bucket = { group, image: img, diagramName, parts: [], seen: new Set<string>() };
-        matchesByGroup.set(key, bucket);
+        buckets.push(bucket);
       }
       if (!bucket.image && img) bucket.image = img;
-      if (!bucket.diagramName && diagramName) bucket.diagramName = diagramName;
 
       const pnKey = partNumbers.map((pn: any) => String(pn?.part_number ?? "").trim()).filter(Boolean).join("|");
       const dedupeKey = [group.key, normalizeCatalogKey(part?.part_name), pnKey].join("::");
@@ -597,15 +601,20 @@ async function appendServicePartsCategory(catalog: any): Promise<any> {
       }
     }
 
-    const diagrams = SERVICE_GROUPS
-      .map((g) => matchesByGroup.get(g.key))
-      .filter((bucket): bucket is ServiceBucket => !!bucket && bucket.parts.length > 0)
-      .map((bucket) => ({
-        diagram_name: bucket.group.label,
-        diagram_code: `SERVICE_${bucket.group.key.toUpperCase()}`,
-        image_url: bucket.image,
-        parts: bucket.parts,
-      }));
+    const diagrams: any[] = [];
+    for (const g of SERVICE_GROUPS) {
+      const buckets = matchesByGroup.get(g.key);
+      if (!buckets) continue;
+      for (const bucket of buckets) {
+        if (bucket.parts.length === 0) continue;
+        diagrams.push({
+          diagram_name: buckets.length > 1 ? `${bucket.group.label} (${bucket.diagramName})` : bucket.group.label,
+          diagram_code: `SERVICE_${bucket.group.key.toUpperCase()}`,
+          image_url: bucket.image,
+          parts: bucket.parts,
+        });
+      }
+    }
 
     console.log("[service-parts]", {
       brand: catalog?.brand_name,

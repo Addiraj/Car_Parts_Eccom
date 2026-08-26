@@ -4,6 +4,28 @@ import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { parseUA } from "@/lib/ua-parse";
 
+export async function verifyTurnstileToken(token: string) {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  if (!secret) return true; // Fail open if no secret configured
+  if (!token) return false;
+
+  try {
+    const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        secret,
+        response: token,
+      }).toString(),
+    });
+    const data = await res.json();
+    return !!data.success;
+  } catch (error) {
+    console.error("Turnstile verification failed:", error);
+    return false;
+  }
+}
+
 export const logLogin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: unknown) =>

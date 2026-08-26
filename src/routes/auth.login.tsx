@@ -1,13 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { useServerFn } from "@tanstack/react-start";
-import { login } from "@/lib/auth.functions";
+import { login, sendOtp } from "@/lib/auth.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
-import { Eye, EyeOff, ShieldCheck } from "lucide-react";
-import { ensureDemoAdmin, ensureDemoSuperAdmin } from "@/lib/demo.functions";
+import { ArrowLeft, Loader2, KeyRound } from "lucide-react";
 import { getMyRoleInfo } from "@/lib/admin.salesmen.functions";
 import { logLogin } from "@/lib/security.functions";
 import { useI18n } from "@/lib/i18n";
@@ -15,6 +15,7 @@ import { getSafeRedirect } from "@/lib/redirect";
 
 const loginSearchSchema = z.object({
   redirect: fallback(z.string(), "").default(""),
+  reason: fallback(z.string(), "").default(""),
 });
 
 export const Route = createFileRoute("/auth/login")({
@@ -25,63 +26,100 @@ export const Route = createFileRoute("/auth/login")({
 
 function Login() {
   const { t } = useI18n();
-  const { redirect: redirectRaw } = Route.useSearch();
+  const { redirect: redirectRaw, reason } = Route.useSearch();
   const redirectTo = getSafeRedirect(redirectRaw);
+  
+  const [step, setStep] = useState<"email" | "otp">("email");
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  
   const [loading, setLoading] = useState(false);
-  const [demoLoading, setDemoLoading] = useState(false);
-  const [superLoading, setSuperLoading] = useState(false);
-  const [unverified, setUnverified] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(0);
+
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<any>(null);
+  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
+
   const navigate = useNavigate();
-  const ensureDemo = useServerFn(ensureDemoAdmin);
-  const ensureSuper = useServerFn(ensureDemoSuperAdmin);
   const submitLogin = useServerFn(login);
+  const triggerSendOtp = useServerFn(sendOtp);
   const { setAuth } = useAuth();
+
+  const isAdminEmail = email === "admin" || email === "superadmin";
+
+  useEffect(() => {
+    if (reason === "inactivity") {
+      toast.error("Session expired due to inactivity. Please log in again.");
+    }
+  }, [reason]);
+
+  useEffect(() => {
+    let timer: any;
+    if (countdown > 0) {
+      timer = setTimeout(() => setCountdown(c => c - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [countdown]);
+
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!email || !email.includes("@")) {
+      return toast.error("Please enter a valid email address");
+    }
+    if (!turnstileToken) {
+      return toast.error("Please complete the CAPTCHA");
+    }
+    setLoading(true);
+    try {
+      await triggerSendOtp({ data: { email, turnstileToken } });
+      setStep("otp");
+      setCountdown(60);
+      toast.success("OTP sent to your email");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send OTP");
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setUnverified(null);
     
     try {
-      const result = await submitLogin({ data: { email, password } });
+      const data: any = { email, turnstileToken };
+      if (isAdminEmail) data.password = password;
+      else data.otp = otp;
+
+      const result = await submitLogin({ data });
       setAuth(result.token, result.user);
+      
+      try { await logLogin({ data: { method: isAdminEmail ? "password" : "otp" } }); } catch { /* ignore */ }
+      toast.success(t("welcomeBack"));
+      
+      if (redirectTo) {
+        navigate({ to: redirectTo });
+        return;
+      }
+      
+      try {
+        const r = await getMyRoleInfo();
+        if (r.isAdmin) navigate({ to: "/admin" });
+        else if (r.isSalesman) navigate({ to: "/salesman" });
+        else navigate({ to: "/account" });
+      } catch {
+        navigate({ to: "/account" });
+      }
+
     } catch (error: any) {
-      setLoading(false);
-      return toast.error(error.message || "Invalid email or password. Please try again.");
-    }
-
-    setLoading(false);
-    try { await logLogin({ data: { method: "password" } }); } catch { /* ignore */ }
-    toast.success(t("welcomeBack"));
-    if (redirectTo) {
-      navigate({ to: redirectTo });
-      return;
-    }
-    try {
-      const r = await getMyRoleInfo();
-      if (r.isAdmin) navigate({ to: "/admin" });
-      else if (r.isSalesman) navigate({ to: "/salesman" });
-      else navigate({ to: "/account" });
-    } catch {
-      navigate({ to: "/account" });
-    }
-  };
-
-  const demoAdminLogin = async () => {
-    setDemoLoading(true);
-    try {
-      const creds = await ensureDemo();
-      const result = await submitLogin({ data: { email: creds.email, password: creds.password } });
-      setAuth(result.token, result.user);
-      toast.success("Demo admin");
-      navigate({ to: redirectTo ?? "/admin" });
-    } catch (err: any) {
-      toast.error(err.message ?? "Demo login failed");
+      toast.error(error.message || "Invalid credentials. Please try again.");
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
     } finally {
-      setDemoLoading(false);
+      setLoading(false);
     }
   };
 
@@ -99,65 +137,71 @@ function Login() {
 
       <div className="flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
-          <form onSubmit={submit}>
-            <h1 className="text-2xl font-bold">{t("signIn")}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{t("welcomeBack")}</p>
-            <div className="mt-6 space-y-4">
-              <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wider">{t("email")} / Username</span>
-                <input required type="text" value={email} onChange={(e) => setEmail(e.target.value.trim().toLowerCase())} className="mt-1 w-full rounded-md border bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" autoCapitalize="none" autoCorrect="off" />
-              </label>
-              <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wider">{t("password")}</span>
-                <div className="relative mt-1">
-                  <input required type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-md border bg-surface px-3 py-2 pe-10 text-sm outline-none focus:ring-2 focus:ring-ring" />
-                  <button type="button" onClick={() => setShowPassword((s) => !s)} className="absolute end-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1}>
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          {step === "email" ? (
+            <form onSubmit={isAdminEmail ? submit : handleSendOtp}>
+              <h1 className="text-2xl font-bold">{t("signIn")}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">{t("welcomeBack")}</p>
+              
+              <div className="mt-6 space-y-4">
+                <label className="block">
+                  <span className="text-xs font-semibold uppercase tracking-wider">{t("email")} / Username</span>
+                  <input required type="text" value={email} onChange={(e) => setEmail(e.target.value.trim().toLowerCase())} className="mt-1 w-full rounded-md border bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" autoCapitalize="none" autoCorrect="off" placeholder="Enter your email" />
+                </label>
+
+                {isAdminEmail && (
+                  <label className="block animate-in fade-in slide-in-from-top-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider">{t("password")}</span>
+                    <input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 w-full rounded-md border bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+                  </label>
+                )}
+
+                <div className="flex justify-center my-4">
+                  <Turnstile 
+                    siteKey={turnstileSiteKey} 
+                    ref={turnstileRef}
+                    onSuccess={(token) => setTurnstileToken(token)}
+                    onError={() => setTurnstileToken("")}
+                    onExpire={() => setTurnstileToken("")}
+                  />
+                </div>
+
+                <button disabled={loading || !turnstileToken} className="w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground flex justify-center items-center gap-2 disabled:opacity-50">
+                  {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isAdminEmail ? t("signIn") : "Continue"}
+                </button>
+              </div>
+
+              <p className="mt-6 text-center text-sm text-muted-foreground">
+                {t("noAccountQ")} <Link to="/auth/signup" search={{ redirect: redirectTo ?? "" }} className="font-semibold text-primary hover:underline">{t("createOne")}</Link>
+              </p>
+            </form>
+          ) : (
+            <form onSubmit={submit} className="animate-in fade-in slide-in-from-right-4">
+              <button type="button" onClick={() => setStep("email")} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4">
+                <ArrowLeft className="w-3 h-3" /> Back
+              </button>
+              <h1 className="text-2xl font-bold">Verify OTP</h1>
+              <p className="mt-1 text-sm text-muted-foreground">We sent a 6-digit code to <span className="font-medium text-foreground">{email}</span>.</p>
+              
+              <div className="mt-6 space-y-4">
+                <label className="block">
+                  <span className="text-xs font-semibold uppercase tracking-wider">6-Digit OTP</span>
+                  <input required type="text" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.trim())} className="mt-1 w-full rounded-md border bg-surface px-3 py-2 text-sm tracking-widest text-center outline-none focus:ring-2 focus:ring-ring" placeholder="------" />
+                </label>
+
+                <button disabled={loading || otp.length !== 6} className="w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground flex justify-center items-center gap-2 disabled:opacity-50">
+                  {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Verify & Sign In
+                </button>
+
+                <div className="text-center mt-4">
+                  <button type="button" disabled={countdown > 0 || loading} onClick={handleSendOtp} className="text-xs text-primary hover:underline disabled:text-muted-foreground disabled:no-underline disabled:cursor-not-allowed">
+                    {countdown > 0 ? `Resend OTP in ${countdown}s` : "Resend OTP"}
                   </button>
                 </div>
-              </label>
-              {unverified && (
-                <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                  Please verify your email first.
-                </div>
-              )}
-              <div className="flex justify-end">
-                <Link to="/auth/forgot-password" className="text-xs text-muted-foreground hover:text-foreground">Forgot your password?</Link>
               </div>
-              <button disabled={loading} className="w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">
-                {loading ? t("signingIn") : t("signIn")}
-              </button>
-            </div>
-
-            <p className="mt-6 text-center text-sm text-muted-foreground">
-              {t("noAccountQ")} <Link to="/auth/signup" search={{ redirect: redirectTo ?? "" }} className="font-semibold text-primary hover:underline">{t("createOne")}</Link>
-            </p>
-          </form>
-
-          <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-wider text-muted-foreground">
-            <div className="h-px flex-1 bg-border" /> Demo <div className="h-px flex-1 bg-border" />
-          </div>
-          <div className="grid gap-2">
-            <button type="button" onClick={demoAdminLogin} disabled={demoLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-md border bg-surface py-2 text-xs font-semibold hover:bg-accent disabled:opacity-50">
-              <ShieldCheck size={14} /> {demoLoading ? t("loading") : "Continue as Demo Admin"}
-            </button>
-            <button type="button" disabled={superLoading}
-              onClick={async () => {
-                setSuperLoading(true);
-                try {
-                  const c = await ensureSuper();
-                  const result = await submitLogin({ data: { email: c.email, password: c.password } });
-                  setAuth(result.token, result.user);
-                  toast.success("Demo Super Admin");
-                  navigate({ to: redirectTo ?? "/admin" });
-                } catch (e: any) { toast.error(e.message ?? "Super admin login failed"); }
-                finally { setSuperLoading(false); }
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-secondary py-2 text-xs font-bold uppercase tracking-wider text-secondary-foreground hover:opacity-90 disabled:opacity-50">
-              <ShieldCheck size={14} /> {superLoading ? t("loading") : "Continue as Demo Super Admin"}
-            </button>
-          </div>
+            </form>
+          )}
         </div>
       </div>
     </div>

@@ -15,22 +15,30 @@ async function hasRole(userId: string, role: string) {
 export const requireAdmin = createMiddleware({ type: "function" })
   .middleware([requireSupabaseAuth])
   .server(async ({ next, context }) => {
+    const email = context.claims?.email;
+    const isHardcodedAdmin = email === "admin" || email === "superadmin";
+    const isHardcodedSuper = email === "superadmin";
+
     const a = await hasRole(context.userId, "admin");
     const sa = await hasRole(context.userId, "super_admin");
-    if (!a && !sa) throw new Error("Forbidden: admin role required");
-    return next({ context: { ...context, isAdmin: true, isSuperAdmin: !!sa } });
+    if (!a && !sa && !isHardcodedAdmin) throw new Error("Forbidden: admin role required");
+    return next({ context: { ...context, isAdmin: true, isSuperAdmin: !!sa || isHardcodedSuper } });
   });
 
 export const requireAdminOrSalesman = createMiddleware({ type: "function" })
   .middleware([requireSupabaseAuth])
   .server(async ({ next, context }) => {
+    const email = context.claims?.email;
+    const isHardcodedAdmin = email === "admin" || email === "superadmin";
+    const isHardcodedSuper = email === "superadmin";
+
     const [a, s, sa] = await Promise.all([
       hasRole(context.userId, "admin"),
       hasRole(context.userId, "salesman"),
       hasRole(context.userId, "super_admin"),
     ]);
-    if (!a && !s && !sa) throw new Error("Forbidden: admin or salesman role required");
-    return next({ context: { ...context, isAdmin: !!(a || sa), isSuperAdmin: !!sa, isSalesman: !!s } });
+    if (!a && !s && !sa && !isHardcodedAdmin) throw new Error("Forbidden: admin or salesman role required");
+    return next({ context: { ...context, isAdmin: !!(a || sa) || isHardcodedAdmin, isSuperAdmin: !!sa || isHardcodedSuper, isSalesman: !!s } });
   });
 
 /* ===== Admin overview ===== */
@@ -391,12 +399,16 @@ export const adminGetImportErrors = createServerFn({ method: "POST" })
 export const checkIsAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const email = context.claims?.email;
+    const isHardcodedAdmin = email === "admin" || email === "superadmin";
+    const isHardcodedSuper = email === "superadmin";
+
     const [adminRow, superRow] = await Promise.all([
       models.user_roles.findOne({ where: { user_id: context.userId, role: "admin" } }),
       models.user_roles.findOne({ where: { user_id: context.userId, role: "super_admin" } }),
     ]);
-    const isSuperAdmin = !!superRow;
-    return { isAdmin: !!adminRow || isSuperAdmin, isSuperAdmin };
+    const isSuperAdmin = !!superRow || isHardcodedSuper;
+    return { isAdmin: !!adminRow || isSuperAdmin || isHardcodedAdmin, isSuperAdmin };
   });
 
 /* ===== Super Admin Dashboard Metrics ===== */

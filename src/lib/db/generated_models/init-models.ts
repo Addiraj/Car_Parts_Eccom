@@ -75,6 +75,8 @@ import { order_events as _order_events } from "./order_events";
 import type { order_eventsAttributes, order_eventsCreationAttributes } from "./order_events";
 import { order_items as _order_items } from "./order_items";
 import type { order_itemsAttributes, order_itemsCreationAttributes } from "./order_items";
+import { otps as _otps } from "./otps";
+import type { otpsAttributes, otpsCreationAttributes } from "./otps";
 import { orders as _orders } from "./orders";
 import type { ordersAttributes, ordersCreationAttributes } from "./orders";
 import { part_compatibility as _part_compatibility } from "./part_compatibility";
@@ -174,6 +176,7 @@ export {
   _order_events as order_events,
   _order_items as order_items,
   _orders as orders,
+  _otps as otps,
   _part_compatibility as part_compatibility,
   _parts as parts,
   _payment_settings as payment_settings,
@@ -281,6 +284,8 @@ export type {
   order_eventsCreationAttributes,
   order_itemsAttributes,
   order_itemsCreationAttributes,
+  otpsAttributes,
+  otpsCreationAttributes,
   ordersAttributes,
   ordersCreationAttributes,
   part_compatibilityAttributes,
@@ -380,6 +385,7 @@ export function initModels(sequelize: Sequelize) {
   const objects = _objects.initModel(sequelize);
   const order_events = _order_events.initModel(sequelize);
   const order_items = _order_items.initModel(sequelize);
+  const otps = _otps.initModel(sequelize);
   const orders = _orders.initModel(sequelize);
   const part_compatibility = _part_compatibility.initModel(sequelize);
   const parts = _parts.initModel(sequelize);
@@ -604,6 +610,7 @@ export function initModels(sequelize: Sequelize) {
     objects: objects,
     order_events: order_events,
     order_items: order_items,
+    otps: otps,
     orders: orders,
     part_compatibility: part_compatibility,
     parts: parts,

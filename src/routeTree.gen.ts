@@ -28,9 +28,7 @@ import { Route as AuthenticatedCheckoutRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedSalesmanRouteImport } from './routes/_authenticated.salesman'
 import { Route as ApiTestRouteImport } from './routes/api/test'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
-import { Route as AuthForgotPasswordRouteImport } from './routes/auth.forgot-password'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
-import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
 import { Route as AuthSignupRouteImport } from './routes/auth.signup'
 import { Route as CatalogBrandRouteImport } from './routes/catalog.$brand'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
@@ -214,19 +212,9 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
-  id: '/auth/forgot-password',
-  path: '/auth/forgot-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthLoginRoute = AuthLoginRouteImport.update({
   id: '/auth/login',
   path: '/auth/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
-  id: '/auth/reset-password',
-  path: '/auth/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthSignupRoute = AuthSignupRouteImport.update({
@@ -750,9 +738,7 @@ export interface FileRoutesByFullPath {
   '/salesman': typeof AuthenticatedSalesmanRouteWithChildren
   '/api/test': typeof ApiTestRoute
   '/auth/callback': typeof AuthCallbackRoute
-  '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
-  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/signup': typeof AuthSignupRoute
   '/catalog/$brand': typeof CatalogBrandRouteWithChildren
   '/category/$slug': typeof CategorySlugRoute
@@ -857,9 +843,7 @@ export interface FileRoutesByTo {
   '/checkout': typeof AuthenticatedCheckoutRoute
   '/api/test': typeof ApiTestRoute
   '/auth/callback': typeof AuthCallbackRoute
-  '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
-  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/signup': typeof AuthSignupRoute
   '/catalog/$brand': typeof CatalogBrandRouteWithChildren
   '/category/$slug': typeof CategorySlugRoute
@@ -970,9 +954,7 @@ export interface FileRoutesById {
   '/_authenticated/salesman': typeof AuthenticatedSalesmanRouteWithChildren
   '/api/test': typeof ApiTestRoute
   '/auth/callback': typeof AuthCallbackRoute
-  '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
-  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/signup': typeof AuthSignupRoute
   '/catalog/$brand': typeof CatalogBrandRouteWithChildren
   '/category/$slug': typeof CategorySlugRoute
@@ -1083,9 +1065,7 @@ export interface FileRouteTypes {
     | '/salesman'
     | '/api/test'
     | '/auth/callback'
-    | '/auth/forgot-password'
     | '/auth/login'
-    | '/auth/reset-password'
     | '/auth/signup'
     | '/catalog/$brand'
     | '/category/$slug'
@@ -1190,9 +1170,7 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/api/test'
     | '/auth/callback'
-    | '/auth/forgot-password'
     | '/auth/login'
-    | '/auth/reset-password'
     | '/auth/signup'
     | '/catalog/$brand'
     | '/category/$slug'
@@ -1302,9 +1280,7 @@ export interface FileRouteTypes {
     | '/_authenticated/salesman'
     | '/api/test'
     | '/auth/callback'
-    | '/auth/forgot-password'
     | '/auth/login'
-    | '/auth/reset-password'
     | '/auth/signup'
     | '/catalog/$brand'
     | '/category/$slug'
@@ -1410,9 +1386,7 @@ export interface RootRouteChildren {
   WishlistRoute: typeof WishlistRoute
   ApiTestRoute: typeof ApiTestRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
-  AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
   AuthLoginRoute: typeof AuthLoginRoute
-  AuthResetPasswordRoute: typeof AuthResetPasswordRoute
   AuthSignupRoute: typeof AuthSignupRoute
   CategorySlugRoute: typeof CategorySlugRoute
   PageSlugRoute: typeof PageSlugRoute
@@ -1572,25 +1546,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth/forgot-password': {
-      id: '/auth/forgot-password'
-      path: '/auth/forgot-password'
-      fullPath: '/auth/forgot-password'
-      preLoaderRoute: typeof AuthForgotPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/auth/login': {
       id: '/auth/login'
       path: '/auth/login'
       fullPath: '/auth/login'
       preLoaderRoute: typeof AuthLoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth/reset-password': {
-      id: '/auth/reset-password'
-      path: '/auth/reset-password'
-      fullPath: '/auth/reset-password'
-      preLoaderRoute: typeof AuthResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/signup': {
@@ -2548,9 +2508,7 @@ const rootRouteChildren: RootRouteChildren = {
   WishlistRoute: WishlistRoute,
   ApiTestRoute: ApiTestRoute,
   AuthCallbackRoute: AuthCallbackRoute,
-  AuthForgotPasswordRoute: AuthForgotPasswordRoute,
   AuthLoginRoute: AuthLoginRoute,
-  AuthResetPasswordRoute: AuthResetPasswordRoute,
   AuthSignupRoute: AuthSignupRoute,
   CategorySlugRoute: CategorySlugRoute,
   PageSlugRoute: PageSlugRoute,

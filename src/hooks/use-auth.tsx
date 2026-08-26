@@ -24,18 +24,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const init = async () => {
       const token = localStorage.getItem("jwt_token");
+      const lastActive = localStorage.getItem("last_active_at");
+      const TWO_HOURS = 2 * 60 * 60 * 1000;
+
       if (token) {
+        if (lastActive && Date.now() - parseInt(lastActive, 10) > TWO_HOURS) {
+          localStorage.removeItem("jwt_token");
+          localStorage.removeItem("last_active_at");
+          window.location.href = "/login?reason=inactivity";
+          setLoading(false);
+          return;
+        }
+
         try {
           const result = await getSession({ data: { token } });
           if (result.user) {
+            localStorage.setItem("last_active_at", Date.now().toString());
             setSession({ access_token: token });
             setUser(result.user);
             setProfile(result.profile);
           } else {
             localStorage.removeItem("jwt_token");
+            localStorage.removeItem("last_active_at");
           }
-        } catch (err) {
+        } catch (err: any) {
           localStorage.removeItem("jwt_token");
+          localStorage.removeItem("last_active_at");
+          if (err?.message?.includes("inactivity")) {
+            window.location.href = "/login?reason=inactivity";
+          }
         }
       }
       setLoading(false);
@@ -45,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setAuth = (token: string, u: User, p?: Profile) => {
     localStorage.setItem("jwt_token", token);
+    localStorage.setItem("last_active_at", Date.now().toString());
     setSession({ access_token: token });
     setUser(u);
     if (p) setProfile(p);
@@ -58,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch { /* ignore */ }
     localStorage.removeItem("jwt_token");
+    localStorage.removeItem("last_active_at");
     setSession(null);
     setUser(null);
     setProfile(null);

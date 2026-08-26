@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -65,7 +65,10 @@ export type Diagram = {
 export type Category = {
   category_name: string;
   category_code?: string;
-  diagrams: Diagram[];
+  diagrams?: Diagram[];
+  sub_categories?: Category[];
+  subcategories?: Category[];
+  subcategory_name?: string;
 };
 export type CatalogResponse = {
   brand_name: string;
@@ -101,7 +104,8 @@ export function PartsouqCatalog({
     retry: 1,
   });
 
-  const [catIdx, setCatIdx] = useState(0);
+  const [activeCatPath, setActiveCatPath] = useState<string>("0");
+  const [expandedCatPath, setExpandedCatPath] = useState<string>("0");
   const [selected, setSelected] = useState<Diagram | null>(null);
   const [zoom, setZoom] = useState(false);
   const [picked, setPicked] = useState<Record<string, boolean>>({});
@@ -279,7 +283,8 @@ export function PartsouqCatalog({
 
 
   useEffect(() => {
-    setCatIdx(0);
+    setActiveCatPath("0");
+    setExpandedCatPath("0");
     if (import.meta.env.DEV && q.data) {
       const cats = Array.isArray(q.data.categories) ? q.data.categories : [];
       let diagCount = 0, partCount = 0, pnCount = 0;
@@ -297,41 +302,54 @@ export function PartsouqCatalog({
     }
   }, [q.data]);
 
-  const rawCategories = Array.isArray(q.data?.categories) ? q.data!.categories : [];
+  const normalizeCategories = (cats: any[]): Category[] => {
+    return cats.map(c => {
+      const children = [...(c.sub_categories || []), ...(c.subcategories || [])];
+      return {
+        ...c,
+        category_name: c.category_name || c.subcategory_name || "Untitled",
+        diagrams: c.diagrams || [],
+        sub_categories: children.length > 0 ? normalizeCategories(children) : undefined
+      };
+    });
+  };
+  const rawCategories = useMemo(() => normalizeCategories(Array.isArray(q.data?.categories) ? q.data!.categories : []), [q.data]);
 
   const filteredCategories = useMemo(() => {
     const qStr = debouncedQuery.toLowerCase();
     if (!qStr) return rawCategories;
-    const matches = (v: unknown) =>
-      v != null && String(v).toLowerCase().includes(qStr);
-    const out: Category[] = [];
-    for (const c of rawCategories) {
-      const catHit = matches(c?.category_name);
-      const keptDiagrams: Diagram[] = [];
-      for (const d of c?.diagrams || []) {
-        const diagHit =
-          matches(d?.diagram_name) || matches(d?.diagram_code);
+    const matches = (v: unknown) => v != null && String(v).toLowerCase().includes(qStr);
+    
+    const filterCat = (c: Category): Category | null => {
+      const catHit = matches(c.category_name);
+      let keptDiagrams: Diagram[] = [];
+      let keptSubCats: Category[] = [];
+      
+      for (const d of c.diagrams || []) {
+        const diagHit = matches(d.diagram_name) || matches(d.diagram_code);
         let partHit = false;
         if (!catHit && !diagHit) {
-          for (const p of d?.parts || []) {
-            if (
-              matches(p?.part_name) ||
-              matches(p?.description) ||
-              matches(p?.callout_number) ||
-              (p?.part_numbers || []).some((pn) => matches(pn?.part_number))
-            ) {
-              partHit = true;
-              break;
+          for (const p of d.parts || []) {
+            if (matches(p.part_name) || matches(p.description) || matches(p.callout_number) || (p.part_numbers || []).some(pn => matches(pn.part_number))) {
+              partHit = true; break;
             }
           }
         }
         if (catHit || diagHit || partHit) keptDiagrams.push(d);
       }
-      if (keptDiagrams.length > 0) {
-        out.push({ ...c, diagrams: keptDiagrams });
+      
+      for (const sc of c.sub_categories || []) {
+        const fsc = filterCat(sc);
+        if (fsc) keptSubCats.push(fsc);
       }
+      
+      if (catHit || keptDiagrams.length > 0 || keptSubCats.length > 0) {
+        return { ...c, diagrams: keptDiagrams, sub_categories: keptSubCats.length > 0 ? keptSubCats : undefined };
+      }
+      return null;
     }
-    return out;
+    
+    return rawCategories.map(filterCat).filter(Boolean) as Category[];
   }, [rawCategories, debouncedQuery]);
 
   const categories = useMemo(() => {
@@ -344,16 +362,27 @@ export function PartsouqCatalog({
     });
     return list;
   }, [filteredCategories]);
-  const safeCatIdx = Math.min(catIdx, Math.max(0, categories.length - 1));
-  const activeCat = categories[safeCatIdx];
+
+  const getActiveCat = () => {
+    const parts = activeCatPath.split("-").map(Number);
+    let curr = categories[parts[0]];
+    if (!curr) return null;
+    for (let i = 1; i < parts.length; i++) {
+      if (curr.sub_categories) curr = curr.sub_categories[parts[i]];
+      else return null;
+    }
+    return curr;
+  };
+  const activeCat = getActiveCat();
   const diagrams = Array.isArray(activeCat?.diagrams) ? activeCat!.diagrams : [];
 
   // Auto-expand first matching category on new query
   useEffect(() => {
-    if (debouncedQuery && categories.length > 0 && catIdx >= categories.length) {
-      setCatIdx(0);
+    if (debouncedQuery && categories.length > 0) {
+      setActiveCatPath("0");
+      setExpandedCatPath("0");
     }
-  }, [debouncedQuery, categories.length, catIdx]);
+  }, [debouncedQuery, categories.length]);
 
   // Auto-open single result
   useEffect(() => {
@@ -445,27 +474,52 @@ export function PartsouqCatalog({
       {q.data && categories.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] min-h-[520px]">
           <ScrollArea className="lg:border-r max-h-[60vh] lg:max-h-[760px]">
-            <ul className="p-2">
+            <ul className="p-2 space-y-0.5">
               {categories.map((c, i) => {
-                const active = i === safeCatIdx;
-                const count = Array.isArray(c?.diagrams) ? c.diagrams.length : 0;
-                return (
-                  <li key={(c?.category_name || "cat") + "-" + i}>
-                    <button
-                      onClick={() => setCatIdx(i)}
-                      className={`group w-full text-left rounded-md px-3 py-2 text-sm flex items-center gap-2 transition-colors ${active
-                          ? "bg-primary/10 text-foreground border-l-2 border-primary"
-                          : "hover:bg-muted/60 border-l-2 border-transparent"
-                        }`}
-                    >
-                      <span className="flex-1 truncate">
-                        <Highlight text={c?.category_name || "Untitled"} query={debouncedQuery} />
-                      </span>
-                      <Badge variant="secondary" className="text-[10px]">{count}</Badge>
-                      <ChevronRight className={`h-3.5 w-3.5 transition-transform ${active ? "translate-x-0.5 text-primary" : "text-muted-foreground"}`} />
-                    </button>
-                  </li>
-                );
+                const renderCategoryNode = (node: Category, path: string, depth = 0): React.ReactNode => {
+                  const isActive = activeCatPath === path;
+                  const isExpanded = expandedCatPath === path || expandedCatPath.startsWith(path + "-");
+                  const hasChildren = node.sub_categories && node.sub_categories.length > 0;
+                  const count = node.diagrams?.length || 0;
+                  
+                  return (
+                    <React.Fragment key={path}>
+                      <li>
+                        <button
+                          onClick={() => {
+                            if (hasChildren) {
+                              setExpandedCatPath(isExpanded && activeCatPath !== path ? "" : path);
+                              if (count > 0) setActiveCatPath(path);
+                              else if (!isExpanded) setActiveCatPath(path + "-0");
+                            } else {
+                              setActiveCatPath(path);
+                            }
+                          }}
+                          className={`group w-full text-left rounded-md py-2 text-sm flex items-center gap-2 transition-colors ${
+                            isActive ? "bg-primary/10 text-foreground border-l-2 border-primary font-medium" : "hover:bg-muted/60 border-l-2 border-transparent"
+                          } ${depth === 0 ? "px-3" : depth === 1 ? "pl-7 pr-3" : "pl-10 pr-3"}`}
+                        >
+                          {hasChildren && (
+                            <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${isExpanded ? "rotate-90 text-foreground" : "text-muted-foreground"}`} />
+                          )}
+                          <span className={`flex-1 truncate ${!hasChildren ? (depth > 0 ? "ml-5" : "ml-2") : ""}`}>
+                            <Highlight text={node.category_name || "Untitled"} query={debouncedQuery} />
+                          </span>
+                          <Badge variant="secondary" className="text-[10px]">{count}</Badge>
+                          {!hasChildren && (
+                            <ChevronRight className={`h-3.5 w-3.5 transition-transform ${isActive ? "translate-x-0.5 text-primary" : "text-muted-foreground"}`} />
+                          )}
+                        </button>
+                      </li>
+                      {hasChildren && isExpanded && (
+                        <ul className="mt-0.5 space-y-0.5">
+                          {node.sub_categories!.map((sc, scIdx) => renderCategoryNode(sc, `${path}-${scIdx}`, depth + 1))}
+                        </ul>
+                      )}
+                    </React.Fragment>
+                  );
+                };
+                return renderCategoryNode(c, `${i}`, 0);
               })}
             </ul>
           </ScrollArea>
@@ -599,7 +653,7 @@ export function PartsouqCatalog({
                   <div className="flex items-center justify-between gap-2 px-5 py-2 border-b bg-muted/30">
                     <label className="flex items-center gap-2 text-xs cursor-pointer">
                       <Checkbox checked={allChecked} onCheckedChange={toggleAll} />
-                      <span>Selecct all ({allPartNumbers.length})</span>
+                      <span>Select all ({allPartNumbers.length})</span>
                     </label>
                     <Button size="sm" disabled={pickedCount === 0 || bulkLoading} onClick={addSelected}>
                       {bulkLoading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <ShoppingCart className="h-3.5 w-3.5 mr-1" />}

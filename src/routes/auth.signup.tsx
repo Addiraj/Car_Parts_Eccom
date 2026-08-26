@@ -1,12 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { useServerFn } from "@tanstack/react-start";
-import { register } from "@/lib/auth.functions";
+import { register, sendOtp } from "@/lib/auth.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
-import { Eye, EyeOff, Mail, Lock, User, Phone } from "lucide-react";
+import { Mail, User, Phone, ArrowLeft, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { getSafeRedirect } from "@/lib/redirect";
 
@@ -26,24 +27,62 @@ function Signup() {
   const redirectTo = getSafeRedirect(redirectRaw) ?? "";
   const navigate = useNavigate();
 
+  const [step, setStep] = useState<"details" | "otp">("details");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [otp, setOtp] = useState("");
+  
   const [busy, setBusy] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileRef = useRef<any>(null);
+  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
 
   const submitRegister = useServerFn(register);
+  const triggerSendOtp = useServerFn(sendOtp);
   const { setAuth } = useAuth();
+
+  useEffect(() => {
+    let timer: any;
+    if (countdown > 0) {
+      timer = setTimeout(() => setCountdown(c => c - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [countdown]);
+
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!email || !fullName || !phone) {
+      return toast.error("Please fill in all required fields including your phone number");
+    }
+    if (!turnstileToken) {
+      return toast.error("Please complete the CAPTCHA");
+    }
+    setBusy(true);
+    try {
+      await triggerSendOtp({ data: { email, turnstileToken } });
+      setStep("otp");
+      setCountdown(60);
+      toast.success("OTP sent to your email");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send OTP");
+      turnstileRef.current?.reset();
+      setTurnstileToken("");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !fullName || !phone) return toast.error("Please fill in all required fields including your phone number");
+    if (!otp) return toast.error("Please enter the OTP");
     setBusy(true);
 
     try {
       const result = await submitRegister({ 
-        data: { email, password, full_name: fullName, phone } 
+        data: { email, otp, full_name: fullName, phone } 
       });
       setAuth(result.token, result.user);
       toast.success("Account created successfully!");
@@ -69,62 +108,92 @@ function Signup() {
 
       <div className="flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
-          <form onSubmit={submit}>
-            <h1 className="text-2xl font-bold">Create your account</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Sign up to get started.</p>
-            <div className="mt-6 space-y-4">
-              <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wider">Full Name</span>
-                <div className="relative mt-1">
-                  <User className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    required type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
-                    className="w-full rounded-md border bg-surface px-3 py-2 ps-9 text-sm outline-none focus:ring-2 focus:ring-ring"
+          {step === "details" ? (
+            <form onSubmit={handleSendOtp}>
+              <h1 className="text-2xl font-bold">Create your account</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Sign up to get started.</p>
+              
+              <div className="mt-6 space-y-4">
+                <label className="block">
+                  <span className="text-xs font-semibold uppercase tracking-wider">Full Name</span>
+                  <div className="relative mt-1">
+                    <User className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      required type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
+                      className="w-full rounded-md border bg-surface px-3 py-2 ps-9 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                </label>
+                
+                <label className="block">
+                  <span className="text-xs font-semibold uppercase tracking-wider">Email</span>
+                  <div className="relative mt-1">
+                    <Mail className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      required type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                      className="w-full rounded-md border bg-surface px-3 py-2 ps-9 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                </label>
+                
+                <label className="block">
+                  <span className="text-xs font-semibold uppercase tracking-wider">Phone Number <span className="text-destructive">*</span></span>
+                  <div className="relative mt-1">
+                    <Phone className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+                      className="w-full rounded-md border bg-surface px-3 py-2 ps-9 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                </label>
+
+                <div className="flex justify-center my-4">
+                  <Turnstile 
+                    siteKey={turnstileSiteKey} 
+                    ref={turnstileRef}
+                    onSuccess={(token) => setTurnstileToken(token)}
+                    onError={() => setTurnstileToken("")}
+                    onExpire={() => setTurnstileToken("")}
                   />
                 </div>
-              </label>
-              <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wider">Email</span>
-                <div className="relative mt-1">
-                  <Mail className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    required type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-md border bg-surface px-3 py-2 ps-9 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-              </label>
-              <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wider">Phone Number <span className="text-destructive">*</span></span>
-                <div className="relative mt-1">
-                  <Phone className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+971 50 123 4567"
-                    className="w-full rounded-md border bg-surface px-3 py-2 ps-9 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-              </label>
-              <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wider">Password</span>
-                <div className="relative mt-1">
-                  <Lock className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    required type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-md border bg-surface px-3 py-2 pe-10 ps-9 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  />
-                  <button type="button" onClick={() => setShowPassword((s) => !s)} className="absolute end-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1}>
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+
+                <button disabled={busy || !turnstileToken} className="w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground flex justify-center items-center gap-2 disabled:opacity-50">
+                  {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Continue
+                </button>
+              </div>
+
+              <p className="mt-6 text-center text-sm text-muted-foreground">
+                Already have an account? <Link to="/auth/login" search={{ redirect: redirectTo }} className="font-semibold text-primary hover:underline">Sign in</Link>
+              </p>
+            </form>
+          ) : (
+            <form onSubmit={submit} className="animate-in fade-in slide-in-from-right-4">
+              <button type="button" onClick={() => setStep("details")} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4">
+                <ArrowLeft className="w-3 h-3" /> Back
+              </button>
+              <h1 className="text-2xl font-bold">Verify OTP</h1>
+              <p className="mt-1 text-sm text-muted-foreground">We sent a 6-digit code to <span className="font-medium text-foreground">{email}</span>.</p>
+              
+              <div className="mt-6 space-y-4">
+                <label className="block">
+                  <span className="text-xs font-semibold uppercase tracking-wider">6-Digit OTP</span>
+                  <input required type="text" maxLength={6} value={otp} onChange={(e) => setOtp(e.target.value.trim())} className="mt-1 w-full rounded-md border bg-surface px-3 py-2 text-sm tracking-widest text-center outline-none focus:ring-2 focus:ring-ring" placeholder="------" />
+                </label>
+
+                <button disabled={busy || otp.length !== 6} className="w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground flex justify-center items-center gap-2 disabled:opacity-50">
+                  {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Verify & Create Account
+                </button>
+
+                <div className="text-center mt-4">
+                  <button type="button" disabled={countdown > 0 || busy} onClick={handleSendOtp} className="text-xs text-primary hover:underline disabled:text-muted-foreground disabled:no-underline disabled:cursor-not-allowed">
+                    {countdown > 0 ? `Resend OTP in ${countdown}s` : "Resend OTP"}
                   </button>
                 </div>
-              </label>
-              <button disabled={busy} className="w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">
-                {busy ? "Creating Account…" : "Create Account"}
-              </button>
-            </div>
-            <p className="mt-6 text-center text-sm text-muted-foreground">
-              {t("haveAccountQ")} <Link to="/auth/login" search={{ redirect: redirectTo }} className="font-semibold text-primary hover:underline">{t("signIn")}</Link>
-            </p>
-          </form>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     </div>

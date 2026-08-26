@@ -38,7 +38,25 @@ if (typeof window === 'undefined') {
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             email TEXT UNIQUE,
             raw_user_meta_data JSONB,
-            password_hash TEXT
+            password_hash TEXT,
+            last_active_at TIMESTAMPTZ
+          );
+          -- Add last_active_at if it's missing from an existing database
+          ALTER TABLE public.users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ;
+
+          -- OTP Auth
+          CREATE TABLE IF NOT EXISTS public.otps (
+            email TEXT PRIMARY KEY,
+            otp_code TEXT NOT NULL,
+            expires_at TIMESTAMPTZ NOT NULL,
+            attempts INT DEFAULT 0
+          );
+
+          -- Salesmen (Role Mapping)
+          CREATE TABLE IF NOT EXISTS public.salesmen (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            email TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
           );
 
           -- AI prompts
