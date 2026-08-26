@@ -1,12 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getMyWishlist, toggleWishlist } from "@/lib/account.functions";
-import { formatAED } from "@/lib/format";
 import { Heart, LogIn } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
-import { useIsAdmin } from "@/hooks/use-is-admin";
-import { PartThumb } from "@/components/part-thumb";
+import { PartCard } from "@/components/part-card";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/wishlist")({
   head: () => ({ meta: [{ title: "Wishlist — Car Parts Dubai" }] }),
@@ -17,31 +16,33 @@ function WishlistPage() {
   const qc = useQueryClient();
   const { t } = useI18n();
   const { user } = useAuth();
-  const isAdmin = useIsAdmin();
+  
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["wishlist"],
     queryFn: () => getMyWishlist(),
     enabled: !!user,
   });
+  
   const rem = useMutation({
     mutationFn: (partId: string) => toggleWishlist({ data: { partId } }),
-    onSuccess: () => {
+    onSuccess: (res, partId) => {
       qc.invalidateQueries({ queryKey: ["wishlist"] });
       qc.invalidateQueries({ queryKey: ["wishlist-count"] });
+      toast.success("Item removed from wishlist");
     },
   });
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-10">
-        <h1 className="text-3xl font-bold tracking-tight">{t("wishlist")}</h1>
-        <div className="mt-8 grid place-items-center rounded-lg border border-dashed bg-surface-2 p-12 text-center">
+      <div className="mx-auto max-w-[1400px] px-5 py-32 md:px-10 md:py-40">
+        <h1 className="font-display text-4xl font-medium tracking-[-0.03em]">{t("wishlist")}</h1>
+        <div className="mt-8 grid place-items-center rounded-2xl border border-dashed bg-surface-2 p-16 text-center">
           <Heart className="h-10 w-10 text-muted-foreground" />
-          <p className="mt-3 text-sm text-muted-foreground">{t("signInToUseWishlist")}</p>
+          <p className="mt-4 text-muted-foreground">{t("signInToUseWishlist")}</p>
           <Link
             to="/auth/login"
             search={{ redirect: "/wishlist" }}
-            className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
+            className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground hover:opacity-90"
           >
             <LogIn className="h-4 w-4" /> {t("signIn")}
           </Link>
@@ -51,32 +52,39 @@ function WishlistPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10">
-      <h1 className="text-3xl font-bold tracking-tight">{t("wishlist")}</h1>
-      {isLoading && <p className="mt-6 text-sm text-muted-foreground">{t("loading")}</p>}
+    <div className="mx-auto max-w-[1400px] px-5 py-32 md:px-10 md:py-40">
+      <div className="flex items-end justify-between gap-6">
+        <div>
+          <div className="eyebrow">Your Account</div>
+          <h1 className="mt-3 font-display font-medium leading-[0.95] tracking-[-0.03em]" style={{ fontSize: "clamp(36px, 5vw, 72px)" }}>
+            {t("wishlist")}
+          </h1>
+          {!isLoading && items.length > 0 && (
+            <p className="mt-4 text-sm text-muted-foreground">
+              {items.length} items saved.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {isLoading && <p className="mt-12 text-sm text-muted-foreground">{t("loading")}</p>}
+      
       {!isLoading && items.length === 0 && (
-        <div className="mt-8 grid place-items-center rounded-lg border border-dashed bg-surface-2 p-12 text-center">
+        <div className="mt-12 grid place-items-center rounded-2xl border border-dashed bg-surface-2 p-16 text-center">
           <Heart className="h-10 w-10 text-muted-foreground" />
-          <p className="mt-3 text-sm text-muted-foreground">{t("noSaved")}</p>
+          <p className="mt-4 text-muted-foreground">{t("noSaved")}</p>
         </div>
       )}
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      
+      <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {items.map((it: any) => it.part && (
-          <div key={it.id} className="group relative overflow-hidden rounded-lg border bg-surface">
-            <Link to="/parts/$id" params={{ id: it.part.id }} className="block">
-              <div className="aspect-square bg-surface-2">
-                <PartThumb src={it.part.images?.[0]} alt={it.part.name} />
-              </div>
-              <div className="p-3">
-                <div className="font-mono text-[10px] text-muted-foreground">{it.part.part_number}</div>
-                <div className="mt-1 line-clamp-2 text-sm font-medium">{it.part.name}</div>
-                {!isAdmin && <div className="mt-2 text-sm font-bold text-primary">{formatAED(Number(it.part.price))}</div>}
-              </div>
-            </Link>
-            <button onClick={() => rem.mutate(it.part.id)} className="absolute end-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-surface/90 backdrop-blur hover:bg-destructive hover:text-destructive-foreground">
-              <Heart className="h-4 w-4" fill="currentColor" />
-            </button>
-          </div>
+          <PartCard 
+            key={it.id} 
+            part={it.part} 
+            isWishlisted={true}
+            onToggleWishlist={() => rem.mutate(it.part.id)}
+            supersededParts={it.part.part_alternative_parts}
+          />
         ))}
       </div>
     </div>

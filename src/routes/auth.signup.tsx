@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { register } from "@/lib/auth.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
-import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Phone } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { getSafeRedirect } from "@/lib/redirect";
 
@@ -29,6 +29,7 @@ function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -37,12 +38,12 @@ function Signup() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return toast.error("Enter your email and password");
+    if (!email || !password || !fullName || !phone) return toast.error("Please fill in all required fields including your phone number");
     setBusy(true);
 
     try {
       const result = await submitRegister({ 
-        data: { email, password, full_name: fullName } 
+        data: { email, password, full_name: fullName, phone } 
       });
       setAuth(result.token, result.user);
       toast.success("Account created successfully!");
@@ -88,6 +89,17 @@ function Signup() {
                   <Mail className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <input
                     required type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-md border bg-surface px-3 py-2 ps-9 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold uppercase tracking-wider">Phone Number <span className="text-destructive">*</span></span>
+                <div className="relative mt-1">
+                  <Phone className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+971 50 123 4567"
                     className="w-full rounded-md border bg-surface px-3 py-2 ps-9 text-sm outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>

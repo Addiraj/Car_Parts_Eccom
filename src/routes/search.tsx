@@ -37,6 +37,25 @@ function SearchPage() {
         <button className="rounded-e-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground">{t("search")}</button>
       </form>
 
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Suggested Searches:</span>
+        {[
+          { label: "17227555715", type: "part" },
+          { label: "11127570292", type: "part" },
+          { label: "17217546491", type: "part" },
+          { label: "WBAFR71020C725456 (VIN)", type: "vin", value: "WBAFR71020C725456" },
+        ].map((item) => (
+          <Link
+            key={item.label}
+            to={item.type === "vin" ? "/vin" : "/search"}
+            search={item.type === "vin" ? ({ vin: item.value } as any) : { q: item.label }}
+            className="rounded-full border border-primary/30 bg-primary/5 px-3 py-1 font-mono text-xs font-medium text-primary hover:bg-primary/15 transition-colors"
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
+
       {!q && <p className="mt-8 text-sm text-muted-foreground">{t("typeToBegin")}</p>}
       {q && query.isLoading && <p className="mt-8 text-sm text-muted-foreground">{t("searching")}</p>}
       {query.data && (

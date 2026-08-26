@@ -284,6 +284,52 @@ function SearchOverlay({ onClose }: { onClose: () => void }) {
           />
           <button type="button" onClick={onClose} className="text-xs uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground">Esc</button>
         </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {mode === "vin" ? "Suggested VINs:" : "Suggested Parts:"}
+          </span>
+          {mode === "vin" ? (
+            <>
+              {[
+                { vin: "WBAFR71020C725456", label: "BMW 535i" },
+                { vin: "WBAPH5C55BA123456", label: "BMW 3 Series" },
+                { vin: "WBA3B31000F123456", label: "BMW F30" },
+              ].map((item) => (
+                <button
+                  key={item.vin}
+                  type="button"
+                  onClick={() => {
+                    setValue(item.vin);
+                    navigate({ to: "/vin", search: { vin: item.vin } as any });
+                    onClose();
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 font-mono text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
+                >
+                  <span>{item.vin}</span>
+                  <span className="text-[10px] opacity-70 font-sans">({item.label})</span>
+                </button>
+              ))}
+            </>
+          ) : (
+            <>
+              {["17227555715", "11127570292", "17217546491", "07119904116"].map((pn) => (
+                <button
+                  key={pn}
+                  type="button"
+                  onClick={() => {
+                    setValue(pn);
+                    navigate({ to: "/search", search: { q: pn } });
+                    onClose();
+                  }}
+                  className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 font-mono text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
+                >
+                  {pn}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
       </motion.form>
     </motion.div>
   );

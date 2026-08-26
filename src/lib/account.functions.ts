@@ -218,6 +218,8 @@ const CatalogItemsSchema = z.object({
   })).min(1).max(50),
 });
 
+import { lookupPartsByNumbers } from "@/lib/inventory.functions";
+
 export const addCatalogPartsToCart = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: unknown) => CatalogItemsSchema.parse(d))
@@ -229,39 +231,133 @@ export const addCatalogPartsToCart = createServerFn({ method: "POST" })
       const pn = it.part_number.trim();
       if (!pn) continue;
       
-      // Try exact match first, then case-insensitive, then normalized (strip spaces/dashes)
-      let partRow = await models.parts.findOne({
-        where: { part_number: pn },
-        attributes: ["id", "stock"]
-      });
-      if (!partRow) {
-        partRow = await models.parts.findOne({
-          where: { part_number: { [Op.iLike]: pn } },
-          attributes: ["id", "stock"]
+      let partId: string | null = null;
+      let rpcStock = 0;
+      let rpcPrice = 0;
+      let availEntry: any = null;
+
+      // 1. Try lookupPartsByNumbers RPC first (matches catalog UI availability check)
+      try {
+        const availMap = await lookupPartsByNumbers({ data: { part_numbers: [pn] } });
+        const normKey = pn.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        availEntry = availMap[normKey] || availMap[pn];
+        if (availEntry && availEntry.id) {
+          partId = availEntry.id;
+          rpcStock = Number(availEntry.stock ?? 0);
+          rpcPrice = Math.max(
+            Number(availEntry.price ?? 0),
+            Number(availEntry.ind_price ?? 0),
+            Number(availEntry.gar_price ?? 0),
+            Number(availEntry.export_price ?? 0)
+          );
+        }
+      } catch (e) {
+        console.error("lookupPartsByNumbers error in addCatalogPartsToCart:", e);
+      }
+
+      let validPart: any = null;
+
+      // 1. If partId returned from RPC, verify it exists in models.parts table
+      if (partId) {
+        validPart = await models.parts.findOne({
+          where: { id: partId },
+          attributes: ["id", "stock", "price", "ind_price", "gar_price", "export_price"],
         });
       }
-      if (!partRow) {
-        // Try stripping all non-alphanumeric characters for fuzzy match
+
+      // 2. Fallback: exact/iLike match on part_number or oem_number
+      if (!validPart) {
+        const searchPns = [pn];
+        if (availEntry && availEntry.part_number) searchPns.push(availEntry.part_number);
+        if (availEntry && availEntry.oem_number) searchPns.push(availEntry.oem_number);
+        
+        validPart = await models.parts.findOne({
+          where: {
+            [Op.or]: [
+              { part_number: { [Op.in]: searchPns } },
+              { oem_number: { [Op.in]: searchPns } },
+              { part_number: { [Op.iLike]: pn } },
+              { oem_number: { [Op.iLike]: pn } },
+            ],
+          },
+          attributes: ["id", "stock", "price", "ind_price", "gar_price", "export_price"],
+        });
+      }
+
+      // 3. Fallback: normalized SQL regex search on part_number or oem_number
+      if (!validPart) {
         const normalized = pn.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-        if (normalized.length >= 4) {
+        if (normalized.length >= 3) {
           const { sequelize } = await import("@/lib/db/index.server");
           const [rows] = await sequelize.query(
-            `SELECT id, stock FROM parts WHERE UPPER(REGEXP_REPLACE(part_number, '[^a-zA-Z0-9]', '', 'g')) = :normalized LIMIT 1`,
+            `SELECT id, stock, price, ind_price, gar_price, export_price FROM parts 
+             WHERE UPPER(REGEXP_REPLACE(part_number, '[^a-zA-Z0-9]', '', 'g')) = :normalized 
+                OR UPPER(REGEXP_REPLACE(oem_number, '[^a-zA-Z0-9]', '', 'g')) = :normalized 
+             LIMIT 1`,
             { replacements: { normalized }, type: "SELECT" as any }
           );
-          if (rows && (rows as any).id) {
-            partRow = rows as any;
+          if (Array.isArray(rows) && rows.length > 0 && (rows[0] as any)?.id) {
+            validPart = await models.parts.findOne({
+              where: { id: (rows[0] as any).id },
+              attributes: ["id", "stock", "price", "ind_price", "gar_price", "export_price"],
+            });
           }
         }
       }
       
-      if (!partRow) { skipped.push({ part_number: pn, reason: "not in inventory" }); continue; }
-      if (Number(partRow.stock ?? 0) <= 0) { skipped.push({ part_number: pn, reason: "out of stock" }); continue; }
-      const partId = partRow.id;
+      // 4. Auto-import from Supabase if not found locally but exists in catalog
+      if (!validPart && availEntry && availEntry.id) {
+        try {
+          validPart = await models.parts.create({
+            id: availEntry.id,
+            part_number: availEntry.part_number || pn,
+            oem_number: availEntry.oem_number || null,
+            name: it.part_name || "Catalog Part",
+            description: "Auto-imported from catalog",
+            price: Number(availEntry.price ?? 0),
+            ind_price: Number(availEntry.ind_price ?? 0) || null,
+            gar_price: Number(availEntry.gar_price ?? 0) || null,
+            export_price: Number(availEntry.export_price ?? 0) || null,
+            stock: Number(availEntry.stock ?? 0),
+            currency: 'AED',
+            manufacturer: it.brand || null,
+            is_oem: true,
+          });
+        } catch (e) {
+          console.error("Failed to auto-import part to local DB:", e);
+        }
+      }
+      
+      if (!validPart) { skipped.push({ part_number: pn, reason: "not in inventory" }); continue; }
+
+      const realPartId = validPart.id;
+      
+      // Calculate total stock from parts.stock, rpcStock, and stock_levels
+      let totalStock = Math.max(Number(validPart.stock ?? 0), rpcStock);
+      if (totalStock <= 0) {
+        try {
+          const stockSum = await models.stock_levels.sum("quantity", { where: { part_id: realPartId } });
+          totalStock = Number(stockSum ?? 0);
+        } catch {}
+      }
+
+      // If part exists in inventory and has stock or valid catalog price, permit adding to cart
+      const validPartPrice = Math.max(
+        Number(validPart.price ?? 0),
+        Number(validPart.ind_price ?? 0),
+        Number(validPart.gar_price ?? 0),
+        Number(validPart.export_price ?? 0)
+      );
+      const hasPrice = validPartPrice > 0 || rpcPrice > 0 || rpcStock > 0;
+      if (totalStock <= 0 && !hasPrice) {
+        skipped.push({ part_number: pn, reason: "out of stock" });
+        continue;
+      }
+
       const qty = Math.max(1, Math.min(99, it.quantity ?? 1));
       
       const existingCart = await models.cart_items.findOne({
-        where: { user_id: userId, part_id: partId }
+        where: { user_id: userId, part_id: realPartId }
       });
       
       if (existingCart) {
@@ -270,7 +366,7 @@ export const addCatalogPartsToCart = createServerFn({ method: "POST" })
           { where: { id: existingCart.id } }
         );
       } else {
-        await models.cart_items.create({ user_id: userId, part_id: partId, quantity: qty });
+        await models.cart_items.create({ user_id: userId, part_id: realPartId, quantity: qty });
       }
       added++;
     }
@@ -300,6 +396,16 @@ export const removeFromCart = createServerFn({ method: "POST" })
 
 /* ============= WISHLIST ============= */
 
+export const getMyWishlistIds = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const items = await models.wishlist_items.findAll({
+      where: { user_id: context.userId },
+      attributes: ["part_id"]
+    });
+    return items.map(i => i.part_id);
+  });
+
 export const getMyWishlist = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -309,29 +415,79 @@ export const getMyWishlist = createServerFn({ method: "GET" })
       include: [{
         model: models.parts,
         as: 'part',
-        attributes: ["id", "part_number", "name", "price", col, "currency", "images", "manufacturer"]
+        attributes: ["id", "part_number", "name", "price", col, "currency", "images", "manufacturer", "stock", "category_tag"],
+        include: [{
+          model: models.alternative_parts,
+          as: 'part_alternative_parts',
+          include: [{
+            model: models.parts,
+            as: 'alternative_part',
+            attributes: ["id", "part_number", "name", "price", col, "currency", "images", "manufacturer", "stock", "category_tag"]
+          }]
+        }]
       }],
       order: [["added_at", "DESC"]]
     });
     
     const plainItems = items.map(i => i.get({ plain: true }));
-    return applyTier(plainItems, col);
+    
+    // Apply tier logic to main part and alternative parts
+    for (const r of plainItems) {
+      if (r.part) {
+        r.part.price = Number((r.part as any)[col] ?? r.part.price ?? 0);
+        if (r.part.part_alternative_parts) {
+          for (const ap of r.part.part_alternative_parts) {
+            if (ap.alternative_part) {
+              ap.alternative_part.price = Number((ap.alternative_part as any)[col] ?? ap.alternative_part.price ?? 0);
+            }
+          }
+        }
+      }
+    }
+    
+    return plainItems;
   });
 
 export const toggleWishlist = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((d: { partId: string }) => d)
+  .validator((d: { partId?: string; partNumber?: string; name?: string; manufacturer?: string }) => d)
   .handler(async ({ data, context }) => {
+    let part: any = null;
+
+    if (data.partId) {
+      part = await models.parts.findByPk(data.partId);
+    }
+
+    if (!part && data.partNumber) {
+      part = await models.parts.findOne({ where: { part_number: data.partNumber } });
+    }
+
+    if (!part && data.partNumber) {
+      part = await models.parts.create({
+        part_number: data.partNumber,
+        name: data.name || data.partNumber,
+        manufacturer: data.manufacturer || 'GLOBAL',
+        stock: 0,
+        price: 0,
+      });
+    }
+
+    if (!part) {
+      throw new Error("Missing or invalid part identifier");
+    }
+
+    const finalPartId = part.id;
+
     const existing = await models.wishlist_items.findOne({
-      where: { user_id: context.userId, part_id: data.partId }
+      where: { user_id: context.userId, part_id: finalPartId }
     });
     
     if (existing) {
       await models.wishlist_items.destroy({ where: { id: existing.id } });
-      return { added: false };
+      return { added: false, partId: finalPartId, partNumber: part.part_number };
     }
-    await models.wishlist_items.create({ user_id: context.userId, part_id: data.partId });
-    return { added: true };
+    await models.wishlist_items.create({ user_id: context.userId, part_id: finalPartId });
+    return { added: true, partId: finalPartId, partNumber: part.part_number };
   });
 
 /* ============= COUNTS (for navbar badges) ============= */
@@ -354,4 +510,24 @@ export const getMyWishlistCount = createServerFn({ method: "GET" })
       where: { user_id: context.userId }
     });
     return { count };
+  });
+
+export const requestPartSalesman = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((d: { partNumber: string; name?: string }) => d)
+  .handler(async ({ data, context }) => {
+    const assign = await models.customer_assignments.findOne({ where: { customer_id: context.userId } });
+    const salesmanId = assign?.salesman_id ?? null;
+
+    await models.admin_notifications.create({
+      type: "lead",
+      title: `Part Contact Request: ${data.partNumber}`,
+      body: `Customer requested contact for part ${data.partNumber}${data.name ? ` (${data.name})` : ""}`,
+      entity_type: "part_contact",
+      entity_id: data.partNumber,
+      salesman_id: salesmanId,
+      metadata: { part_number: data.partNumber, name: data.name, customer_id: context.userId },
+    });
+
+    return { ok: true };
   });

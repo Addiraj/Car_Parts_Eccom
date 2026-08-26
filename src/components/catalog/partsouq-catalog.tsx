@@ -7,9 +7,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, ChevronRight, Layers, X, ImageOff, Copy, Check, Maximize2, ShoppingCart, Loader2, Search } from "lucide-react";
+import { AlertCircle, ChevronRight, Layers, X, ImageOff, Copy, Check, Maximize2, ShoppingCart, Loader2, Search, Heart, MessageCircle, Headset } from "lucide-react";
 import { fetchVinCatalog } from "@/lib/catalog.functions";
-import { addCatalogPartsToCart, getMyProfile } from "@/lib/account.functions";
+import { addCatalogPartsToCart, getMyProfile, getMyWishlistIds, toggleWishlist, requestPartSalesman } from "@/lib/account.functions";
 import { SignInDialog } from "@/components/sign-in-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -20,6 +20,8 @@ import { resolvePrice, type CustomerType, isCustomerType } from "@/lib/pricing";
 import { formatAED } from "@/lib/format";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
+import { Link } from "@tanstack/react-router";
+import { getWhatsAppUrl } from "@/components/whatsapp-float";
 
 
 
@@ -107,6 +109,8 @@ export function PartsouqCatalog({
   const [bulkLoading, setBulkLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [modalSearch, setModalSearch] = useState("");
+  const [searchMode, setSearchMode] = useState<"focus" | "filter">("focus");
   const autoOpenedForRef = useRef<string>("");
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
@@ -122,6 +126,40 @@ export function PartsouqCatalog({
   const tier: CustomerType = isCustomerType(profileQ.data?.customer_type) ? profileQ.data!.customer_type as CustomerType : "IND";
   const qc = useQueryClient();
 
+  const wishlistQ = useQuery({
+    queryKey: ["wishlist-ids", user?.id],
+    queryFn: () => getMyWishlistIds(),
+    enabled: !!user,
+  });
+  const wishlistIds = wishlistQ.data || [];
+
+  const toggleWishlistMut = useMutation({
+    mutationFn: (data: { partId?: string; partNumber?: string; name?: string }) => toggleWishlist({ data }),
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ["wishlist-ids"] });
+      qc.invalidateQueries({ queryKey: ["wishlist"] });
+      qc.invalidateQueries({ queryKey: ["wishlist-count"] });
+      toast.success(res?.added ? `Saved ${res?.partNumber || ""} to wishlist` : `Removed ${res?.partNumber || ""} from wishlist`);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to update wishlist");
+    }
+  });
+
+  const [requestedPns, setRequestedPns] = useState<Record<string, boolean>>({});
+  const [requestSuccessPn, setRequestSuccessPn] = useState<string | null>(null);
+
+  const requestSalesmanMut = useMutation({
+    mutationFn: (data: { partNumber: string; name?: string }) => requestPartSalesman({ data }),
+    onSuccess: (_, vars) => {
+      setRequestedPns((prev) => ({ ...prev, [vars.partNumber]: true }));
+      setRequestSuccessPn(vars.partNumber);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to submit request");
+    },
+  });
+
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query.trim()), 300);
@@ -129,14 +167,45 @@ export function PartsouqCatalog({
   }, [query]);
 
 
-  // Clear selection when diagram changes/closes
-  useEffect(() => { setPicked({}); }, [selected]);
+  // Clear selection and search when diagram changes/closes
+  useEffect(() => { setPicked({}); setModalSearch(""); }, [selected]);
+
+  const matchingParts = useMemo(() => {
+    if (!selected) return [];
+    if (!modalSearch.trim()) return selected.parts || [];
+    const q = modalSearch.trim().toLowerCase();
+    return (selected.parts || []).filter(p => {
+      const co = (p.callout_number ?? "").toString().toLowerCase();
+      const coPrefixed = "#" + co;
+      const name = (p.part_name || "").toLowerCase();
+      const pns = (p.part_numbers || []).map(e => e.part_number).join(" ").toLowerCase();
+      return co.includes(q) || coPrefixed.includes(q) || name.includes(q) || pns.includes(q);
+    });
+  }, [selected, modalSearch]);
+
+  const filteredModalParts = useMemo(() => {
+    if (!selected) return [];
+    if (!modalSearch.trim()) return selected.parts || [];
+    return searchMode === "filter" ? matchingParts : selected.parts || [];
+  }, [selected, modalSearch, searchMode, matchingParts]);
+
+  useEffect(() => {
+    if (searchMode === "focus" && modalSearch.trim() && matchingParts.length > 0) {
+      const first = matchingParts[0];
+      const safeId = `part-row-${(first.callout_number ?? "").toString().replace(/[^a-zA-Z0-9]/g, "")}-${first.part_name.replace(/[^a-zA-Z0-9]/g, "")}`;
+      const el = document.getElementById(safeId);
+      if (el) {
+        // Small delay to let React render the class/highlight first if needed
+        setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+      }
+    }
+  }, [searchMode, modalSearch, matchingParts]);
 
   const allPartNumbers = useMemo(() => {
     if (!selected) return [] as { pn: string; name: string }[];
     const out: { pn: string; name: string }[] = [];
     const seen = new Set<string>();
-    for (const p of selected.parts || []) {
+    for (const p of filteredModalParts) {
       for (const e of p.part_numbers || []) {
         const pn = (e?.part_number || "").trim();
         if (!pn || seen.has(pn)) continue;
@@ -176,6 +245,7 @@ export function PartsouqCatalog({
       if (res.added > 0) {
         toast.success(`Added ${vars.part_number} to cart`);
         qc.invalidateQueries({ queryKey: ["cart"] });
+        qc.invalidateQueries({ queryKey: ["cart-count"] });
       } else toast.error(`Couldn't add ${vars.part_number}`);
     },
     onError: (e: any) => toast.error(e?.message || "Add to cart failed"),
@@ -193,6 +263,7 @@ export function PartsouqCatalog({
       if (res.added > 0) toast.success(`Added ${res.added} item${res.added === 1 ? "" : "s"} to cart`);
       if (res.skipped?.length) toast.error(`Skipped ${res.skipped.length} item(s)`);
       qc.invalidateQueries({ queryKey: ["cart"] });
+      qc.invalidateQueries({ queryKey: ["cart-count"] });
       qc.invalidateQueries({ queryKey: ["parts-availability"] });
       setPicked({});
     } catch (e: any) {
@@ -427,6 +498,30 @@ export function PartsouqCatalog({
           {selected && (
             <div className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr] h-[85vh]">
               <div className="bg-muted/30 flex items-center justify-center p-4 relative border-b md:border-b-0 md:border-r min-h-[280px]">
+                {selected.parts && selected.parts.length > 0 && (
+                  <div className="absolute top-4 left-4 right-4 z-10 flex flex-wrap gap-1.5 max-h-[40vh] overflow-y-auto">
+                    {Array.from(new Set((selected.parts || []).map(p => p.callout_number?.toString().trim()).filter(Boolean))).sort((a, b) => {
+                      const numA = parseInt(a || "0", 10);
+                      const numB = parseInt(b || "0", 10);
+                      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                      return (a || "").localeCompare(b || "");
+                    }).map(tag => {
+                      const isMatch = modalSearch.trim().toLowerCase() === `#${tag.toLowerCase()}`;
+                      return (
+                        <button 
+                          key={tag} 
+                          onClick={() => {
+                            setModalSearch(`#${tag}`);
+                            setSearchMode("focus");
+                          }}
+                          className={`text-[11px] font-mono font-medium px-2 py-0.5 shadow-md rounded transition-colors ${isMatch ? "bg-primary text-primary-foreground" : "bg-black/80 text-white hover:bg-black/90"}`}
+                        >
+                          #{tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 {selected.image_url ? (
                   <>
                     <img
@@ -437,7 +532,7 @@ export function PartsouqCatalog({
                     />
                     <button
                       onClick={() => setZoom(true)}
-                      className="absolute top-3 right-3 rounded-md bg-background/80 backdrop-blur p-2 hover:bg-background border"
+                      className="absolute top-4 right-4 rounded-md bg-background/90 backdrop-blur p-2 hover:bg-background border shadow-md z-20"
                       aria-label="Zoom diagram"
                     >
                       <Maximize2 className="h-4 w-4" />
@@ -461,6 +556,44 @@ export function PartsouqCatalog({
                     )}
                     <Badge variant="secondary" className="text-[10px]">{selected.parts?.length || 0} part{(selected.parts?.length || 0) === 1 ? "" : "s"}</Badge>
                   </div>
+                  <div className="mt-4 flex flex-col gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="search"
+                        placeholder="Search #tagcode, part name or OEM number..."
+                        className="w-full pl-9 pr-8 h-9 text-xs"
+                        value={modalSearch}
+                        onChange={(e) => setModalSearch(e.target.value)}
+                      />
+                      {modalSearch && (
+                        <button onClick={() => setModalSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    {modalSearch.trim() && (
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[11px] text-muted-foreground">
+                          {matchingParts.length} match{matchingParts.length !== 1 ? 'es' : ''} {modalSearch.startsWith('#') ? `for tagcode ${modalSearch}` : ''}
+                        </span>
+                        <div className="flex bg-muted rounded-md p-0.5">
+                          <button 
+                            onClick={() => setSearchMode("focus")} 
+                            className={`text-[10px] px-2.5 py-1 rounded-sm transition-colors ${searchMode === "focus" ? "bg-background shadow-sm text-primary font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                          >
+                            Focus
+                          </button>
+                          <button 
+                            onClick={() => setSearchMode("filter")} 
+                            className={`text-[10px] px-2.5 py-1 rounded-sm transition-colors ${searchMode === "filter" ? "bg-background shadow-sm text-primary font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                          >
+                            Filter
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {allPartNumbers.length > 0 && (
                   <div className="flex items-center justify-between gap-2 px-5 py-2 border-b bg-muted/30">
@@ -475,14 +608,17 @@ export function PartsouqCatalog({
                   </div>
                 )}
                 <ScrollArea className="flex-1 min-h-0" data-lenis-prevent>
-                  {!selected.parts || selected.parts.length === 0 ? (
-                    <div className="p-5 text-sm text-muted-foreground">No parts available</div>
+                  {filteredModalParts.length === 0 ? (
+                    <div className="p-5 text-sm text-muted-foreground text-center">
+                      {modalSearch.trim() ? "No parts match your search." : "No parts available"}
+                    </div>
                   ) : (
                     <ul className="divide-y">
-                      {selected.parts.map((p, i) => (
+                      {filteredModalParts.map((p, i) => (
                         <PartRow
                           key={(p.part_name || "part") + "-" + (p.callout_number ?? "") + "-" + i}
                           part={p}
+                          isFocused={searchMode === "focus" && !!modalSearch.trim() && matchingParts.includes(p)}
                           picked={picked}
                           onTogglePicked={togglePicked}
                           onAddOne={addOne}
@@ -491,7 +627,16 @@ export function PartsouqCatalog({
                           availability={availability}
                           isStaff={isStaff}
                           tier={tier}
-
+                          wishlistIds={wishlistIds}
+                          onToggleWishlist={(data) => {
+                            if (!user) setSignInOpen(true);
+                            else toggleWishlistMut.mutate(data);
+                          }}
+                          requestedPns={requestedPns}
+                          onRequestSalesman={(pn, name) => {
+                            if (!user) setSignInOpen(true);
+                            else requestSalesmanMut.mutate({ partNumber: pn, name });
+                          }}
                         />
 
                       ))}
@@ -522,6 +667,17 @@ export function PartsouqCatalog({
       </Dialog>
 
       <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} message="Sign in to add catalog parts to your cart." />
+
+      <Dialog open={!!requestSuccessPn} onOpenChange={(o) => !o && setRequestSuccessPn(null)}>
+        <DialogContent className="max-w-sm border border-slate-800 bg-[#0b0f19] text-white p-6 shadow-2xl rounded-xl">
+          <div className="flex items-start justify-between">
+            <h3 className="text-base font-bold tracking-tight text-white">Request received</h3>
+          </div>
+          <p className="mt-3 text-xs leading-relaxed text-slate-300">
+            Our salesman will contact you shortly about <span className="font-mono font-semibold text-white">{requestSuccessPn}</span>.
+          </p>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -578,6 +734,7 @@ type AvailabilityApi = ReturnType<typeof useBulkAvailability>;
 
 type PartRowProps = {
   part: CatalogPart;
+  isFocused?: boolean;
   picked: Record<string, boolean>;
   onTogglePicked: (pn: string, v?: boolean) => void;
   onAddOne: (pn: string, name: string) => void;
@@ -586,12 +743,17 @@ type PartRowProps = {
   availability: AvailabilityApi;
   isStaff: boolean;
   tier: CustomerType;
+  wishlistIds: string[];
+  onToggleWishlist: (data: { partId?: string; partNumber?: string; name?: string }) => void;
+  requestedPns: Record<string, boolean>;
+  onRequestSalesman: (pn: string, name?: string) => void;
 };
 
-function PartRow({ part, picked, onTogglePicked, onAddOne, addingPn, query = "", availability, isStaff, tier }: PartRowProps) {
+function PartRow({ part, isFocused, picked, onTogglePicked, onAddOne, addingPn, query = "", availability, isStaff, tier, wishlistIds, onToggleWishlist, requestedPns, onRequestSalesman }: PartRowProps) {
   const pns = Array.isArray(part.part_numbers) ? part.part_numbers : [];
+  const safeId = `part-row-${(part.callout_number ?? "").toString().replace(/[^a-zA-Z0-9]/g, "")}-${part.part_name.replace(/[^a-zA-Z0-9]/g, "")}`;
   return (
-    <li className="px-5 py-3 hover:bg-muted/40">
+    <li id={safeId} className={`px-5 py-3 transition-colors scroll-mt-24 ${isFocused ? "bg-primary/5 ring-1 ring-inset ring-primary my-1 mx-2 rounded-md shadow-sm" : "hover:bg-muted/40"}`}>
       <div className="flex items-start gap-3">
         {part.callout_number != null && String(part.callout_number).length > 0 && (
           <Badge variant="outline" className="text-[10px] mt-0.5 shrink-0">#{part.callout_number}</Badge>
@@ -630,6 +792,13 @@ function PartRow({ part, picked, onTogglePicked, onAddOne, addingPn, query = "",
                     exportPrice={info.export_price}
                     isStaff={isStaff}
                     tier={tier}
+                    partId={info.partId}
+                    partNumber={num}
+                    name={part.part_name}
+                    isWishlisted={info.partId ? wishlistIds.includes(info.partId) : false}
+                    onToggleWishlist={() => onToggleWishlist({ partId: info.partId, partNumber: num, name: part.part_name })}
+                    isRequested={!!requestedPns[num]}
+                    onRequestSalesman={() => onRequestSalesman(num, part.part_name)}
                   />
                 );
               })}
@@ -646,6 +815,7 @@ function PartNumberItem({
   entry, checked, onToggle, onAdd, adding, query = "",
   availabilityLoading, existsInInventory, stock,
   price, indPrice, garPrice, exportPrice, isStaff, tier,
+  partId, isWishlisted, onToggleWishlist, isRequested, onRequestSalesman
 }: {
   entry: PartNumberEntry;
   checked: boolean;
@@ -662,6 +832,11 @@ function PartNumberItem({
   exportPrice: number | null;
   isStaff: boolean;
   tier: CustomerType;
+  partId?: string;
+  isWishlisted?: boolean;
+  onToggleWishlist?: () => void;
+  isRequested?: boolean;
+  onRequestSalesman?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const pn = entry?.part_number || "";
@@ -689,7 +864,7 @@ function PartNumberItem({
         aria-label={`Select ${pn}`}
         disabled={!purchasable}
       />
-      <span className="font-mono text-[12px] bg-muted/60 rounded px-2 py-0.5"><Highlight text={pn} query={query} /></span>
+      <span className="font-mono text-[12px] bg-muted/60 rounded px-2 py-0.5"><span className="text-muted-foreground font-sans text-[11px] font-normal me-1">Ref OE No:</span><Highlight text={pn} query={query} /></span>
 
       {entry?.quantity != null && (
         <span className="text-[10px] text-muted-foreground">Qty {entry.quantity}</span>
@@ -733,16 +908,60 @@ function PartNumberItem({
         <Button size="sm" variant="ghost" className="h-6 px-2" onClick={copy} aria-label="Copy part number">
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
         </Button>
-        <InventoryAddButton
-          existsInInventory={existsInInventory}
-          stock={stock}
-          isLoading={availabilityLoading}
-          adding={adding}
-          onAdd={onAdd}
-          compact
-          isStaff={isStaff}
-          className="h-6 px-2"
-        />
+        <Button 
+          size="sm" 
+          variant="ghost" 
+          disabled={!existsInInventory}
+          title={existsInInventory ? "Add to wishlist" : "Wishlist only available for inventory parts"}
+          className={`h-6 px-2 text-slate-400 transition-colors ${!existsInInventory ? "opacity-40 cursor-not-allowed" : "hover:text-primary"}`}
+          onClick={(e) => { 
+            e.preventDefault(); 
+            if (existsInInventory) onToggleWishlist?.(); 
+          }}
+          aria-label="Wishlist"
+        >
+          <Heart className={`h-3.5 w-3.5 ${isWishlisted ? 'fill-primary text-primary' : ''}`} />
+        </Button>
+        
+        {existsInInventory && stock > 0 ? (
+          <InventoryAddButton
+            existsInInventory={existsInInventory}
+            stock={stock}
+            isLoading={availabilityLoading}
+            adding={adding}
+            onAdd={onAdd}
+            compact
+            isStaff={isStaff}
+            className="h-6 px-2"
+          />
+        ) : (
+          <>
+            {isStaff && (
+              <InventoryAddButton
+                existsInInventory={existsInInventory}
+                stock={stock}
+                isLoading={availabilityLoading}
+                adding={adding}
+                onAdd={onAdd}
+                compact
+                isStaff={isStaff}
+                className="h-6 px-2"
+              />
+            )}
+
+            {isRequested ? (
+              <Button size="sm" variant="outline" disabled className="h-6 px-2 text-[10px] text-muted-foreground border-border bg-muted/40 opacity-80">
+                <Check className="h-3 w-3 mr-1 text-emerald-500" />
+                Request sent
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] text-blue-600 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950" onClick={(e) => { e.preventDefault(); onRequestSalesman?.(); }}>
+                <Headset className="h-3 w-3 mr-1" />
+                Contact salesman
+              </Button>
+            )}
+          </>
+        )}
       </div>
     </li>
   );

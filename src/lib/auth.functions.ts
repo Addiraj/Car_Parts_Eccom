@@ -46,8 +46,8 @@ export const register = createServerFn({ method: "POST" })
   .validator(z.object({ 
     email: z.string().email(), 
     password: z.string().min(6),
-    full_name: z.string().min(1).optional(),
-    phone: z.string().optional()
+    full_name: z.string().min(1, "Full name is required"),
+    phone: z.string().min(5, "Phone number is required")
   }))
   .handler(async ({ data: { email, password, full_name, phone } }) => {
     const existing = await models.users.findOne({ where: { email } });

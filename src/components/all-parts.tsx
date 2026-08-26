@@ -8,6 +8,11 @@ import { useIsAdmin } from "@/hooks/use-is-admin";
 import { Reveal, TiltCard } from "@/components/motion-primitives";
 import { PartThumb } from "@/components/part-thumb";
 import { PartCard } from "@/components/part-card";
+import { useAuth } from "@/hooks/use-auth";
+import { getMyWishlistIds, toggleWishlist } from "@/lib/account.functions";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { SignInDialog } from "@/components/sign-in-dialog";
+import { useState } from "react";
 
 export const homePartsQO = (page: number) =>
   queryOptions({
@@ -25,6 +30,30 @@ export function AllParts({ page, basePath }: Props) {
   const { items = [], total = 0, pageSize = 24 } = partsQuery.data ?? {};
   const isFetching = partsQuery.isFetching;
   const pages = Math.max(1, Math.ceil(total / pageSize));
+
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const [signInOpen, setSignInOpen] = useState(false);
+
+  const wishlistQ = useQuery({
+    queryKey: ["wishlist-ids", user?.id],
+    queryFn: () => getMyWishlistIds(),
+    enabled: !!user,
+  });
+  const wishlistIds = wishlistQ.data || [];
+
+  const toggleWishlistMut = useMutation({
+    mutationFn: (partId: string) => toggleWishlist({ data: { partId } }),
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ["wishlist-ids"] });
+      qc.invalidateQueries({ queryKey: ["wishlist"] });
+      qc.invalidateQueries({ queryKey: ["wishlist-count"] });
+      toast.success(res?.added ? "Saved to wishlist" : "Removed from wishlist");
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to update wishlist");
+    }
+  });
 
   const goto = (p: number) => {
     const next = Math.min(pages, Math.max(1, p));
@@ -85,13 +114,23 @@ export function AllParts({ page, basePath }: Props) {
           )}
           <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 transition-opacity duration-200 ${isFetching ? "opacity-60" : "opacity-100"}`}>
             {items.map((p: any) => (
-              <Link key={p.id} to="/parts/$id" params={{ id: p.id }} className="group block">
-                <PartCard part={p} />
+              <Link key={p.id} to="/parts/$id" params={{ id: p.id }} className="group block h-full">
+                <PartCard 
+                  part={p} 
+                  isWishlisted={wishlistIds.includes(p.id)}
+                  onToggleWishlist={() => {
+                    if (!user) setSignInOpen(true);
+                    else toggleWishlistMut.mutate(p.id);
+                  }}
+                  supersededParts={p.part_alternative_parts}
+                />
               </Link>
             ))}
           </div>
         </div>
       )}
+
+      <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
 
       {pages > 1 && (
         <div className="mt-12 flex flex-wrap items-center justify-center gap-2">

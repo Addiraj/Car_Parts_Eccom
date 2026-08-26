@@ -268,8 +268,8 @@ export const listPartsPaged = createServerFn({ method: "GET" })
     const offset = (page - 1) * pageSize;
     
     const { rows: items, count } = await models.parts.findAndCountAll({
-      attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "images", "manufacturer", "is_oem"],
-      order: [["created_at", "DESC"]],
+      attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "images", "manufacturer", "is_oem", "stock"],
+      order: [["stock", "DESC"], ["name", "ASC"]],
       limit: pageSize,
       offset: offset
     });
@@ -323,7 +323,7 @@ export const searchParts = createServerFn({ method: "GET" })
       for (const r of rows ?? []) if (!byId.has(r.id)) byId.set(r.id, r);
     };
 
-    const cols = ["id", "part_number", "oem_number", "name", "price", "ind_price", "gar_price", "export_price", "images", "manufacturer"];
+    const cols = ["id", "part_number", "oem_number", "name", "price", "ind_price", "gar_price", "export_price", "images", "manufacturer", "stock"];
 
     // Pass 1: exact/substring matches
     const searchString = `%${raw}%`;
@@ -337,6 +337,7 @@ export const searchParts = createServerFn({ method: "GET" })
           { manufacturer: { [Op.iLike]: searchString } }
         ]
       },
+      order: [["stock", "DESC"], ["name", "ASC"]],
       limit
     });
     push(pass1.map((p: any) => p.get({ plain: true })));
@@ -352,6 +353,7 @@ export const searchParts = createServerFn({ method: "GET" })
             { oem_number: { [Op.iRegexp]: regex } }
           ]
         },
+        order: [["stock", "DESC"], ["name", "ASC"]],
         limit
       });
       push(pass2.map((p: any) => p.get({ plain: true })));
@@ -365,8 +367,15 @@ export const searchParts = createServerFn({ method: "GET" })
       limit: 8
     });
 
+    const sortedList = Array.from(byId.values()).sort((a, b) => {
+      const stockA = Number(a.stock ?? 0);
+      const stockB = Number(b.stock ?? 0);
+      if (stockB !== stockA) return stockB - stockA;
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    });
+
     return {
-      parts: Array.from(byId.values()).slice(0, limit).map((p) => {
+      parts: sortedList.slice(0, limit).map((p) => {
         const projected: any = projectPart(p as any, tier);
         if (isStaff) {
           projected.ind_price = (p as any).ind_price;

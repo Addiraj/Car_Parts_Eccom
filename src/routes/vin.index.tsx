@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { decodeVin } from "@/lib/catalog.functions";
 import { addVehicle, getMyGarage } from "@/lib/account.functions";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { ScanLine, Car, Plus, Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -19,25 +19,22 @@ export const Route = createFileRoute("/vin/")({
 function VinPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [vin, setVin] = useState("");
   const [signInOpen, setSignInOpen] = useState(false);
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [tagInput, setTagInput] = useState("");
 
-  const { data: session } = useQuery({
-    queryKey: ["auth-user"],
-    queryFn: async () => (await supabase.auth.getUser()).data.user,
-  });
   const { data: garage, refetch: refetchGarage } = useQuery({
     queryKey: ["my-garage"],
     queryFn: () => getMyGarage(),
-    enabled: !!session,
+    enabled: !!user,
   });
 
   const mut = useMutation({
     mutationFn: (v: string) => decodeVin({ data: { vin: v } }),
     onSuccess: (_data, v) => {
-      if (!session) recordAnonVin(v);
+      if (!user) recordAnonVin(v);
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -45,7 +42,7 @@ function VinPage() {
   const tryDecode = (raw: string) => {
     const v = raw.trim().toUpperCase();
     if (v.length < 11) { toast.error("VIN 11-17"); return; }
-    if (!session && !anonCanDecode(v)) {
+    if (!user && !anonCanDecode(v)) {
       setSignInOpen(true);
       return;
     }
@@ -93,7 +90,7 @@ function VinPage() {
   });
 
   const handleAddToGarage = () => {
-    if (!session) {
+    if (!user) {
       toast.info(t("signInRequired"));
       navigate({ to: "/auth/login", search: { redirect: typeof window !== "undefined" ? window.location.pathname + window.location.search : "/vin" } });
       return;
@@ -124,7 +121,29 @@ function VinPage() {
           {mut.isPending ? t("loading") : t("decode")}
         </button>
       </form>
-      {!session && (
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Suggested VINs:</span>
+        {[
+          { vin: "WBAFR71020C725456", label: "BMW 535i" },
+          { vin: "WBAPH5C55BA123456", label: "BMW 3 Series" },
+          { vin: "WBA3B31000F123456", label: "BMW F30" },
+        ].map((item) => (
+          <button
+            key={item.vin}
+            type="button"
+            onClick={() => {
+              setVin(item.vin);
+              tryDecode(item.vin);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 font-mono text-xs font-medium text-primary hover:bg-primary/15 transition-colors"
+          >
+            <span>{item.vin}</span>
+            <span className="text-[10px] text-muted-foreground font-sans">({item.label})</span>
+          </button>
+        ))}
+      </div>
+
+      {!user && (
         <p className="mt-2 text-[11px] text-muted-foreground">
           Free preview: decode up to {MAX_ANON_VINS} VINs — sign in to unlock unlimited lookups.
         </p>
