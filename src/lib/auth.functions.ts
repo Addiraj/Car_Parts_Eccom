@@ -5,7 +5,7 @@ import nodemailer from "nodemailer";
 import { models } from "./db/index.server";
 import { verifyTurnstileToken } from "./security.functions";
 
-const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret_for_dev_only_change_in_prod";
+const getJwtSecret = () => process.env.JWT_SECRET || (() => { throw new Error("JWT_SECRET env var is not set"); })();
 
 const getMailer = () => {
   return nodemailer.createTransport({
@@ -102,7 +102,7 @@ export const login = createServerFn({ method: "POST" })
 
     const token = jwt.sign(
       { sub: user.id, email: user.email },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: "7d" }
     );
 
@@ -152,7 +152,7 @@ export const register = createServerFn({ method: "POST" })
 
     const token = jwt.sign(
       { sub: user.id, email: user.email },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: "7d" }
     );
 
@@ -166,7 +166,7 @@ export const getSession = createServerFn({ method: "GET" })
   .validator(z.object({ token: z.string() }))
   .handler(async ({ data: { token } }) => {
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as { sub: string, email: string };
+      const decoded = jwt.verify(token, getJwtSecret()) as { sub: string, email: string };
       const user = await models.users.findByPk(decoded.sub);
       
       if (!user) throw new Error("User not found");

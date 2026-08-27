@@ -21,10 +21,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getActiveAvatarProvider, getSimliConfig } from "@/lib/avatar/avatar-providers.functions";
 import { useAuth } from "@/hooks/use-auth";
-import { listThreads, deleteThread as deleteThreadFn } from "@/lib/ai-chat.functions";
+import { listThreads, deleteThread as deleteThreadFn, getThreadMessages } from "@/lib/ai-chat.functions";
 
 type Lang = "en" | "hi" | "ar" | "gu";
-type Thread = { id: string; title: string };
+type Thread = { id: string; title: string; last_message_at: string };
 
 const LANG_LABEL: Record<Lang, string> = { en: "English", hi: "हिंदी", ar: "العربية", gu: "ગુજરાતી" };
 const LANG_INSTRUCTION: Record<Lang, string> = {
@@ -43,6 +43,7 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
   // the in-flight assistant message.
   const [chatSessionId, setChatSessionId] = React.useState<string>(() => `avatar-${Date.now()}`);
   const [threads, setThreads] = React.useState<Thread[]>([]);
+  const [selectedDayOffset, setSelectedDayOffset] = React.useState<number>(0);
   const [userId, setUserId] = React.useState<string | null>(null);
   const [voiceOn, setVoiceOn] = React.useState(true);
   const [showHistory, setShowHistory] = React.useState(false);
@@ -52,10 +53,12 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
   const skipNextSpeakRef = React.useRef(false);
   const userRequestedSpeechRef = React.useRef(false);
   const historyLoadRequestedRef = React.useRef(false);
+  const autoResumedRef = React.useRef(false);
   const simliRef = React.useRef<AvatarSimliHandle | null>(null);
 
   const fetchListThreads = useServerFn(listThreads);
   const fetchDeleteThread = useServerFn(deleteThreadFn);
+  const fetchGetThreadMessages = useServerFn(getThreadMessages);
 
   const getActiveProvider = useServerFn(getActiveAvatarProvider);
   const { data: activeProvider } = useQuery({
@@ -92,19 +95,66 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
     if (!userId) { setThreads([]); return; }
     try {
       const data = await fetchListThreads();
-      const avatarOnly = (data ?? []).filter((t: any) => (t.vehicle_context as any)?.source === "avatar");
-      setThreads(avatarOnly.map((t: any) => ({ id: t.id, title: t.title })) as Thread[]);
+      console.log("[AvatarPanel] fetchListThreads raw count:", data?.length);
+      const avatarOnly = (data ?? []).filter((t: any) => {
+        let ctx = t.vehicle_context;
+        if (typeof ctx === "string") {
+          try { ctx = JSON.parse(ctx); } catch { }
+        }
+        return ctx?.source === "avatar";
+      });
+      console.log("[AvatarPanel] avatarOnly count:", avatarOnly.length);
+      setThreads(avatarOnly.map((t: any) => ({
+        id: t.id,
+        title: t.title,
+        last_message_at: t.last_message_at
+      })) as Thread[]);
     } catch (e) {
-      console.error(e);
+      console.error("[AvatarPanel] refreshThreads error:", e);
       setThreads([]);
     }
   }, [userId, fetchListThreads]);
 
   React.useEffect(() => { refreshThreads(); }, [refreshThreads, threadId]);
 
-  // Do not auto-resume previous avatar conversations. History is visible only
-  // when the user explicitly selects a saved thread, and old messages must not
-  // be spoken by the avatar.
+  React.useEffect(() => {
+    if (showHistory) {
+      setSelectedDayOffset(0);
+      const today = new Date();
+      const todayThread = threads.find((t) => {
+        if (!t.last_message_at) return false;
+        const d = new Date(t.last_message_at);
+        return d.toDateString() === today.toDateString();
+      });
+      if (todayThread && todayThread.id !== threadId) {
+        historyLoadRequestedRef.current = true;
+        userRequestedSpeechRef.current = false;
+        skipNextSpeakRef.current = true;
+        setChatSessionId(`avatar-${todayThread.id}`);
+        setThreadId(todayThread.id);
+      }
+    }
+  }, [showHistory, threads, threadId]);
+
+  // Auto-resume Today's chat thread automatically when the user comes to Avatar
+  React.useEffect(() => {
+    if (threads.length > 0 && !threadId && !autoResumedRef.current) {
+      const today = new Date();
+      const todayThread = threads.find((t) => {
+        if (!t.last_message_at) return false;
+        const d = new Date(t.last_message_at);
+        return d.toDateString() === today.toDateString();
+      });
+      if (todayThread) {
+        autoResumedRef.current = true;
+        historyLoadRequestedRef.current = true;
+        userRequestedSpeechRef.current = false;
+        skipNextSpeakRef.current = true;
+        setChatSessionId(`avatar-${todayThread.id}`);
+        setThreadId(todayThread.id);
+      }
+    }
+  }, [threads, threadId]);
 
   const transport = React.useMemo(
     () => new DefaultChatTransport({
@@ -143,32 +193,33 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
       historyLoadRequestedRef.current = false;
       return;
     }
-    if (!historyLoadRequestedRef.current) return;
+    if (!historyLoadRequestedRef.current && messages.length > 0) return;
     (async () => {
-      const { data } = await supabase
-        .from("ai_chat_messages")
-        .select("id, role, text, parts, created_at")
-        .eq("thread_id", threadId)
-        .order("created_at", { ascending: true });
-      const ui = (data ?? []).map((m: any) => ({
-        id: m.id,
-        role: m.role as "user" | "assistant",
-        parts: Array.isArray(m.parts) && m.parts.length ? m.parts : [{ type: "text", text: m.text ?? "" }],
-      }));
-      skipNextSpeakRef.current = true;
-      userRequestedSpeechRef.current = false;
-      setMessages(ui as any);
-      // Mark last assistant as already-spoken so TTS doesn't replay history
-      const lastAssistant = [...ui].reverse().find((m) => m.role === "assistant");
-      if (lastAssistant) {
-        const spokenText = (lastAssistant.parts ?? [])
-          .map((p: any) => (p.type === "text" ? p.text : ""))
-          .join(" ")
-          .trim();
-        lastSpokenId.current = lastAssistant.id;
-        spokenOffsetRef.current = { id: lastAssistant.id, offset: spokenText.length };
-      } else {
-        spokenOffsetRef.current = { id: null, offset: 0 };
+      try {
+        const data = await fetchGetThreadMessages({ data: { id: threadId } });
+        const ui = (data ?? []).map((m: any) => ({
+          id: m.id,
+          role: m.role as "user" | "assistant",
+          parts: Array.isArray(m.parts) && m.parts.length ? m.parts : [{ type: "text", text: m.text ?? "" }],
+          createdAt: new Date(m.created_at),
+        }));
+        skipNextSpeakRef.current = true;
+        userRequestedSpeechRef.current = false;
+        setMessages(ui as any);
+        // Mark last assistant as already-spoken so TTS doesn't replay history
+        const lastAssistant = [...ui].reverse().find((m) => m.role === "assistant");
+        if (lastAssistant) {
+          const spokenText = (lastAssistant.parts ?? [])
+            .map((p: any) => (p.type === "text" ? p.text : ""))
+            .join(" ")
+            .trim();
+          lastSpokenId.current = lastAssistant.id;
+          spokenOffsetRef.current = { id: lastAssistant.id, offset: spokenText.length };
+        } else {
+          spokenOffsetRef.current = { id: null, offset: 0 };
+        }
+      } catch (err) {
+        console.error("[AvatarPanel] Failed to load messages:", err);
       }
       historyLoadRequestedRef.current = false;
     })();
@@ -302,9 +353,30 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const getDayLabel = (offset: number) => {
+    if (offset === 0) return "Today";
+    if (offset === 1) return "Yesterday";
+    const date = new Date();
+    date.setDate(date.getDate() - offset);
+    return date.toLocaleDateString("en-US", { weekday: "short" });
+  };
+
+  const filteredThreads = React.useMemo(() => {
+    const today = new Date();
+    const targetDate = new Date(today);
+    targetDate.setDate(targetDate.getDate() - selectedDayOffset);
+    const targetDateStr = targetDate.toDateString();
+
+    return threads.filter((t) => {
+      if (!t.last_message_at) return false;
+      const d = new Date(t.last_message_at);
+      return d.toDateString() === targetDateStr;
+    });
+  }, [threads, selectedDayOffset]);
+
   return (
-    <div className="fixed inset-2 z-[80] flex flex-col overflow-hidden rounded-2xl border border-blue-500/20 bg-[#05070d] text-white shadow-2xl md:inset-auto md:bottom-4 md:right-4 md:h-[660px] md:w-[900px] md:max-w-[94vw] md:flex-row">
-      <div className="relative flex h-48 min-h-[12rem] shrink-0 flex-col bg-[#05070d] md:h-auto md:min-h-[360px] md:w-[32%] md:min-w-[260px] md:max-w-[300px]">
+    <div className="fixed inset-2 z-[80] flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl md:inset-auto md:bottom-4 md:right-4 md:h-[660px] md:w-[900px] md:max-w-[94vw] md:flex-row">
+      <div className="relative flex h-48 min-h-[12rem] shrink-0 flex-col bg-slate-50 border-b md:border-b-0 md:border-r border-slate-200 md:h-auto md:min-h-[360px] md:w-[32%] md:min-w-[260px] md:max-w-[300px]">
         <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
           <div className="absolute inset-0">
             <AvatarSimli
@@ -317,10 +389,10 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between border-t border-white/10 bg-black/60 px-3 py-2 backdrop-blur">
+        <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between border-t border-slate-200 bg-white/90 px-3 py-2 backdrop-blur shadow-xs">
           <div>
-            <div className="text-sm font-semibold tracking-wide">AutoMate</div>
-            <div className="text-[10px] uppercase tracking-wider text-blue-400/80">
+            <div className="text-sm font-semibold tracking-wide text-slate-900">AutoMate</div>
+            <div className="text-[10px] uppercase tracking-wider text-blue-600 font-medium">
               {voice.isSpeaking ? "Speaking…" : voice.isRecording ? "Listening…" : "AI advisor"}
             </div>
           </div>
@@ -339,36 +411,36 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
           >
             {voice.isSpeaking ? <><Square className="h-3 w-3" /> Stop</>
               : voiceOn ? <><Volume2 className="h-3 w-3" /> Voice on</>
-              : <><VolumeX className="h-3 w-3" /> Voice off</>}
+                : <><VolumeX className="h-3 w-3" /> Voice off</>}
           </Button>
         </div>
       </div>
 
       {/* Chat column */}
-      <div className="flex flex-1 min-w-0 flex-col bg-[#0a0e1a]">
-        <header className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
+      <div className="flex flex-1 min-w-0 flex-col bg-white">
+        <header className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2 bg-slate-50">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="inline-flex h-2 w-2 rounded-full bg-blue-400 shadow-[0_0_10px_2px_rgba(96,165,250,0.6)]" />
-            <span className="truncate text-sm font-semibold">AutoMate Avatar</span>
+            <span className="inline-flex h-2 w-2 rounded-full bg-blue-600 shadow-[0_0_8px_1px_rgba(37,99,235,0.4)]" />
+            <span className="truncate text-sm font-semibold text-slate-800">AutoMate Avatar</span>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[11px] text-white/70 hover:text-white hover:bg-white/10" onClick={() => setShowHistory((v) => !v)}>
+            <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[11px] text-slate-600 hover:text-slate-900 hover:bg-slate-200/50" onClick={() => setShowHistory((v) => !v)}>
               <History className="h-3.5 w-3.5" /> History
             </Button>
-            <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[11px] text-white/70 hover:text-white hover:bg-white/10" onClick={newConversation}>
+            <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[11px] text-slate-600 hover:text-slate-900 hover:bg-slate-200/50" onClick={newConversation}>
               <MessageSquarePlus className="h-3.5 w-3.5" /> New
             </Button>
             <select
               value={lang}
               onChange={(e) => setLang(e.target.value as Lang)}
-              className="h-7 rounded-md border border-white/10 bg-white/5 px-2 text-[11px] focus:outline-none"
+              className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] focus:outline-none text-slate-700 shadow-xs"
               aria-label="Language"
             >
               {(Object.keys(LANG_LABEL) as Lang[]).map((k) => (
-                <option key={k} value={k} className="bg-[#0a0e1a]">{LANG_LABEL[k]}</option>
+                <option key={k} value={k} className="bg-white text-slate-900">{LANG_LABEL[k]}</option>
               ))}
             </select>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/10" onClick={onClose} aria-label="Close">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-600 hover:text-slate-900 hover:bg-slate-200/50" onClick={onClose} aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
@@ -376,29 +448,72 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
 
         {/* History dropdown */}
         {showHistory ? (
-          <div data-lenis-prevent className="max-h-56 overflow-y-auto overscroll-contain border-b border-white/10 bg-black/40 px-2 py-1.5">
-            {threads.length === 0 ? (
-              <p className="px-2 py-3 text-[11px] text-white/50">No saved avatar conversations yet.</p>
-            ) : threads.map((t) => (
-              <div
-                key={t.id}
-                className={cn(
-                  "group flex items-center gap-1 rounded-md px-2 py-1.5 text-[12px]",
-                  t.id === threadId ? "bg-blue-500/15 text-white" : "text-white/70 hover:bg-white/5",
-                )}
-              >
-                <button className="flex-1 truncate text-left" onClick={() => { historyLoadRequestedRef.current = true; userRequestedSpeechRef.current = false; skipNextSpeakRef.current = true; setChatSessionId(`avatar-${t.id}`); setThreadId(t.id); setShowHistory(false); }}>
-                  {t.title || "Conversation"}
-                </button>
+          <div className="border-b border-slate-200 bg-slate-50 flex flex-col shadow-inner">
+            {/* Day navigation tabs */}
+            <div className="flex gap-1.5 border-b border-slate-200 px-3 py-2 overflow-x-auto scrollbar-none">
+              {[0, 1, 2, 3, 4, 5, 6].map((offset) => (
                 <button
-                  className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-red-300"
-                  onClick={(e) => { e.stopPropagation(); deleteThread(t.id); }}
-                  aria-label="Delete"
+                  key={offset}
+                  onClick={() => {
+                    setSelectedDayOffset(offset);
+                    const targetDate = new Date();
+                    targetDate.setDate(targetDate.getDate() - offset);
+                    const targetDateStr = targetDate.toDateString();
+
+                    const threadForDay = threads.find((t) => {
+                      if (!t.last_message_at) return false;
+                      const d = new Date(t.last_message_at);
+                      return d.toDateString() === targetDateStr;
+                    });
+
+                    if (threadForDay) {
+                      historyLoadRequestedRef.current = true;
+                      userRequestedSpeechRef.current = false;
+                      skipNextSpeakRef.current = true;
+                      setChatSessionId(`avatar-${threadForDay.id}`);
+                      setThreadId(threadForDay.id);
+                    } else {
+                      setThreadId(null);
+                      setMessages([]);
+                    }
+                  }}
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] rounded-md transition-colors whitespace-nowrap",
+                    selectedDayOffset === offset
+                      ? "bg-blue-50 border border-blue-200 text-blue-700 font-medium shadow-xs"
+                      : "text-slate-500 border border-transparent hover:text-slate-900 hover:bg-slate-200/50"
+                  )}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  {getDayLabel(offset)}
                 </button>
-              </div>
-            ))}
+              ))}
+            </div>
+
+            {/* Filtered thread list */}
+            <div data-lenis-prevent className="max-h-56 overflow-y-auto overscroll-contain px-2 py-1.5">
+              {filteredThreads.length === 0 ? (
+                <p className="px-2 py-4 text-center text-[11px] text-slate-400">No conversations on this day.</p>
+              ) : filteredThreads.map((t) => (
+                <div
+                  key={t.id}
+                  className={cn(
+                    "group flex items-center gap-1 rounded-md px-2 py-1.5 text-[12px] my-0.5 transition-colors",
+                    t.id === threadId ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900",
+                  )}
+                >
+                  <button className="flex-1 truncate text-left" onClick={() => { historyLoadRequestedRef.current = true; userRequestedSpeechRef.current = false; skipNextSpeakRef.current = true; setChatSessionId(`avatar-${t.id}`); setThreadId(t.id); setShowHistory(false); }}>
+                    {t.title || "Conversation"}
+                  </button>
+                  <button
+                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500"
+                    onClick={(e) => { e.stopPropagation(); deleteThread(t.id); }}
+                    aria-label="Delete"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         ) : null}
 
@@ -410,38 +525,77 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
           skipNextSpeakRef.current = false;
           sendMessage({ text: `${text}\n\n(${LANG_INSTRUCTION[lang]})` });
         }}>
-        <Conversation data-lenis-prevent className="flex-1 min-h-0 overscroll-contain">
-          <ConversationContent>
-            {messages.length === 0 ? (
-              <ConversationEmptyState
-                title="Hello — I'm AutoMate."
-                description="Ask about a part number, paste a VIN, describe a warning light, or talk to me with the mic."
-              />
-            ) : null}
-            {messages.map((m) => (
-              <Message from={m.role} key={m.id}>
-                <MessageContent>
-                  {(m.parts ?? []).map((part: any, i: number) => {
-                    if (part.type === "text") {
-                      return m.role === "assistant"
-                        ? <MessageResponse key={i}>{part.text}</MessageResponse>
-                        : <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
-                    }
-                    if (typeof part.type === "string" && part.type.startsWith("tool-")) {
-                      return <ToolPartView key={i} part={part} />;
-                    }
-                    return null;
-                  })}
-                </MessageContent>
-              </Message>
-            ))}
-            {status === "submitted" ? <Shimmer>Thinking…</Shimmer> : null}
-          </ConversationContent>
-          <ConversationScrollButton />
-        </Conversation>
+          <Conversation data-lenis-prevent className="flex-1 min-h-0 overscroll-contain">
+            <ConversationContent>
+              {messages.length === 0 ? (
+                <ConversationEmptyState
+                  title="Hello — I'm AutoMate."
+                  description="Ask about a part number, paste a VIN, describe a warning light, or talk to me with the mic."
+                />
+              ) : null}
+              {(() => {
+                let lastDateStr = "";
+                return messages.map((m) => {
+                  const date = m.createdAt ? new Date(m.createdAt) : new Date();
+                  const dateStr = date.toDateString();
+                  const showDivider = dateStr !== lastDateStr;
+                  lastDateStr = dateStr;
+
+                  const formattedDay = (() => {
+                    const today = new Date();
+                    const yesterday = new Date(today);
+                    yesterday.setDate(yesterday.getDate() - 1);
+
+                    if (dateStr === today.toDateString()) return "Today";
+                    if (dateStr === yesterday.toDateString()) return "Yesterday";
+                    return date.toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "short" });
+                  })();
+
+                  return (
+                    <React.Fragment key={m.id}>
+                      {showDivider ? (
+                        <div className="flex items-center my-3.5 px-4">
+                          <div className="flex-1 border-t border-slate-200" />
+                          <span className="mx-3 text-[10px] uppercase tracking-wider font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full select-none shadow-xs">
+                            {formattedDay}
+                          </span>
+                          <div className="flex-1 border-t border-slate-200" />
+                        </div>
+                      ) : null}
+                      <Message from={m.role}>
+                        <MessageContent>
+                          {(m.parts ?? []).map((part: any, i: number) => {
+                            if (part.type === "text") {
+                              return m.role === "assistant"
+                                ? <MessageResponse key={i}>{part.text}</MessageResponse>
+                                : <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
+                            }
+                            if (typeof part.type === "string" && part.type.startsWith("tool-")) {
+                              return <ToolPartView key={`part-${i}`} part={part} />;
+                            }
+                            return null;
+                          })}
+                          {(!m.parts || m.parts.length === 0) && m.content ? (
+                            m.role === "assistant"
+                              ? <MessageResponse key="content">{m.content}</MessageResponse>
+                              : <span key="content" className="whitespace-pre-wrap">{m.content}</span>
+                          ) : null}
+                          {(m.toolInvocations ?? []).map((toolInv: any, i: number) => (
+                            <ToolPartView key={`tool-${i}`} part={{ type: "tool-invocation", toolInvocation: toolInv }} />
+                          ))}
+                        </MessageContent>
+                      </Message>
+                    </React.Fragment>
+                  );
+                });
+              })()}
+              {status === "submitted" ? <Shimmer>Thinking…</Shimmer> : null}
+            </ConversationContent>
+            <ConversationScrollButton />
+          </Conversation>
         </AvatarActionContext.Provider>
 
-        <PromptInput onSubmit={handleSend} className="border-t border-white/10 bg-[#0a0e1a]">
+        <PromptInput onSubmit={handleSend} className="border-t border-slate-200 bg-white">
           <PromptInputTextarea
             value={input}
             onChange={(e) => setInput(e.target.value)}

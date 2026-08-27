@@ -18,9 +18,26 @@ type ThreadRow = {
 export const listThreads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    try {
+      await models.ai_chat_threads.destroy({
+        where: {
+          user_id: context.userId,
+          last_message_at: { [Op.lt]: sevenDaysAgo.toISOString() }
+        }
+      });
+    } catch (e) {
+      console.error("[listThreads] failed to purge old chats:", e);
+    }
+
     const rows = await models.ai_chat_threads.findAll({
       attributes: ["id", "title", "language", "vehicle_context", "last_message_at", "created_at"],
-      where: { user_id: context.userId },
+      where: {
+        user_id: context.userId,
+        last_message_at: { [Op.gte]: sevenDaysAgo.toISOString() }
+      },
       order: [["last_message_at", "DESC"]],
       limit: 50
     });
