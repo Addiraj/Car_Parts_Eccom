@@ -31,17 +31,67 @@ export function buildAssistantTools(ctx: Ctx) {
       }),
       execute: async ({ query, brand }) => {
         try {
-          const results = await sequelize.query(
+          const rawResults = await sequelize.query(
             "SELECT * FROM search_parts_normalized(:_q, :_brand, :_limit)",
             {
               replacements: { _q: query, _brand: brand ?? null, _limit: 8 },
               type: QueryTypes.SELECT
             }
           );
+
+          let results: any[] = [];
+          let alternatives: any[] = [];
+
+          if (rawResults.length > 0) {
+            const partIds = rawResults.map((p: any) => p.id);
+            const fullParts = await models.parts.findAll({
+              where: { id: { [Op.in]: partIds } }
+            });
+            // Map full details back to rawResults order
+            const partMap = new Map(fullParts.map((p: any) => [p.id, p.get({ plain: true })]));
+            results = partIds.map(id => partMap.get(id)).filter(Boolean);
+
+            const categoryTags = results.map((p: any) => p.category_tag).filter(Boolean);
+
+            // Fetch alts via category_tag grouping
+            let tagAlts: any[] = [];
+            if (categoryTags.length > 0) {
+              tagAlts = await models.parts.findAll({
+                where: {
+                  category_tag: { [Op.in]: categoryTags },
+                  id: { [Op.notIn]: partIds }
+                }
+              });
+            }
+
+            // Fetch alternatives from alternative_parts table
+            const alts = await models.alternative_parts.findAll({
+              where: { part_id: { [Op.in]: partIds } },
+              include: [{
+                model: models.parts,
+                as: 'alternative_part'
+              }]
+            });
+
+            const seen = new Set();
+            alternatives = [
+              ...tagAlts.map((p: any) => p.get({ plain: true })),
+              ...alts.map((a: any) => {
+                const plain = a.get({ plain: true });
+                return plain.alternative_part ? plain.alternative_part : null;
+              })
+            ].filter((p: any) => {
+              if (!p) return false;
+              if (seen.has(p.id)) return false;
+              seen.add(p.id);
+              return true;
+            });
+          }
+
           await ctx.logEvent("part_search", { query, brand, count: results.length });
-          return { results };
+          return { results, alternatives, query };
         } catch (error: any) {
-          return { error: error.message, results: [] };
+          return { error: error.message, results: [], alternatives: [], query };
         }
       },
     }),

@@ -169,7 +169,7 @@ export function AssistantChat({
               const ev = JSON.parse(line.slice(5).trim());
               if (ev.type === "transcript.text.delta") full += ev.delta ?? "";
               if (ev.type === "transcript.text.done" && ev.text) full = ev.text;
-            } catch {/* ignore */}
+            } catch {/* ignore */ }
           }
         }
         if (full) setInput((s) => (s ? s + " " : "") + full);
@@ -194,12 +194,12 @@ export function AssistantChat({
     try {
       const v = localStorage.getItem("automate-history-open");
       if (v === "1") setHistoryOpen(true);
-    } catch {/* ignore */}
+    } catch {/* ignore */ }
   }, []);
   const toggleHistory = () => {
     setHistoryOpen((o) => {
       const next = !o;
-      try { localStorage.setItem("automate-history-open", next ? "1" : "0"); } catch {/* ignore */}
+      try { localStorage.setItem("automate-history-open", next ? "1" : "0"); } catch {/* ignore */ }
       return next;
     });
   };
