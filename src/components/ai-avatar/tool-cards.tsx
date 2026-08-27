@@ -1,11 +1,12 @@
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
-import { Package, Car, BadgePercent, AlertTriangle, CheckCircle2, Truck, UserCheck, Sparkles, ShoppingCart, Heart, FileText, LogIn } from "lucide-react";
+import { Package, Car, BadgePercent, AlertTriangle, CheckCircle2, Truck, UserCheck, Sparkles, ShoppingCart, Heart, FileText, LogIn, MessageCircle } from "lucide-react";
 import {
   Tool, ToolHeader, ToolContent, ToolInput, ToolOutput,
 } from "@/components/ai-elements/tool";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { cn } from "@/lib/utils";
+import { useIsStaff } from "@/hooks/use-is-staff";
 
 type Part = {
   id: string;
@@ -14,6 +15,9 @@ type Part = {
   manufacturer?: string | null;
   price?: number | string | null;
   stock?: number | null;
+  ind_price?: number | string | null;
+  gar_price?: number | string | null;
+  export_price?: number | string | null;
 };
 
 const STREAM_LABELS: Record<string, string> = {
@@ -352,6 +356,148 @@ function FallbackTool({ part }: { part: any }) {
   );
 }
 
+function PremiumPartCard({ p, isAlternative = false }: { p: Part; isAlternative?: boolean }) {
+  const isStaff = useIsStaff();
+  const action = useAvatarAction();
+  const ref = p.part_number ?? p.id;
+  const stock = Number(p.stock ?? 0);
+  const badgeText = stock > 0 ? `${stock} in stock` : "0 in stock";
+  const badgeCls = stock > 0 
+    ? "border border-emerald-200 bg-emerald-50 text-emerald-600" 
+    : "border border-red-200 bg-red-50 text-red-600";
+
+  const waMsg = encodeURIComponent(`Hi, I'd like to enquire about part ${p.part_number || ref} — ${p.name || ""}`);
+  const waUrl = `https://wa.me/971547516365?text=${waMsg}`;
+
+  return (
+    <div className="flex flex-col rounded-lg border border-slate-200 bg-white overflow-hidden hover:border-blue-400 hover:shadow-md transition duration-200 w-full">
+      {/* Top Section */}
+      <div className="flex flex-1 min-h-[110px]">
+        {/* Brand Block */}
+        <div className={cn(
+          "w-[30%] flex items-center justify-center p-3 text-center",
+          isAlternative 
+            ? "bg-slate-50 text-blue-600 font-extrabold text-sm border-r border-slate-100" 
+            : "bg-[#2563eb] text-white font-black text-lg tracking-wide"
+        )}>
+          <span className="uppercase break-all line-clamp-2">
+            {p.manufacturer || "BMW"}
+          </span>
+        </div>
+
+        {/* Content Block */}
+        <div className="w-[70%] p-3 flex flex-col justify-between">
+          <div>
+            {/* Title & Badge */}
+            <div className="flex justify-between items-start gap-2">
+              <span className="font-bold text-xs uppercase text-slate-800 line-clamp-2 leading-tight">
+                {p.name ?? "Part"}
+              </span>
+              <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold tracking-wide whitespace-nowrap", badgeCls)}>
+                {badgeText}
+              </span>
+            </div>
+
+            {/* OE Ref Number */}
+            <div className="text-[10px] text-blue-600 font-bold mt-1 font-mono uppercase">
+              REF. {p.part_number ?? "—"}
+            </div>
+
+            {/* Price section */}
+            {isStaff ? (
+              <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 mt-2 text-[10px] font-mono border-t border-slate-100 pt-2">
+                <div className="flex justify-between gap-1">
+                  <span className="text-slate-400">Rate</span>
+                  <span className="font-bold text-blue-600">{aed(p.price)}</span>
+                </div>
+                <div className="flex justify-between gap-1">
+                  <span className="text-slate-400">IND</span>
+                  <span className="font-semibold text-slate-700">{aed(p.ind_price ?? p.price)}</span>
+                </div>
+                <div className="flex justify-between gap-1">
+                  <span className="text-slate-400">GAR</span>
+                  <span className="font-semibold text-slate-700">{aed(p.gar_price ?? p.price)}</span>
+                </div>
+                <div className="flex justify-between gap-1">
+                  <span className="text-slate-400">EXP</span>
+                  <span className="font-semibold text-slate-700">{aed(p.export_price ?? p.price)}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2 text-[11px] font-mono font-semibold text-blue-600">
+                {aed(p.price)}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Buttons Block (only if action context is available) */}
+      {action && (
+        <div className="grid grid-cols-3 gap-1 px-3 pb-3 pt-1 border-t border-slate-100 bg-slate-50/50">
+          <button
+            onClick={() => action(`Add part ${ref} to my cart`)}
+            className="flex items-center justify-center gap-1 rounded-md bg-[#2563eb] hover:bg-[#1d4ed8] text-white py-1.5 px-2 text-[10px] font-bold shadow-sm transition"
+          >
+            <ShoppingCart className="h-3 w-3" /> Cart
+          </button>
+          <button
+            onClick={() => action(`Add part ${ref} to my wishlist`)}
+            className="flex items-center justify-center gap-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 py-1.5 px-2 text-[10px] font-bold shadow-2xs transition"
+          >
+            <Heart className="h-3.5 w-3.5 text-slate-400 hover:text-primary transition-colors z-10" /> Save
+          </button>
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-1 rounded-md border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-700 py-1.5 px-2 text-[10px] font-bold shadow-2xs transition"
+          >
+            <MessageCircle className="h-3 w-3 text-emerald-600" /> WhatsApp
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PartNumberSearchResult({ query, parts, alternatives }: { query: string; parts: any[]; alternatives: any[] }) {
+  if (!parts.length) return <p className="text-[11px] text-slate-500">No matching parts found.</p>;
+  
+  return (
+    <div className="flex flex-col gap-4 my-2">
+      {/* Asked Part Section */}
+      <div className="border-l-[3px] border-[#2563eb] pl-3 flex flex-col gap-2">
+        <div className="text-[#2563eb] font-extrabold tracking-wider text-[11px] uppercase">
+          YOUR PART NUMBER — {query}
+        </div>
+        <div className="flex flex-col gap-2">
+          {parts.map((p) => (
+            <PremiumPartCard key={p.id} p={p} isAlternative={false} />
+          ))}
+        </div>
+      </div>
+
+      {/* Alternative Parts Section */}
+      {alternatives.length > 0 && (
+        <div className="flex flex-col gap-1.5 mt-1">
+          <div className="text-slate-500 font-extrabold tracking-wider text-[11px] uppercase">
+            OTHER OPTIONS ({alternatives.length})
+          </div>
+          <div className="text-slate-400 text-[10px] leading-tight">
+            Compatible replacements we stock
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1.5">
+            {alternatives.map((alt) => (
+              <PremiumPartCard key={alt.id} p={alt} isAlternative={true} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ToolPartView({ part }: { part: any }) {
   const isNested = part?.type === "tool-invocation" && part?.toolInvocation;
   const rawType = isNested ? part.toolInvocation.toolName : (part?.type ?? "");
@@ -386,6 +532,13 @@ export function ToolPartView({ part }: { part: any }) {
 
   switch (type) {
     case "tool-searchPartsByNumber":
+      return (
+        <PartNumberSearchResult
+          query={out?.query ?? part.input?.query ?? ""}
+          parts={out?.results ?? []}
+          alternatives={out?.alternatives ?? []}
+        />
+      );
     case "tool-findCompatibleParts":
       return <div className="my-2"><PartGrid parts={out?.results ?? []} empty="No matching parts found." /></div>;
     case "tool-getRecommendations":
