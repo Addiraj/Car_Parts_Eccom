@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getMyWishlist, toggleWishlist } from "@/lib/account.functions";
+import { getMyWishlist, toggleWishlist, addToCart } from "@/lib/account.functions";
 import { Heart, LogIn } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
@@ -25,10 +25,19 @@ function WishlistPage() {
   
   const rem = useMutation({
     mutationFn: (partId: string) => toggleWishlist({ data: { partId } }),
-    onSuccess: (res, partId) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wishlist"] });
       qc.invalidateQueries({ queryKey: ["wishlist-count"] });
       toast.success("Item removed from wishlist");
+    },
+  });
+
+  const addMut = useMutation({
+    mutationFn: (partId: string) => addToCart({ data: { partId } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cart-count"] });
+      qc.invalidateQueries({ queryKey: ["cart"] });
+      toast.success(t("addedToCart"));
     },
   });
 
@@ -82,7 +91,8 @@ function WishlistPage() {
             key={it.id} 
             part={it.part} 
             isWishlisted={true}
-            onToggleWishlist={() => rem.mutate(it.part.id)}
+            onToggleWishlist={(id = it.part.id) => rem.mutate(id)}
+            onAddToCart={(id = it.part.id) => addMut.mutate(id)}
             supersededParts={it.part.part_alternative_parts}
           />
         ))}

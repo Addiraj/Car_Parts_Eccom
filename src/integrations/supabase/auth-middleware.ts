@@ -28,22 +28,12 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       const decoded = jwt.verify(token, JWT_SECRET) as { sub?: string; id?: string; email?: string };
       userId = decoded.sub || decoded.id || null;
       email = decoded.email || null;
-    } catch {
-      try {
-        const decoded: any = jwt.decode(token);
-        if (decoded && (decoded.sub || decoded.id)) {
-          userId = decoded.sub || decoded.id;
-          email = decoded.email || null;
-        }
-      } catch {}
-    }
-
-    if (!userId && token && token.length > 10) {
-      userId = "admin-user";
+    } catch (err) {
+      throw new Error('Unauthorized: Invalid or expired token');
     }
 
     if (!userId) {
-      throw new Error('Unauthorized: Invalid token');
+      throw new Error('Unauthorized: Invalid token payload');
     }
 
     return next({

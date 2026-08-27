@@ -17,15 +17,27 @@ async function viewerContext(): Promise<{ tier: CustomerType; isStaff: boolean }
     if (!auth) return { tier: "IND", isStaff: false };
     const token = auth.replace(/^Bearer\s+/i, "").trim();
     if (!token) return { tier: "IND", isStaff: false };
-    // TODO: When Auth is fully migrated, verify standard JWT instead of Supabase
-    const { data } = await supabaseAdmin.auth.getUser(token);
-    if (!data.user) return { tier: "IND", isStaff: false };
-    const profile = await models.profiles.findOne({ where: { id: data.user.id }});
+    
+    // Use local JWT verification instead of Supabase
+    const jwt = (await import("jsonwebtoken")).default;
+    const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret_for_dev_only_change_in_prod";
+    
+    let userId;
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as { sub?: string; id?: string };
+      userId = decoded.sub || decoded.id;
+    } catch {
+      return { tier: "IND", isStaff: false };
+    }
+    
+    if (!userId) return { tier: "IND", isStaff: false };
+    
+    const profile = await models.profiles.findOne({ where: { id: userId }});
     const t = (profile?.customer_type ?? "IND") as CustomerType;
     const tier = t === "GAR" || t === "EXP" ? t : "IND";
     
     const roleRow = await models.user_roles.findOne({ 
-      where: { user_id: data.user.id, role: { [Op.in]: ['admin', 'superadmin', 'salesman'] } }
+      where: { user_id: userId, role: { [Op.in]: ['admin', 'superadmin', 'salesman'] } }
     });
     
     return { tier, isStaff: !!roleRow };
@@ -139,19 +151,8 @@ export const getCategoryParts = createServerFn({ method: "GET" })
 export const getPart = createServerFn({ method: "GET" })
   .validator((d: { id: string }) => d)
   .handler(async ({ data }) => {
-    const { tier } = await viewerContext();
-    let isAdmin = false;
-    try {
-      const auth = getRequestHeader("authorization") || getRequestHeader("Authorization");
-      const token = auth?.replace(/^Bearer\s+/i, "").trim();
-      if (token) {
-        const { data: u } = await supabaseAdmin.auth.getUser(token);
-        if (u.user) {
-          const roleRow = await models.user_roles.findOne({ where: { user_id: u.user.id, role: 'admin' }});
-          isAdmin = !!roleRow;
-        }
-      }
-    } catch { /* ignore */ }
+    const { tier, isStaff } = await viewerContext();
+    const isAdmin = isStaff;
 
     const part = await models.parts.findOne({
       where: { id: data.id },
@@ -268,7 +269,16 @@ export const listPartsPaged = createServerFn({ method: "GET" })
     const offset = (page - 1) * pageSize;
     
     const { rows: items, count } = await models.parts.findAndCountAll({
-      attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "images", "manufacturer", "is_oem", "stock"],
+      attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "images", "manufacturer", "is_oem", "stock", "category_tag"],
+      include: [{
+        model: models.alternative_parts,
+        as: 'part_alternative_parts',
+        include: [{
+          model: models.parts,
+          as: 'alternative_part',
+          attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "images", "manufacturer", "stock", "is_oem"]
+        }]
+      }],
       order: [["stock", "DESC"], ["name", "ASC"]],
       limit: pageSize,
       offset: offset
@@ -283,6 +293,22 @@ export const listPartsPaged = createServerFn({ method: "GET" })
           projected.gar_price = plain.gar_price;
           projected.export_price = plain.export_price;
         }
+        
+        // Process nested alternative parts
+        if (projected.part_alternative_parts && Array.isArray(projected.part_alternative_parts)) {
+          projected.part_alternative_parts = projected.part_alternative_parts.map((ap: any) => {
+            if (ap.alternative_part) {
+              ap.alternative_part = projectPart(ap.alternative_part, tier);
+              if (isStaff) {
+                ap.alternative_part.ind_price = plain.part_alternative_parts.find((x:any) => x.id === ap.id)?.alternative_part?.ind_price;
+                ap.alternative_part.gar_price = plain.part_alternative_parts.find((x:any) => x.id === ap.id)?.alternative_part?.gar_price;
+                ap.alternative_part.export_price = plain.part_alternative_parts.find((x:any) => x.id === ap.id)?.alternative_part?.export_price;
+              }
+            }
+            return ap;
+          });
+        }
+        
         return projected;
       }),
       total: count,
@@ -323,10 +349,20 @@ export const searchParts = createServerFn({ method: "GET" })
       for (const r of rows ?? []) if (!byId.has(r.id)) byId.set(r.id, r);
     };
 
-    const cols = ["id", "part_number", "oem_number", "name", "price", "ind_price", "gar_price", "export_price", "images", "manufacturer", "stock"];
+    const cols = ["id", "part_number", "oem_number", "name", "price", "ind_price", "gar_price", "export_price", "images", "manufacturer", "stock", "category_tag"];
 
     // Pass 1: exact/substring matches
     const searchString = `%${raw}%`;
+    const includeAlts = [{
+      model: models.alternative_parts,
+      as: 'part_alternative_parts',
+      include: [{
+        model: models.parts,
+        as: 'alternative_part',
+        attributes: cols
+      }]
+    }];
+
     const pass1 = await models.parts.findAll({
       attributes: cols,
       where: {
@@ -337,6 +373,7 @@ export const searchParts = createServerFn({ method: "GET" })
           { manufacturer: { [Op.iLike]: searchString } }
         ]
       },
+      include: includeAlts,
       order: [["stock", "DESC"], ["name", "ASC"]],
       limit
     });
@@ -353,6 +390,7 @@ export const searchParts = createServerFn({ method: "GET" })
             { oem_number: { [Op.iRegexp]: regex } }
           ]
         },
+        include: includeAlts,
         order: [["stock", "DESC"], ["name", "ASC"]],
         limit
       });
@@ -382,6 +420,22 @@ export const searchParts = createServerFn({ method: "GET" })
           projected.gar_price = (p as any).gar_price;
           projected.export_price = (p as any).export_price;
         }
+        
+        // Process nested alternative parts
+        if (projected.part_alternative_parts && Array.isArray(projected.part_alternative_parts)) {
+          projected.part_alternative_parts = projected.part_alternative_parts.map((ap: any) => {
+            if (ap.alternative_part) {
+              ap.alternative_part = projectPart(ap.alternative_part, tier);
+              if (isStaff) {
+                ap.alternative_part.ind_price = (p as any).part_alternative_parts.find((x:any) => x.id === ap.id)?.alternative_part?.ind_price;
+                ap.alternative_part.gar_price = (p as any).part_alternative_parts.find((x:any) => x.id === ap.id)?.alternative_part?.gar_price;
+                ap.alternative_part.export_price = (p as any).part_alternative_parts.find((x:any) => x.id === ap.id)?.alternative_part?.export_price;
+              }
+            }
+            return ap;
+          });
+        }
+        
         return projected;
       }),
       categories: categories.map((c: any) => c.get({ plain: true })),

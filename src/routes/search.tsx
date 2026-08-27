@@ -1,13 +1,16 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { searchParts } from "@/lib/catalog.functions";
+import { getMyWishlistIds, toggleWishlist, addToCart } from "@/lib/account.functions";
 import { formatAED } from "@/lib/format";
 import { Search as SearchIcon } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import { useAuth } from "@/hooks/use-auth";
 import { PartThumb } from "@/components/part-thumb";
 import { PartCard } from "@/components/part-card";
+import { toast } from "sonner";
 
 const schema = z.object({ q: z.string().optional().default("") });
 
@@ -22,10 +25,47 @@ function SearchPage() {
   const { q } = Route.useSearch();
   const { t } = useI18n();
   const isAdmin = useIsAdmin();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  
+  const requireSignIn = (message: string) => {
+    toast.error(message);
+    router.navigate({ to: "/auth/login", search: { redirect: window.location.pathname } });
+  };
+  
   const query = useQuery({
     queryKey: ["search", q],
     queryFn: () => searchParts({ data: { q } }),
     enabled: !!q,
+  });
+
+  const { data: wishlistIds } = useQuery({
+    queryKey: ["wishlist-ids", user?.id],
+    queryFn: () => getMyWishlistIds(),
+    enabled: !!user,
+  });
+
+  const toggleWishlistMut = useMutation({
+    mutationFn: (partId: string) => toggleWishlist({ data: { partId } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["wishlist-ids"] }),
+    onError: (err) => {
+      console.error(err);
+      toast.error(err.message || "Failed to update wishlist");
+    }
+  });
+
+  const addMut = useMutation({
+    mutationFn: (partId: string) => addToCart({ data: { partId } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cart-count"] });
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
+      toast.success(t("addedToCart"));
+    },
+    onError: (err) => {
+      console.error(err);
+      toast.error(err.message || "Failed to add to cart");
+    }
   });
 
   return (
@@ -70,7 +110,7 @@ function SearchPage() {
             <div className="mt-6">
               <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{t("categoriesLabel")}</div>
               <div className="mt-2 flex flex-wrap gap-2">
-                {query.data.categories.map((c) => (
+                {query.data.categories.map((c: any) => (
                   <Link key={c.id} to="/category/$slug" params={{ slug: c.slug }}
                     className="rounded-md border bg-surface-2 px-3 py-1.5 text-sm hover:border-primary hover:text-primary">{c.name}</Link>
                 ))}
@@ -83,9 +123,20 @@ function SearchPage() {
           </div>
           <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {query.data.parts.map((p: any) => (
-              <Link key={p.id} to="/parts/$id" params={{ id: p.id }} className="group block">
-                <PartCard part={p} />
-              </Link>
+              <PartCard 
+                key={p.id}
+                part={p} 
+                href={`/parts/${p.id}`}
+                isWishlisted={wishlistIds?.includes(p.id)}
+                onToggleWishlist={(id = p.id) => {
+                  if (!user) requireSignIn(t("signInToAddWishlist"));
+                  else toggleWishlistMut.mutate(id);
+                }}
+                onAddToCart={(id = p.id) => {
+                  if (!user) requireSignIn(t("signInToAddCart"));
+                  else addMut.mutate(id);
+                }}
+              />
             ))}
           </div>
         </>

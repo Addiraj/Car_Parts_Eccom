@@ -6,6 +6,44 @@ import { z } from "zod";
 
 import { models } from "@/lib/db/index.server";
 import { Op } from "@/lib/db/op.server";
+import { sequelize } from "@/lib/db/index.server";
+
+/**
+ * Ensures the authenticated user exists in the local `users` table.
+ * Prevents foreign key constraint errors on wishlist_items / cart_items.
+ */
+async function ensureUserExists(userId: string, email?: string | null) {
+  try {
+    const existing = await models.users.findByPk(userId);
+    if (!existing) {
+      console.log(`[ensureUserExists] User ${userId} not found, creating...`);
+      await models.users.findOrCreate({
+        where: { id: userId },
+        defaults: {
+          id: userId,
+          email: email || `auto_${userId.slice(0, 8)}@local.dev`,
+        }
+      });
+      console.log(`[ensureUserExists] User ${userId} created successfully.`);
+    }
+  } catch (err: any) {
+    // If email already exists with different id, try without email
+    if (err?.original?.constraint === 'users_email_key' || err?.name === 'SequelizeUniqueConstraintError') {
+      try {
+        console.log(`[ensureUserExists] Email conflict, creating without email...`);
+        await models.users.findOrCreate({
+          where: { id: userId },
+          defaults: { id: userId }
+        });
+        console.log(`[ensureUserExists] User ${userId} created (no email).`);
+      } catch (err2) {
+        console.error("[ensureUserExists] Second attempt failed:", err2);
+      }
+    } else {
+      console.error("[ensureUserExists] Failed:", err);
+    }
+  }
+}
 
 export type StaffTier = "rate" | "ind" | "gar" | "exp";
 export const STAFF_TIER_COLUMN: Record<StaffTier, "price" | "ind_price" | "gar_price" | "export_price"> = {
@@ -188,6 +226,7 @@ export const addToCart = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: { partId: string; quantity?: number }) => d)
   .handler(async ({ data, context }) => {
+    await ensureUserExists(context.userId, context.claims?.email);
     const qty = Math.max(1, Math.min(99, data.quantity ?? 1));
     const partRow = await models.parts.findOne({ where: { id: data.partId }, attributes: ["stock"] });
     if (!partRow) throw new Error("Part not found");
@@ -431,10 +470,55 @@ export const getMyWishlist = createServerFn({ method: "GET" })
     
     const plainItems = items.map(i => i.get({ plain: true }));
     
+    const partNumbers = Array.from(new Set(plainItems.map(i => i.part?.part_number).filter(Boolean)));
+    
+    const orConditions = partNumbers.map(pn => {
+      const stripped = pn.replace(/[^a-zA-Z0-9]/g, "");
+      const base = stripped.replace(/[A-Za-z]+$/, "");
+      if (base.length < 4) return null;
+      const regex = base.split("").join("[^a-zA-Z0-9]*");
+      return { part_number: { [Op.iRegexp]: regex } };
+    }).filter(Boolean);
+
+    const allImplicitAlts = orConditions.length > 0
+      ? await models.parts.findAll({
+          where: { [Op.or]: orConditions },
+          attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "currency", "images", "manufacturer", "stock", "category_tag"],
+          raw: true
+        })
+      : [];
+
+    const getBase = (pn: string) => pn.replace(/[^a-zA-Z0-9]/g, "").replace(/[A-Za-z]+$/, "");
+
     // Apply tier logic to main part and alternative parts
     for (const r of plainItems) {
       if (r.part) {
         r.part.price = Number((r.part as any)[col] ?? r.part.price ?? 0);
+        
+        const base = getBase(r.part.part_number);
+        const implicitAlts = allImplicitAlts.filter((ap: any) => {
+          if (ap.id === r.part.id) return false;
+          return getBase(ap.part_number) === base;
+        });
+        
+        const mergedAlternatives = [
+          ...(r.part.part_alternative_parts || []),
+          ...implicitAlts.map((ap: any) => ({
+             id: `implicit-${ap.id}`,
+             alternative_part: ap
+          }))
+        ];
+
+        const seen = new Set();
+        const uniqueAlternatives = [];
+        for (const alt of mergedAlternatives) {
+          if (alt.alternative_part && !seen.has(alt.alternative_part.id)) {
+            seen.add(alt.alternative_part.id);
+            uniqueAlternatives.push(alt);
+          }
+        }
+        r.part.part_alternative_parts = uniqueAlternatives;
+
         if (r.part.part_alternative_parts) {
           for (const ap of r.part.part_alternative_parts) {
             if (ap.alternative_part) {
@@ -452,6 +536,7 @@ export const toggleWishlist = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((d: { partId?: string; partNumber?: string; name?: string; manufacturer?: string }) => d)
   .handler(async ({ data, context }) => {
+    await ensureUserExists(context.userId, context.claims?.email);
     let part: any = null;
 
     if (data.partId) {

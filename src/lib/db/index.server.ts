@@ -239,6 +239,31 @@ if (typeof window === 'undefined') {
           console.log('[Sequelize] Seeded default system AI prompt.');
         }
 
+        // Fix FK constraints that might reference auth.users instead of public.users
+        // (happens when DB was originally from Supabase but now runs locally)
+        try {
+          const [fks] = await sequelize.query(`
+            SELECT conname, conrelid::regclass::text AS table_name, pg_get_constraintdef(oid) AS def
+            FROM pg_constraint
+            WHERE contype = 'f' AND pg_get_constraintdef(oid) LIKE '%auth.users%';
+          `);
+          for (const fk of fks as any[]) {
+            try {
+              // Extract the actual column name from the constraint def, e.g. "FOREIGN KEY (user_id)" or "FOREIGN KEY (created_by)"
+              const colMatch = (fk.def as string).match(/FOREIGN KEY \((\w+)\)/);
+              const colName = colMatch ? colMatch[1] : null;
+              if (!colName) { console.warn(`[Sequelize] Could not parse column from FK ${fk.conname}, skipping`); continue; }
+              console.log(`[Sequelize] Fixing FK ${fk.conname} on ${fk.table_name} (${colName}): auth.users → public.users`);
+              await sequelize.query(`ALTER TABLE ${fk.table_name} DROP CONSTRAINT IF EXISTS ${fk.conname};`);
+              await sequelize.query(`ALTER TABLE ${fk.table_name} ADD CONSTRAINT ${fk.conname} FOREIGN KEY (${colName}) REFERENCES public.users(id) ON DELETE CASCADE;`);
+            } catch (fkItemErr) {
+              console.warn(`[Sequelize] FK fix for ${fk.conname} on ${fk.table_name} failed (non-fatal):`, (fkItemErr as any)?.original?.message || fkItemErr);
+            }
+          }
+        } catch (fkErr) {
+          console.error('[Sequelize] FK scan failed (non-fatal):', fkErr);
+        }
+
         console.log('[Sequelize] Server startup schema verification & auto-migrations completed.');
       } catch (err) {
         console.error('[Sequelize] Startup schema verification failed:', err);

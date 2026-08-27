@@ -55,6 +55,18 @@ export function AllParts({ page, basePath }: Props) {
     }
   });
 
+  const addMut = useMutation({
+    mutationFn: (partId: string) => import("@/lib/account.functions").then(m => m.addToCart({ data: { partId } })),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cart-count"] });
+      qc.invalidateQueries({ queryKey: ["cart"] });
+      import("sonner").then(m => m.toast.success(t("addedToCart")));
+    },
+    onError: (err: any) => {
+      import("sonner").then(m => m.toast.error(err.message || "Failed to add to cart"));
+    }
+  });
+
   const goto = (p: number) => {
     const next = Math.min(pages, Math.max(1, p));
     if (next === page) return;
@@ -114,17 +126,21 @@ export function AllParts({ page, basePath }: Props) {
           )}
           <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 transition-opacity duration-200 ${isFetching ? "opacity-60" : "opacity-100"}`}>
             {items.map((p: any) => (
-              <Link key={p.id} to="/parts/$id" params={{ id: p.id }} className="group block h-full">
-                <PartCard 
-                  part={p} 
-                  isWishlisted={wishlistIds.includes(p.id)}
-                  onToggleWishlist={() => {
-                    if (!user) setSignInOpen(true);
-                    else toggleWishlistMut.mutate(p.id);
-                  }}
-                  supersededParts={p.part_alternative_parts}
-                />
-              </Link>
+              <PartCard 
+                key={p.id}
+                part={p} 
+                href={`/parts/${p.id}`}
+                isWishlisted={wishlistIds.includes(p.id)}
+                onToggleWishlist={(id = p.id) => {
+                  if (!user) setSignInOpen(true);
+                  else toggleWishlistMut.mutate(id);
+                }}
+                onAddToCart={(id = p.id) => {
+                  if (!user) setSignInOpen(true);
+                  else addMut.mutate(id);
+                }}
+                supersededParts={p.part_alternative_parts}
+              />
             ))}
           </div>
         </div>

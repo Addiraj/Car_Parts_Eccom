@@ -9,12 +9,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 export type PartCardProps = { 
   part: any;
   isWishlisted?: boolean;
-  onToggleWishlist?: () => void;
+  onToggleWishlist?: (partId?: string) => void;
   hideWishlistButton?: boolean;
   supersededParts?: any[];
+  onAddToCart?: (partId?: string) => void;
+  href?: string;
 };
 
-export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlistButton, supersededParts }: PartCardProps) {
+export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlistButton, supersededParts, onAddToCart, href }: PartCardProps) {
   const isStaff = useIsStaff();
   const [popupOpen, setPopupOpen] = useState(false);
   
@@ -24,7 +26,10 @@ export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlist
   const visibleSuperseded = supersededParts?.filter(sp => isStaff || Number(sp.alternative_part?.stock ?? 0) > 0) || [];
   
   return (
-    <div className="flex flex-col border rounded-md bg-white overflow-hidden shadow-sm h-full hover:border-primary hover:shadow-md transition-all relative">
+    <div 
+      className={`flex flex-col border rounded-md bg-white overflow-hidden shadow-sm h-full hover:border-primary hover:shadow-md transition-all relative ${href ? 'cursor-pointer' : ''}`}
+      onClick={() => { if (href) router.navigate({ to: href as any }) }}
+    >
       <div className="flex flex-1">
         {/* Left side: Brand */}
         <div className="w-[30%] bg-slate-50/50 flex items-center justify-center p-4 border-r">
@@ -37,7 +42,7 @@ export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlist
         <div className="w-[70%] p-4 flex flex-col justify-between bg-white relative">
           {!hideWishlistButton && (
             <button 
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleWishlist?.(); }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleWishlist?.(p.id); }}
               className="absolute top-3 right-3 text-slate-400 hover:text-primary transition-colors z-10"
             >
               <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-primary text-primary' : ''}`} />
@@ -95,12 +100,18 @@ export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlist
                 <span className="text-blue-600 font-bold px-3">{formatAED(Number(p.price))}</span>
               </div>
             )}
+            
+            {p.category_tag && (
+              <div className="text-[10px] bg-blue-50/50 border border-blue-100 rounded p-1.5 mb-3 text-blue-700 font-semibold overflow-hidden text-ellipsis whitespace-nowrap" title={`SUPERSEDED / ALTERNATE : ${p.category_tag} (BVVIMP)`}>
+                SUPERSEDED / ALTERNATE : {p.category_tag} (BVVIMP)
+              </div>
+            )}
           </div>
           
           <div className="flex items-center gap-2 mt-auto border-t pt-3">
             {inStock ? (
-              <Button onClick={(e) => { e.preventDefault(); }} variant="default" size="sm" className="flex-1 h-9 text-[12px] font-semibold">
-                <ShoppingCart className="w-3.5 h-3.5 mr-2" /> In stock
+              <Button onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAddToCart?.(p.id); }} variant="default" size="sm" className="flex-1 h-9 text-[12px] font-semibold">
+                <ShoppingCart className="w-3.5 h-3.5 mr-2" /> Add to cart
               </Button>
             ) : (
               <Button onClick={(e) => { e.preventDefault(); }} variant="outline" size="sm" className="flex-1 h-9 text-[12px] text-slate-400 font-semibold bg-slate-50/50 border-slate-200/80 hover:bg-slate-50 hover:text-slate-400 cursor-not-allowed">
