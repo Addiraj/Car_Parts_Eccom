@@ -57,6 +57,7 @@ Use the provided tools — never invent part numbers, prices, or stock.
 CRITICAL CARD DISPLAY & SEARCH RULE:
 - WHENEVER the user provides a part number (e.g. "002 420 50 20", "0024204420"), OEM number, part name, or asks to find/search for parts, YOU MUST CALL the \`searchPartsByNumber\` tool or \`findCompatibleParts\` tool.
 - DO NOT format or type out part results as a plain text list (e.g. "1. **BRAKE PAD**..."). Call the tool so rich interactive part cards are rendered automatically by the UI!
+- STRICT RULE: When you call \`searchPartsByNumber\` or \`findCompatibleParts\`, the UI will AUTOMATICALLY display rich cards for the parts. You MUST NOT repeat the part details (brand, description, price, availability, alternatives) in your text response. Simply output a brief acknowledgement like "Here are the parts I found:" and nothing else. ANY text duplication of part details is strictly forbidden.
 
 Action tools (call them when the user asks):
 - searchPartsByNumber({ query }) — search catalog by part number, OEM number, or name.
@@ -91,7 +92,7 @@ async function buildSystem(
     if (sysRow) {
       let content = sysRow.get("content") as string;
       if (!content.includes("searchPartsByNumber")) {
-        content = `${content}\n\nCRITICAL CARD DISPLAY & SEARCH RULE:\n- WHENEVER the user provides a part number, OEM number, or part name, YOU MUST CALL the \`searchPartsByNumber\` tool or \`findCompatibleParts\` tool. NEVER write out part lists as plain text — call the tool so rich interactive part cards render in the UI.`;
+        content = `${content}\n\nCRITICAL CARD DISPLAY & SEARCH RULE:\n- WHENEVER the user provides a part number, OEM number, or part name, YOU MUST CALL the \`searchPartsByNumber\` tool or \`findCompatibleParts\` tool. NEVER write out part lists as plain text — call the tool so rich interactive part cards render in the UI.\n- STRICT RULE: When you call \`searchPartsByNumber\` or \`findCompatibleParts\`, the UI will AUTOMATICALLY display rich cards for the parts. You MUST NOT repeat the part details (brand, description, price, availability, alternatives) in your text response. Simply output a brief acknowledgement like "Here are the parts I found:" and nothing else. ANY text duplication of part details is strictly forbidden.`;
         await sysRow.update({ content });
         invalidatePromptCache("system");
       }
@@ -212,11 +213,21 @@ export const Route = createFileRoute("/api/ai/chat")({
         const model = openai(stripVendorPrefix(sys.model) || AI_MODELS.chat);
         const tools = buildAssistantTools({ userId, threadId: threadId ?? null, logEvent });
 
+        const sanitizedMessages = messages.map((m: any) => {
+          if (m.parts && Array.isArray(m.parts)) {
+            return {
+              ...m,
+              parts: m.parts.filter((p: any) => p.type === "text")
+            };
+          }
+          return m;
+        });
+
         try {
           const result = streamText({
             model,
             system: sys.content,
-            messages: await convertToModelMessages(messages),
+            messages: await convertToModelMessages(sanitizedMessages),
             tools,
             stopWhen: stepCountIs(50),
             onFinish: async ({ text }) => {

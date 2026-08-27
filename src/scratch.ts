@@ -1,144 +1,82 @@
-import { addCatalogPartsToCart } from "./lib/account.functions";
+import dotenv from "dotenv";
+dotenv.config();
+import { sequelize, models } from "./lib/db/index.server";
+import { Op, QueryTypes } from "sequelize";
 
 async function run() {
-  const items = [
-    { part_number: "13717571355", quantity: 1, brand: "BMW" },
-    { part_number: "12120037582", quantity: 1, brand: "BMW" },
-    { part_number: "11427953129", quantity: 1, brand: "BMW" },
-  ];
-
   try {
-    // We don't have a user session in this script easily, but wait, addCatalogPartsToCart checks requireUser().
-    // We can just copy the logic to test it directly.
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!);
-    const { models } = await import("./lib/db/index.server");
-    const { Op } = await import("sequelize");
-    
-    for (const pn of items.map(i => i.part_number)) {
-      console.log(`\n--- Testing ${pn} ---`);
-      
-      const { data: rows } = await supabase.rpc("lookup_parts_normalized", { _pns: [pn] });
-      const availMap: Record<string, any> = {};
-      for (const r of rows || []) {
-        availMap[r.match_key] = r;
+    const partNum = "201 820 14 64";
+
+    const rawResults = await sequelize.query(
+      "SELECT * FROM search_parts_normalized(:_q, :_brand, :_limit)",
+      {
+        replacements: { _q: partNum, _brand: null, _limit: 8 },
+        type: QueryTypes.SELECT
       }
-      console.log("availMap:", availMap);
-      
-      const normKey = pn.toUpperCase().replace(/[^A-Z0-9]/g, "");
-      const availEntry = availMap[normKey] || availMap[pn] || (rows && rows[0]);
-      console.log("availEntry:", availEntry);
-      
-      let validPart: any = null;
-      if (availEntry && availEntry.id) {
-        validPart = await models.parts.findOne({
-          where: { id: availEntry.id },
-          attributes: ["id", "stock", "price", "ind_price", "gar_price", "export_price"],
-        });
-        console.log("validPart (by id):", validPart?.toJSON());
-      }
-      
-      if (!validPart) {
-        const searchPns = [pn];
-        if (availEntry && availEntry.part_number) searchPns.push(availEntry.part_number);
-        
-        validPart = await models.parts.findOne({
+    );
+
+    console.log(`Matched parts for "${partNum}":`, rawResults);
+
+    if (rawResults.length > 0) {
+      const partIds = rawResults.map((p: any) => p.id);
+      const fullParts = await models.parts.findAll({
+        where: { id: { [Op.in]: partIds } }
+      });
+      console.log("fullParts records:", fullParts.map(p => p.get({ plain: true })));
+      const categoryTags = fullParts.map((p: any) => p.category_tag).filter(Boolean);
+
+      console.log("categoryTags for matched parts:", categoryTags);
+
+      // Fetch alts via category_tag
+      let tagAlts: any[] = [];
+      if (categoryTags.length > 0) {
+        tagAlts = await models.parts.findAll({
           where: {
-            [Op.or]: [
-              { part_number: { [Op.in]: searchPns } },
-              { oem_number: { [Op.in]: searchPns } },
-              { part_number: { [Op.iLike]: pn } },
-              { oem_number: { [Op.iLike]: pn } },
-            ],
-          },
-          attributes: ["id", "stock", "price", "ind_price", "gar_price", "export_price"],
-        });
-        console.log("validPart (by exact/ilike):", validPart?.toJSON());
-      }
-      
-      if (!validPart) {
-        const normalized = pn.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-        const { sequelize } = await import("./lib/db/index.server");
-        const [rows] = await sequelize.query(
-          `SELECT id, stock, price, ind_price, gar_price, export_price FROM parts 
-           WHERE UPPER(REGEXP_REPLACE(part_number, '[^a-zA-Z0-9]', '', 'g')) = :normalized 
-              OR UPPER(REGEXP_REPLACE(oem_number, '[^a-zA-Z0-9]', '', 'g')) = :normalized 
-           LIMIT 1`,
-          { replacements: { normalized }, type: "SELECT" as any }
-        );
-        if (Array.isArray(rows) && rows.length > 0 && (rows[0] as any)?.id) {
-          validPart = await models.parts.findOne({
-            where: { id: (rows[0] as any).id },
-            attributes: ["id", "stock", "price", "ind_price", "gar_price", "export_price"],
-          });
-          console.log("validPart (by normalized regex):", validPart?.toJSON());
-        }
-      }
-      
-      if (!validPart && availEntry && availEntry.id) {
-        console.log("Attempting auto-import...");
-        try {
-          validPart = await models.parts.create({
-            id: availEntry.id,
-            part_number: availEntry.part_number || pn,
-            oem_number: availEntry.oem_number || null,
-            name: "Catalog Part",
-            description: "Auto-imported from catalog",
-            price: Number(availEntry.price ?? 0),
-            ind_price: Number(availEntry.ind_price ?? 0) || null,
-            gar_price: Number(availEntry.gar_price ?? 0) || null,
-            export_price: Number(availEntry.export_price ?? 0) || null,
-            stock: Number(availEntry.stock ?? 0),
-            currency: 'AED',
-            manufacturer: null,
-            is_oem: true,
-          });
-          console.log("Auto-import SUCCESS!");
-        } catch (e: any) {
-          console.error("Auto-import FAILED:", e.message);
-          if (e.errors) {
-            console.error("Validation errors:", e.errors.map((err: any) => err.message));
+            category_tag: { [Op.in]: categoryTags },
+            id: { [Op.notIn]: partIds }
           }
-        }
+        });
       }
-      
-      if (!validPart) {
-        console.log("RESULT: skipped, not in inventory");
-      } else {
-        const rpcStock = Number(availEntry?.stock ?? 0);
-        const rpcPrice = Math.max(
-          Number(availEntry?.price ?? 0),
-          Number(availEntry?.ind_price ?? 0),
-          Number(availEntry?.gar_price ?? 0),
-          Number(availEntry?.export_price ?? 0)
-        );
-        let totalStock = Math.max(Number(validPart.stock ?? 0), rpcStock);
-        if (totalStock <= 0) {
-            const stockSum = await models.stock_levels.sum("quantity", { where: { part_id: validPart.id } });
-            totalStock = Number(stockSum ?? 0);
-        }
-        
-        const validPartPrice = Math.max(
-          Number(validPart.price ?? 0),
-          Number(validPart.ind_price ?? 0),
-          Number(validPart.gar_price ?? 0),
-          Number(validPart.export_price ?? 0)
-        );
-        const hasPrice = validPartPrice > 0 || rpcPrice > 0 || rpcStock > 0;
-        
-        console.log(`totalStock: ${totalStock}, validPartPrice: ${validPartPrice}, rpcPrice: ${rpcPrice}, hasPrice: ${hasPrice}`);
-        if (totalStock <= 0 && !hasPrice) {
-          console.log("RESULT: skipped, out of stock");
-        } else {
-          console.log("RESULT: OK, would add to cart!");
-        }
-      }
+
+      console.log("Alts via category_tag:", tagAlts.map((p: any) => ({
+        id: p.id,
+        part_number: p.part_number,
+        name: p.name,
+        manufacturer: p.manufacturer,
+        category_tag: p.category_tag
+      })));
+
+      // Fetch alts via alternative_parts table
+      const alts = await models.alternative_parts.findAll({
+        where: { part_id: { [Op.in]: partIds } },
+        include: [{ model: models.parts, as: 'alternative_part' }]
+      });
+
+      const seen = new Set();
+      const combinedAlts = [
+        ...tagAlts.map((p: any) => p.get({ plain: true })),
+        ...alts.map((a: any) => {
+          const plain = a.get({ plain: true });
+          return plain.alternative_part ? plain.alternative_part : null;
+        })
+      ].filter((p: any) => {
+        if (!p) return false;
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      });
+
+      console.log("Combined Alts:", combinedAlts.map((p: any) => ({
+        id: p.id,
+        part_number: p.part_number,
+        name: p.name,
+        manufacturer: p.manufacturer
+      })));
     }
-    
+  } catch (error) {
+    console.error("Error during inspection:", error);
+  } finally {
     process.exit(0);
-  } catch (e) {
-    console.error(e);
-    process.exit(1);
   }
 }
 
