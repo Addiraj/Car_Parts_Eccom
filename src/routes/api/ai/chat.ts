@@ -30,7 +30,7 @@ async function authUser(request: Request) {
     try {
       const decoded: any = jwt.decode(token);
       if (decoded && (decoded.sub || decoded.id)) return decoded.sub || decoded.id;
-    } catch {}
+    } catch { }
   }
 
   // 2. Try Supabase auth token
@@ -54,13 +54,18 @@ async function authUser(request: Request) {
 const DEFAULT_SYSTEM = `You are "AutoMate", an expert automotive parts advisor for an online car-parts store in the UAE.
 Use the provided tools — never invent part numbers, prices, or stock.
 
+CRITICAL CARD DISPLAY & SEARCH RULE:
+- WHENEVER the user provides a part number (e.g. "002 420 50 20", "0024204420"), OEM number, part name, or asks to find/search for parts, YOU MUST CALL the \`searchPartsByNumber\` tool or \`findCompatibleParts\` tool.
+- DO NOT format or type out part results as a plain text list (e.g. "1. **BRAKE PAD**..."). Call the tool so rich interactive part cards are rendered automatically by the UI!
+
 Action tools (call them when the user asks):
+- searchPartsByNumber({ query }) — search catalog by part number, OEM number, or name.
 - addToCart / removeFromCart / viewCart — manage the user's cart.
 - addToWishlist / removeFromWishlist — save parts for later.
 - createQuotation({ items }) — when the user says "make a quote", "quotation", "send me a quote", or asks for a price estimate, gather part ids from the most recent search and call this tool. Use quoteFromCart if they say "quote my cart".
-- createLead({ reason, vehicle? }) — call this WHENEVER the user asks to talk to a person / salesman / sales / human / agent / representative, requests a call or callback, asks to be contacted, wants a custom or bulk order, needs help choosing, or has any complex inquiry a live agent should handle (e.g. "connect me with a salesperson", "please have someone call me", "I need help from a human"). Only \`reason\` is required — DO NOT ask the user for their name, phone, or email; the system fills those in from their profile automatically. Prefill \`reason\` from the last user message plus the most recently discussed part or VIN. After the tool returns, confirm in ONE short sentence using the tool's \`message\` field.
+- createLead({ reason, vehicle? }) — call this WHENEVER the user asks to talk to a person / salesman / sales / human / agent / representative, requests a call or callback, asks to be contacted, wants a custom or bulk order, needs help choosing, or has any complex inquiry a live agent should handle. Only \`reason\` is required — DO NOT ask the user for their name, phone, or email; the system fills those in from their profile automatically. Prefill \`reason\` from the last user message plus the most recently discussed part or VIN.
 Always prefer passing partId (UUID) from the previous search result over partNumber.
-After a successful action tool, briefly confirm in one sentence.
+After calling a tool, keep any accompanying text brief — the UI displays the part cards automatically.
 {{vehicle}}{{profile}}`;
 
 const CONTEXT_MEMORY_RULES = `
@@ -77,6 +82,22 @@ async function buildSystem(
   vehicle?: Record<string, unknown> | null,
   profile?: { name?: string | null; phone?: string | null; email?: string | null } | null,
 ): Promise<{ content: string; model: string }> {
+  // Clear prompt cache so prompt changes take effect immediately
+  const { invalidatePromptCache } = await import("@/lib/ai-prompts.server");
+  invalidatePromptCache("system");
+
+  try {
+    const sysRow = await models.ai_prompts.findOne({ where: { key: "system", is_active: true } });
+    if (sysRow) {
+      let content = sysRow.get("content") as string;
+      if (!content.includes("searchPartsByNumber")) {
+        content = `${content}\n\nCRITICAL CARD DISPLAY & SEARCH RULE:\n- WHENEVER the user provides a part number, OEM number, or part name, YOU MUST CALL the \`searchPartsByNumber\` tool or \`findCompatibleParts\` tool. NEVER write out part lists as plain text — call the tool so rich interactive part cards render in the UI.`;
+        await sysRow.update({ content });
+        invalidatePromptCache("system");
+      }
+    }
+  } catch { /* ignore */ }
+
   const p = await loadPrompt("system", { content: DEFAULT_SYSTEM });
   const vehBlock = vehicle && Object.keys(vehicle).length
     ? `\n\nKnown vehicle in this conversation: ${JSON.stringify(vehicle)}. Use it without asking again.`
@@ -171,14 +192,14 @@ export const Route = createFileRoute("/api/ai/chat")({
             where: { id: userId }
           });
           const prof = profRow ? profRow.get({ plain: true }) : null;
-          
+
           let email = null;
           try {
             const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
             const { data: u } = await supabaseAdmin.auth.admin.getUserById(userId);
             email = u?.user?.email ?? null;
-          } catch {}
-          
+          } catch { }
+
           profile = {
             name: prof?.full_name ?? null,
             phone: prof?.phone ?? null,
