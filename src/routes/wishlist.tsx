@@ -61,31 +61,33 @@ function WishlistPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1400px] px-5 py-32 md:px-10 md:py-40">
-      <div className="flex items-end justify-between gap-6">
-        <div>
-          <div className="eyebrow">Your Account</div>
-          <h1 className="mt-3 font-display font-medium leading-[0.95] tracking-[-0.03em]" style={{ fontSize: "clamp(36px, 5vw, 72px)" }}>
+    <div className="mx-auto max-w-[1400px] px-5 py-12 md:px-10 md:py-16">
+      <div className="flex flex-col gap-2 mb-8">
+        <div className="flex items-center gap-3">
+          <h1 className="font-display font-medium text-4xl sm:text-5xl tracking-[-0.03em] text-foreground">
             {t("wishlist")}
           </h1>
-          {!isLoading && items.length > 0 && (
-            <p className="mt-4 text-sm text-muted-foreground">
-              {items.length} items saved.
-            </p>
+          {!isLoading && (
+            <span className="rounded-full bg-muted border border-border px-3 py-1 text-xs font-semibold text-muted-foreground dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300">
+              {items.length} {items.length === 1 ? 'item' : 'items'}
+            </span>
           )}
         </div>
+        <p className="text-sm text-muted-foreground">
+          Your saved items and their superseded / alternate part numbers
+        </p>
       </div>
 
-      {isLoading && <p className="mt-12 text-sm text-muted-foreground">{t("loading")}</p>}
+      {isLoading && <p className="mt-8 text-sm text-muted-foreground">{t("loading")}</p>}
       
       {!isLoading && items.length === 0 && (
-        <div className="mt-12 grid place-items-center rounded-2xl border border-dashed bg-surface-2 p-16 text-center">
+        <div className="mt-8 grid place-items-center rounded-2xl border border-dashed bg-surface-2 p-16 text-center">
           <Heart className="h-10 w-10 text-muted-foreground" />
           <p className="mt-4 text-muted-foreground">{t("noSaved")}</p>
         </div>
       )}
       
-      <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {items.map((it: any) => it.part && (
           <PartCard 
             key={it.id} 

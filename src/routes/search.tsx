@@ -1,15 +1,17 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { searchParts } from "@/lib/catalog.functions";
-import { getMyWishlistIds, toggleWishlist, addToCart } from "@/lib/account.functions";
+import { getMyWishlistIds, toggleWishlist, addToCart, requestPartSalesman } from "@/lib/account.functions";
 import { formatAED } from "@/lib/format";
-import { Search as SearchIcon } from "lucide-react";
+import { Search as SearchIcon, PackageSearch, MessageCircle, Headset, Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { useAuth } from "@/hooks/use-auth";
 import { PartThumb } from "@/components/part-thumb";
 import { PartCard } from "@/components/part-card";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 const schema = z.object({ q: z.string().optional().default("") });
@@ -28,6 +30,9 @@ function SearchPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const router = useRouter();
+
+  const [notFoundModalOpen, setNotFoundModalOpen] = useState(false);
+  const [isRequested, setIsRequested] = useState(false);
   
   const requireSignIn = (message: string) => {
     toast.error(message);
@@ -39,6 +44,37 @@ function SearchPage() {
     queryFn: () => searchParts({ data: { q } }),
     enabled: !!q,
   });
+
+  useEffect(() => {
+    if (q && query.data && query.data.parts.length === 0) {
+      setNotFoundModalOpen(true);
+      setIsRequested(false);
+    } else {
+      setNotFoundModalOpen(false);
+    }
+  }, [q, query.data]);
+
+  const requestSalesmanMut = useMutation({
+    mutationFn: (partNumber: string) => requestPartSalesman({ data: { partNumber } }),
+    onSuccess: () => {
+      setIsRequested(true);
+      toast.success(`Our salesman will contact you shortly regarding REF OE: ${q}`);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to submit request");
+    }
+  });
+
+  const handleContactSalesman = () => {
+    if (!user) {
+      requireSignIn("Please sign in to contact a salesman.");
+      return;
+    }
+    requestSalesmanMut.mutate(q);
+  };
+
+  const waMsg = encodeURIComponent(`Hi, I'd like to enquire about part REF OE: ${q}`);
+  const waUrl = `https://wa.me/971547516365?text=${waMsg}`;
 
   const { data: wishlistIds } = useQuery({
     queryKey: ["wishlist-ids", user?.id],
@@ -119,7 +155,7 @@ function SearchPage() {
           )}
 
           <div className="mt-6 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            {query.data.parts.length}
+            {query.data.parts.length} MATCHES
           </div>
           <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {query.data.parts.map((p: any) => (
@@ -141,6 +177,55 @@ function SearchPage() {
           </div>
         </>
       )}
+
+      {/* 'We couldn't find this part' modal when 0 matches found */}
+      <Dialog open={notFoundModalOpen} onOpenChange={setNotFoundModalOpen}>
+        <DialogContent className="max-w-md border border-border bg-card text-card-foreground p-6 shadow-2xl rounded-2xl dark:border-slate-800 dark:bg-[#0d111c] dark:text-white">
+          <div className="flex flex-col items-center text-center py-2">
+            <div className="h-12 w-12 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/40 flex items-center justify-center mb-4 text-blue-600 dark:text-blue-400">
+              <PackageSearch className="h-6 w-6" />
+            </div>
+
+            <h3 className="text-xl font-bold tracking-tight text-foreground dark:text-white mb-2">
+              We couldn't find this part
+            </h3>
+
+            <p className="text-xs text-muted-foreground dark:text-slate-300 leading-relaxed max-w-sm">
+              No results for <span className="text-muted-foreground/80 dark:text-slate-400 font-mono">REF OE:</span> <span className="font-bold text-foreground dark:text-white font-mono">{q}</span>. Our team can source it for you — request a callback and your salesman will get in touch.
+            </p>
+
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 w-full">
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-input bg-background hover:bg-accent hover:text-accent-foreground text-xs font-semibold dark:border-slate-700 dark:bg-slate-900/80 dark:text-white dark:hover:bg-slate-800 transition-colors flex-1 min-w-[140px] py-2.5"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Enquire on WhatsApp
+              </a>
+
+              <button
+                onClick={handleContactSalesman}
+                disabled={requestSalesmanMut.isPending || isRequested}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold dark:border-blue-500/40 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/60 dark:hover:text-blue-300 transition-colors flex-1 min-w-[140px] py-2.5 disabled:opacity-60"
+              >
+                {isRequested ? (
+                  <>
+                    <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    Request sent
+                  </>
+                ) : (
+                  <>
+                    <Headset className="h-4 w-4" />
+                    Contact salesman
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

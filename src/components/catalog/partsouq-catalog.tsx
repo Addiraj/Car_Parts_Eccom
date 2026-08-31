@@ -918,7 +918,7 @@ function PartNumberItem({
         aria-label={`Select ${pn}`}
         disabled={!purchasable}
       />
-      <span className="font-mono text-[12px] bg-muted/60 rounded px-2 py-0.5"><span className="text-muted-foreground font-sans text-[11px] font-normal me-1">Ref OE No:</span><Highlight text={pn} query={query} /></span>
+      <span className="font-mono text-[12px] bg-muted/60 rounded px-2 py-0.5"><span className="text-muted-foreground font-sans text-[11px] font-normal me-1">REF OE:</span><Highlight text={pn} query={query} /></span>
 
       {entry?.quantity != null && (
         <span className="text-[10px] text-muted-foreground">Qty {entry.quantity}</span>

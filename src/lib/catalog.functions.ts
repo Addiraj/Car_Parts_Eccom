@@ -121,6 +121,7 @@ export const getCategoryParts = createServerFn({ method: "GET" })
     const parts = await models.parts.findAll({
       where: { category_id: cat.id },
       attributes: PART_COLS.split(',').map(s => s.trim()),
+      order: [["stock", "DESC"], ["manufacturer", "ASC"], ["name", "ASC"]],
       limit: 200
     });
 
@@ -279,7 +280,7 @@ export const listPartsPaged = createServerFn({ method: "GET" })
           attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "images", "manufacturer", "stock", "is_oem"]
         }]
       }],
-      order: [["stock", "DESC"], ["name", "ASC"]],
+      order: [["stock", "DESC"], ["manufacturer", "ASC"], ["name", "ASC"]],
       limit: pageSize,
       offset: offset
     });
@@ -374,7 +375,7 @@ export const searchParts = createServerFn({ method: "GET" })
         ]
       },
       include: includeAlts,
-      order: [["stock", "DESC"], ["name", "ASC"]],
+      order: [["stock", "DESC"], ["manufacturer", "ASC"], ["name", "ASC"]],
       limit
     });
     push(pass1.map((p: any) => p.get({ plain: true })));
@@ -391,7 +392,7 @@ export const searchParts = createServerFn({ method: "GET" })
           ]
         },
         include: includeAlts,
-        order: [["stock", "DESC"], ["name", "ASC"]],
+        order: [["stock", "DESC"], ["manufacturer", "ASC"], ["name", "ASC"]],
         limit
       });
       push(pass2.map((p: any) => p.get({ plain: true })));
@@ -406,9 +407,32 @@ export const searchParts = createServerFn({ method: "GET" })
     });
 
     const sortedList = Array.from(byId.values()).sort((a, b) => {
+      // 1. Stock Availability Priority: In-stock (stock > 0) comes BEFORE Out-of-stock (stock <= 0)
+      const hasStockA = Number(a.stock ?? 0) > 0 ? 1 : 0;
+      const hasStockB = Number(b.stock ?? 0) > 0 ? 1 : 0;
+      if (hasStockB !== hasStockA) return hasStockB - hasStockA;
+
+      // 2. Exact match on part number or OEM number
+      const pnA = String(a.part_number || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+      const pnB = String(b.part_number || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+      const oemA = String(a.oem_number || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+      const oemB = String(b.oem_number || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+
+      const exactA = (norm && (pnA === norm || oemA === norm)) ? 1 : 0;
+      const exactB = (norm && (pnB === norm || oemB === norm)) ? 1 : 0;
+      if (exactB !== exactA) return exactB - exactA;
+
+      // 3. Higher stock quantity among in-stock items
       const stockA = Number(a.stock ?? 0);
       const stockB = Number(b.stock ?? 0);
       if (stockB !== stockA) return stockB - stockA;
+
+      // 4. Brand Name (A-Z)
+      const brandA = String(a.manufacturer || "");
+      const brandB = String(b.manufacturer || "");
+      if (brandA !== brandB) return brandA.localeCompare(brandB);
+
+      // 5. Part Name (A-Z)
       return String(a.name || "").localeCompare(String(b.name || ""));
     });
 

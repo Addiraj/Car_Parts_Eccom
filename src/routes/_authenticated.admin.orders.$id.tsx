@@ -188,7 +188,7 @@ function AdminOrderDetail() {
           <tbody>
             {data.items.map((it: any) => (
               <tr key={it.id} className="border-b">
-                <td className="p-3"><div className="font-mono text-xs">Ref OE No: {it.part_number}</div><div className="text-muted-foreground">{it.name}</div></td>
+                <td className="p-3"><div className="font-mono text-xs">REF OE:{it.part_number}</div><div className="text-muted-foreground">{it.name}</div></td>
                 <td className="p-3 text-xs uppercase">{it.price_tier ?? it.customer_type ?? "—"}</td>
                 <td className="p-3 text-right font-mono">{formatAED(Number(it.unit_price))}</td>
                 <td className="p-3 text-right font-mono">{it.quantity}</td>

@@ -74,7 +74,7 @@ function OrderDetail() {
                   {it.image_url && <img src={it.image_url} alt={it.name} className="h-full w-full object-cover" />}
                 </div>
                 <div className="flex-1">
-                  <div className="font-mono text-[10px] text-muted-foreground">Ref OE No: {it.part_number}</div>
+                  <div className="font-mono text-[10px] text-muted-foreground">REF OE:{it.part_number}</div>
                   <div className="text-sm font-medium">{it.name}</div>
                   <div className="text-xs text-muted-foreground">Qty {it.quantity} · {formatAED(Number(it.unit_price))} each</div>
                 </div>

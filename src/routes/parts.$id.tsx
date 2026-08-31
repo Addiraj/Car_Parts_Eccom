@@ -115,7 +115,7 @@ function PartPage() {
           </div>
           <h1 className="mt-2 text-2xl font-bold leading-tight">{part.name}</h1>
           <div className="mt-2 space-y-1 font-mono text-xs text-muted-foreground">
-            <div>Ref OE No: <span className="text-foreground">{part.part_number}</span></div>
+            <div>REF OE:<span className="text-foreground">{part.part_number}</span></div>
             {part.oem_number && <div>{t("oemNumber")}: <span className="text-foreground">{part.oem_number}</span></div>}
           </div>
 
@@ -216,7 +216,7 @@ function PartPage() {
                 className="overflow-hidden rounded-lg border bg-surface hover:border-primary">
                 <div className="aspect-square bg-surface-2"><PartThumb src={a.part.images?.[0]} alt={a.part.name} /></div>
                 <div className="p-3">
-                  <div className="font-mono text-[10px] text-muted-foreground">Ref OE No: {a.part.part_number}</div>
+                  <div className="font-mono text-[10px] text-muted-foreground">REF OE:{a.part.part_number}</div>
                   <div className="mt-1 line-clamp-2 text-sm font-medium">{a.part.name}</div>
                   {!isAdmin && <div className="mt-2 text-sm font-bold text-primary">{formatAED(Number(a.part.price))}</div>}
                 </div>
