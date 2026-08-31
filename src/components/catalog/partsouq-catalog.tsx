@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { AlertCircle, ChevronRight, Layers, X, ImageOff, Copy, Check, Maximize2, ShoppingCart, Loader2, Search, Heart, MessageCircle, Headset } from "lucide-react";
 import { fetchVinCatalog } from "@/lib/catalog.functions";
-import { addCatalogPartsToCart, getMyProfile, getMyWishlistIds, toggleWishlist, requestPartSalesman } from "@/lib/account.functions";
+import { addCatalogPartsToCart, getMyProfile, getMyWishlistIds, getMyWishlistPns, toggleWishlist, requestPartSalesman } from "@/lib/account.functions";
 import { SignInDialog } from "@/components/sign-in-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -137,10 +137,22 @@ export function PartsouqCatalog({
   });
   const wishlistIds = wishlistQ.data || [];
 
+  const wishlistPnsQ = useQuery({
+    queryKey: ["wishlist-pns", user?.id],
+    queryFn: () => getMyWishlistPns(),
+    enabled: !!user,
+  });
+  const wishlistPns = wishlistPnsQ.data || [];
+  const [wishlistedPns, setWishlistedPns] = useState<Record<string, boolean>>({});
+
   const toggleWishlistMut = useMutation({
     mutationFn: (data: { partId?: string; partNumber?: string; name?: string }) => toggleWishlist({ data }),
     onSuccess: (res: any) => {
+      if (res?.partNumber) {
+        setWishlistedPns((prev) => ({ ...prev, [res.partNumber]: res.added }));
+      }
       qc.invalidateQueries({ queryKey: ["wishlist-ids"] });
+      qc.invalidateQueries({ queryKey: ["wishlist-pns"] });
       qc.invalidateQueries({ queryKey: ["wishlist"] });
       qc.invalidateQueries({ queryKey: ["wishlist-count"] });
       toast.success(res?.added ? `Saved ${res?.partNumber || ""} to wishlist` : `Removed ${res?.partNumber || ""} from wishlist`);
@@ -682,6 +694,8 @@ export function PartsouqCatalog({
                           isStaff={isStaff}
                           tier={tier}
                           wishlistIds={wishlistIds}
+                          wishlistPns={wishlistPns}
+                          wishlistedPns={wishlistedPns}
                           onToggleWishlist={(data) => {
                             if (!user) setSignInOpen(true);
                             else toggleWishlistMut.mutate(data);
@@ -798,12 +812,14 @@ type PartRowProps = {
   isStaff: boolean;
   tier: CustomerType;
   wishlistIds: string[];
+  wishlistPns?: string[];
+  wishlistedPns?: Record<string, boolean>;
   onToggleWishlist: (data: { partId?: string; partNumber?: string; name?: string }) => void;
   requestedPns: Record<string, boolean>;
   onRequestSalesman: (pn: string, name?: string) => void;
 };
 
-function PartRow({ part, isFocused, picked, onTogglePicked, onAddOne, addingPn, query = "", availability, isStaff, tier, wishlistIds, onToggleWishlist, requestedPns, onRequestSalesman }: PartRowProps) {
+function PartRow({ part, isFocused, picked, onTogglePicked, onAddOne, addingPn, query = "", availability, isStaff, tier, wishlistIds, wishlistPns = [], wishlistedPns = {}, onToggleWishlist, requestedPns, onRequestSalesman }: PartRowProps) {
   const pns = Array.isArray(part.part_numbers) ? part.part_numbers : [];
   const safeId = `part-row-${(part.callout_number ?? "").toString().replace(/[^a-zA-Z0-9]/g, "")}-${part.part_name.replace(/[^a-zA-Z0-9]/g, "")}`;
   return (
@@ -828,6 +844,7 @@ function PartRow({ part, isFocused, picked, onTogglePicked, onAddOne, addingPn, 
               {pns.map((pn, i) => {
                 const num = (pn?.part_number || "").trim();
                 const info = availability.get(num);
+                const isWish = (info.partId && wishlistIds.includes(info.partId)) || (num && wishlistPns.includes(num)) || (num && !!wishlistedPns[num]);
                 return (
                   <PartNumberItem
                     key={(num || "pn") + "-" + i}
@@ -849,7 +866,7 @@ function PartRow({ part, isFocused, picked, onTogglePicked, onAddOne, addingPn, 
                     partId={info.partId}
                     partNumber={num}
                     name={part.part_name}
-                    isWishlisted={info.partId ? wishlistIds.includes(info.partId) : false}
+                    isWishlisted={!!isWish}
                     onToggleWishlist={() => onToggleWishlist({ partId: info.partId, partNumber: num, name: part.part_name })}
                     isRequested={!!requestedPns[num]}
                     onRequestSalesman={() => onRequestSalesman(num, part.part_name)}
@@ -965,12 +982,11 @@ function PartNumberItem({
         <Button 
           size="sm" 
           variant="ghost" 
-          disabled={!existsInInventory}
-          title={existsInInventory ? "Add to wishlist" : "Wishlist only available for inventory parts"}
-          className={`h-6 px-2 text-slate-400 transition-colors ${!existsInInventory ? "opacity-40 cursor-not-allowed" : "hover:text-primary"}`}
+          title={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+          className="h-6 px-2 text-slate-400 hover:text-primary transition-colors"
           onClick={(e) => { 
             e.preventDefault(); 
-            if (existsInInventory) onToggleWishlist?.(); 
+            onToggleWishlist?.(); 
           }}
           aria-label="Wishlist"
         >

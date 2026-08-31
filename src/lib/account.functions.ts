@@ -445,6 +445,20 @@ export const getMyWishlistIds = createServerFn({ method: "GET" })
     return items.map(i => i.part_id);
   });
 
+export const getMyWishlistPns = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const items = await models.wishlist_items.findAll({
+      where: { user_id: context.userId },
+      include: [{
+        model: models.parts,
+        as: 'part',
+        attributes: ["id", "part_number"]
+      }]
+    });
+    return items.map(i => (i as any).part?.part_number).filter(Boolean) as string[];
+  });
+
 export const getMyWishlist = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
