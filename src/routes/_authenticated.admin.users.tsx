@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { adminListUsers, adminUpdateUserCustomerType } from "@/lib/admin.functions";
+import { adminListUsers, adminUpdateUserCustomerType, adminToggleVinCatalog } from "@/lib/admin.functions";
 import { adminApproveCustomer, adminCustomerStats } from "@/lib/admin.customers.functions";
 import { CustomerTypeBadge } from "@/components/customer-type-badge";
 import { formatAED } from "@/lib/format";
@@ -56,6 +56,15 @@ function AdminUsers() {
       toast.success("Customer type updated");
       qc.invalidateQueries({ queryKey: ["admin-users"] });
       qc.invalidateQueries({ queryKey: ["admin-customer-stats"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const toggleVinCatalog = useMutation({
+    mutationFn: (v: { userId: string; enabled: boolean }) => adminToggleVinCatalog({ data: v }),
+    onSuccess: () => {
+      toast.success("Catalog access updated");
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -140,6 +149,7 @@ function AdminUsers() {
               <th className="px-3 py-2 text-left">Orders</th>
               <th className="px-3 py-2 text-left">Spend</th>
               <th className="px-3 py-2 text-left">Joined</th>
+              <th className="px-3 py-2 text-left">Catalog Access</th>
               <th className="px-3 py-2"></th>
             </tr>
           </thead>
@@ -158,6 +168,17 @@ function AdminUsers() {
                 <td className="px-3 py-2">{u.total_orders}</td>
                 <td className="px-3 py-2 font-mono">{formatAED(Number(u.total_spend))}</td>
                 <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
+                <td className="px-3 py-2">
+                  <select
+                    value={u.vin_catalog_enabled ? "true" : "false"}
+                    disabled={toggleVinCatalog.isPending}
+                    onChange={(e) => toggleVinCatalog.mutate({ userId: u.id, enabled: e.target.value === "true" })}
+                    className="rounded border bg-surface-2 px-2 py-1 text-xs"
+                  >
+                    <option value="false">Disabled</option>
+                    <option value="true">Enabled</option>
+                  </select>
+                </td>
                 <td className="px-3 py-2 text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     {u.status === "pending" && (
@@ -184,7 +205,7 @@ function AdminUsers() {
               </tr>
             ))}
             {!items.length && !isFetching && (
-              <tr><td colSpan={8} className="px-3 py-10 text-center text-sm text-muted-foreground">No customers found.</td></tr>
+              <tr><td colSpan={9} className="px-3 py-10 text-center text-sm text-muted-foreground">No customers found.</td></tr>
             )}
           </tbody>
         </table>

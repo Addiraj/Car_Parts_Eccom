@@ -190,6 +190,7 @@ export const getSession = createServerFn({ method: "GET" })
           phone: profile.phone,
           customer_type: profile.customer_type,
           admin_notes: profile.admin_notes,
+          vin_catalog_enabled: profile.vin_catalog_enabled ?? false,
           created_at: profile.created_at,
           updated_at: profile.updated_at
         };

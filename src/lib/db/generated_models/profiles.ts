@@ -24,11 +24,12 @@ export interface profilesAttributes {
   trade_license?: string;
   vat_number?: string;
   credit_limit: number;
+  vin_catalog_enabled: boolean;
 }
 
 export type profilesPk = "id";
 export type profilesId = profiles[profilesPk];
-export type profilesOptionalAttributes = "full_name" | "phone" | "avatar_url" | "created_at" | "updated_at" | "customer_type" | "status" | "admin_notes" | "approved_at" | "approved_by" | "company_name" | "trade_license" | "vat_number" | "credit_limit";
+export type profilesOptionalAttributes = "full_name" | "phone" | "avatar_url" | "created_at" | "updated_at" | "customer_type" | "status" | "admin_notes" | "approved_at" | "approved_by" | "company_name" | "trade_license" | "vat_number" | "credit_limit" | "vin_catalog_enabled";
 export type profilesCreationAttributes = Optional<profilesAttributes, profilesOptionalAttributes>;
 
 export class profiles extends Model<profilesAttributes, profilesCreationAttributes> implements profilesAttributes {
@@ -47,6 +48,7 @@ export class profiles extends Model<profilesAttributes, profilesCreationAttribut
   trade_license?: string;
   vat_number?: string;
   credit_limit!: number;
+  vin_catalog_enabled!: boolean;
 
   // profiles hasMany credit_billing_statements via user_id
   credit_billing_statements!: credit_billing_statements[];
@@ -173,6 +175,11 @@ export class profiles extends Model<profilesAttributes, profilesCreationAttribut
       type: DataTypes.DECIMAL,
       allowNull: false,
       defaultValue: 0
+    },
+    vin_catalog_enabled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
     }
   }, {
     sequelize,

@@ -540,7 +540,7 @@ export const adminListUsers = createServerFn({ method: "GET" })
     }
 
     const { rows: profilesRow, count } = await models.profiles.findAndCountAll({
-      attributes: ["id", "full_name", "phone", "customer_type", "status", "company_name", "created_at"],
+      attributes: ["id", "full_name", "phone", "customer_type", "status", "company_name", "created_at", "vin_catalog_enabled"],
       where,
       order: [["created_at", "DESC"]],
       limit: pageSize,
@@ -580,6 +580,7 @@ export const adminListUsers = createServerFn({ method: "GET" })
         email: emailById.get(p.id) ?? null,
         total_orders: a.orders,
         total_spend: a.spend,
+        vin_catalog_enabled: p.vin_catalog_enabled ?? false,
       };
     });
 
@@ -591,6 +592,16 @@ export const adminListUsers = createServerFn({ method: "GET" })
     }
 
     return { items, total: count, page, pageSize };
+  });
+
+export const adminToggleVinCatalog = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator((d: { userId: string; enabled: boolean }) => d)
+  .handler(async ({ data }) => {
+    const p = await models.profiles.findByPk(data.userId);
+    if (!p) throw new Error("Profile not found");
+    await p.update({ vin_catalog_enabled: data.enabled });
+    return { ok: true };
   });
 
 /* ===== Our Team (admins, super admins, salesmen) ===== */

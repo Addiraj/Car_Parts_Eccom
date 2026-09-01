@@ -19,7 +19,7 @@ export const Route = createFileRoute("/vin/")({
 function VinPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [vin, setVin] = useState("");
   const [signInOpen, setSignInOpen] = useState(false);
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
@@ -188,8 +188,19 @@ function VinPage() {
           <div className="p-6 shrink-0 w-full md:w-auto flex flex-col gap-3 justify-center border-t md:border-t-0 md:border-l border-border/50">
             <button
               type="button"
-              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-8 py-4 rounded-xl shadow-lg transition-colors disabled:opacity-50"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-8 py-4 rounded-xl shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={user ? !profile?.vin_catalog_enabled : false}
+              title={user && !profile?.vin_catalog_enabled ? "You do not have access to browse the catalog" : undefined}
               onClick={() => {
+                if (user && !profile?.vin_catalog_enabled) {
+                  toast.error("You do not have access to browse the catalog. Please contact the administrator.");
+                  return;
+                }
+                if (!user) {
+                  toast.info(t("signInRequired") || "Sign in required to browse the catalog");
+                  navigate({ to: "/auth/login", search: { redirect: typeof window !== "undefined" ? window.location.pathname + window.location.search : "/vin" } });
+                  return;
+                }
                 if (!modelNumber) { toast.error("Model number not available for this VIN"); return; }
                 navigate({
                   to: "/vin/$brand/$modelNumber",

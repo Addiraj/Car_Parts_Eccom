@@ -198,6 +198,13 @@ if (typeof window === 'undefined') {
             END IF;
           END $$;
 
+          -- Add vin_catalog_enabled to profiles
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='profiles' AND column_name='vin_catalog_enabled') THEN
+              ALTER TABLE public.profiles ADD COLUMN vin_catalog_enabled BOOLEAN DEFAULT false;
+            END IF;
+          END $$;
+
           -- Stored functions
           DROP FUNCTION IF EXISTS refresh_offer_statuses();
           CREATE OR REPLACE FUNCTION refresh_offer_statuses() RETURNS void AS $f$
