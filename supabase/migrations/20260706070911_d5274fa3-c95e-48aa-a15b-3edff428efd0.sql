@@ -62,7 +62,7 @@ AS $$
 DECLARE
   email_addr text;
 BEGIN
-  SELECT email INTO email_addr FROM auth.users WHERE id = NEW.id;
+  SELECT email INTO email_addr FROM public.users WHERE id = NEW.id;
   INSERT INTO public.admin_notifications (type, title, body, entity_type, entity_id, metadata)
   VALUES (
     'signup',
