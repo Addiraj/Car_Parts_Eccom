@@ -37,6 +37,8 @@ import { Route as PartsIdRouteImport } from './routes/parts.$id'
 import { Route as PaymentCancelRouteImport } from './routes/payment.cancel'
 import { Route as PaymentSuccessRouteImport } from './routes/payment.success'
 import { Route as VinIndexRouteImport } from './routes/vin.index'
+import { Route as WishlistIndexRouteImport } from './routes/wishlist.index'
+import { Route as WishlistQuoteRouteImport } from './routes/wishlist.quote'
 import { Route as AuthenticatedAccountIndexRouteImport } from './routes/_authenticated.account.index'
 import { Route as AuthenticatedAccountCreditsRouteImport } from './routes/_authenticated.account.credits'
 import { Route as AuthenticatedAccountSecurityRouteImport } from './routes/_authenticated.account.security'
@@ -256,6 +258,16 @@ const VinIndexRoute = VinIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => VinRoute,
+} as any)
+const WishlistIndexRoute = WishlistIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => WishlistRoute,
+} as any)
+const WishlistQuoteRoute = WishlistQuoteRouteImport.update({
+  id: '/quote',
+  path: '/quote',
+  getParentRoute: () => WishlistRoute,
 } as any)
 const AuthenticatedAccountIndexRoute =
   AuthenticatedAccountIndexRouteImport.update({
@@ -730,7 +742,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/special-offers': typeof SpecialOffersRoute
   '/vin': typeof VinRouteWithChildren
-  '/wishlist': typeof WishlistRoute
+  '/wishlist': typeof WishlistRouteWithChildren
   '/account': typeof AuthenticatedAccountRouteWithChildren
   '/addresses': typeof AuthenticatedAddressesRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
@@ -746,7 +758,9 @@ export interface FileRoutesByFullPath {
   '/parts/$id': typeof PartsIdRoute
   '/payment/cancel': typeof PaymentCancelRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/wishlist/quote': typeof WishlistQuoteRoute
   '/vin/': typeof VinIndexRoute
+  '/wishlist/': typeof WishlistIndexRoute
   '/account/credits': typeof AuthenticatedAccountCreditsRoute
   '/account/security': typeof AuthenticatedAccountSecurityRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
@@ -838,7 +852,6 @@ export interface FileRoutesByTo {
   '/products': typeof ProductsRoute
   '/search': typeof SearchRoute
   '/special-offers': typeof SpecialOffersRoute
-  '/wishlist': typeof WishlistRoute
   '/addresses': typeof AuthenticatedAddressesRoute
   '/checkout': typeof AuthenticatedCheckoutRoute
   '/api/test': typeof ApiTestRoute
@@ -851,7 +864,9 @@ export interface FileRoutesByTo {
   '/parts/$id': typeof PartsIdRoute
   '/payment/cancel': typeof PaymentCancelRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/wishlist/quote': typeof WishlistQuoteRoute
   '/vin': typeof VinIndexRoute
+  '/wishlist': typeof WishlistIndexRoute
   '/account/credits': typeof AuthenticatedAccountCreditsRoute
   '/account/security': typeof AuthenticatedAccountSecurityRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
@@ -946,7 +961,7 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/special-offers': typeof SpecialOffersRoute
   '/vin': typeof VinRouteWithChildren
-  '/wishlist': typeof WishlistRoute
+  '/wishlist': typeof WishlistRouteWithChildren
   '/_authenticated/account': typeof AuthenticatedAccountRouteWithChildren
   '/_authenticated/addresses': typeof AuthenticatedAddressesRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
@@ -962,7 +977,9 @@ export interface FileRoutesById {
   '/parts/$id': typeof PartsIdRoute
   '/payment/cancel': typeof PaymentCancelRoute
   '/payment/success': typeof PaymentSuccessRoute
+  '/wishlist/quote': typeof WishlistQuoteRoute
   '/vin/': typeof VinIndexRoute
+  '/wishlist/': typeof WishlistIndexRoute
   '/_authenticated/account/credits': typeof AuthenticatedAccountCreditsRoute
   '/_authenticated/account/security': typeof AuthenticatedAccountSecurityRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
@@ -1073,7 +1090,9 @@ export interface FileRouteTypes {
     | '/parts/$id'
     | '/payment/cancel'
     | '/payment/success'
+    | '/wishlist/quote'
     | '/vin/'
+    | '/wishlist/'
     | '/account/credits'
     | '/account/security'
     | '/admin/analytics'
@@ -1165,7 +1184,6 @@ export interface FileRouteTypes {
     | '/products'
     | '/search'
     | '/special-offers'
-    | '/wishlist'
     | '/addresses'
     | '/checkout'
     | '/api/test'
@@ -1178,7 +1196,9 @@ export interface FileRouteTypes {
     | '/parts/$id'
     | '/payment/cancel'
     | '/payment/success'
+    | '/wishlist/quote'
     | '/vin'
+    | '/wishlist'
     | '/account/credits'
     | '/account/security'
     | '/admin/analytics'
@@ -1288,7 +1308,9 @@ export interface FileRouteTypes {
     | '/parts/$id'
     | '/payment/cancel'
     | '/payment/success'
+    | '/wishlist/quote'
     | '/vin/'
+    | '/wishlist/'
     | '/_authenticated/account/credits'
     | '/_authenticated/account/security'
     | '/_authenticated/admin/analytics'
@@ -1383,7 +1405,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SpecialOffersRoute: typeof SpecialOffersRoute
   VinRoute: typeof VinRouteWithChildren
-  WishlistRoute: typeof WishlistRoute
+  WishlistRoute: typeof WishlistRouteWithChildren
   ApiTestRoute: typeof ApiTestRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   AuthLoginRoute: typeof AuthLoginRoute
@@ -1608,6 +1630,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/vin/'
       preLoaderRoute: typeof VinIndexRouteImport
       parentRoute: typeof VinRoute
+    }
+    '/wishlist/': {
+      id: '/wishlist/'
+      path: '/'
+      fullPath: '/wishlist/'
+      preLoaderRoute: typeof WishlistIndexRouteImport
+      parentRoute: typeof WishlistRoute
+    }
+    '/wishlist/quote': {
+      id: '/wishlist/quote'
+      path: '/quote'
+      fullPath: '/wishlist/quote'
+      preLoaderRoute: typeof WishlistQuoteRouteImport
+      parentRoute: typeof WishlistRoute
     }
     '/_authenticated/account/': {
       id: '/_authenticated/account/'
@@ -2493,6 +2529,20 @@ const VinRouteChildren: VinRouteChildren = {
 
 const VinRouteWithChildren = VinRoute._addFileChildren(VinRouteChildren)
 
+interface WishlistRouteChildren {
+  WishlistQuoteRoute: typeof WishlistQuoteRoute
+  WishlistIndexRoute: typeof WishlistIndexRoute
+}
+
+const WishlistRouteChildren: WishlistRouteChildren = {
+  WishlistQuoteRoute: WishlistQuoteRoute,
+  WishlistIndexRoute: WishlistIndexRoute,
+}
+
+const WishlistRouteWithChildren = WishlistRoute._addFileChildren(
+  WishlistRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
@@ -2505,7 +2555,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SpecialOffersRoute: SpecialOffersRoute,
   VinRoute: VinRouteWithChildren,
-  WishlistRoute: WishlistRoute,
+  WishlistRoute: WishlistRouteWithChildren,
   ApiTestRoute: ApiTestRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   AuthLoginRoute: AuthLoginRoute,
