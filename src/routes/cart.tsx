@@ -110,7 +110,13 @@ function CartPage() {
             {lines.map((it: any) => (
               <li key={it.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
                 <div className="flex-1 min-w-0">
-                  <div className="font-mono text-[10px] text-muted-foreground">{it.part?.part_number}</div>
+                  <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground flex-wrap mb-1">
+                    <span className="font-semibold text-foreground dark:text-slate-200">REF OE:{it.part?.part_number}</span>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span className="font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200/60 dark:border-blue-800/60 px-2 py-0.5 rounded text-[10px] uppercase tracking-wide">
+                      {String(it.part?.manufacturer || "GLOBAL").toUpperCase()}
+                    </span>
+                  </div>
                   <Link to="/parts/$id" params={{ id: it.part.id }} className="block truncate text-sm font-medium hover:text-primary">{it.part?.name}</Link>
                   {it.offer && (
                     <div className="mt-1 inline-flex items-center gap-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-bold text-destructive">
