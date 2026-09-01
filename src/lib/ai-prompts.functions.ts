@@ -1,3 +1,11 @@
+if (typeof globalThis !== "undefined" && !(globalThis as any).DOMMatrix) {
+  (globalThis as any).DOMMatrix = class DOMMatrix {
+    a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+    m11 = 1; m12 = 0; m21 = 0; m22 = 1; m41 = 0; m42 = 0;
+    constructor() {}
+  };
+}
+
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAdmin } from "./admin.functions";
