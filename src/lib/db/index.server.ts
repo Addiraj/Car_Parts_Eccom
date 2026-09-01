@@ -191,6 +191,13 @@ if (typeof window === 'undefined') {
             END IF;
           END $$;
 
+          -- Add missing unique constraint for CSV Imports ON CONFLICT clauses
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'parts_unique_value_key') THEN
+              ALTER TABLE public.parts ADD CONSTRAINT parts_unique_value_key UNIQUE (unique_value);
+            END IF;
+          END $$;
+
           -- Stored functions
           DROP FUNCTION IF EXISTS refresh_offer_statuses();
           CREATE OR REPLACE FUNCTION refresh_offer_statuses() RETURNS void AS $f$
