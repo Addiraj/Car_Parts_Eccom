@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getMyCart, updateCartQty, removeFromCart, getStaffTierPrices, type StaffTier } from "@/lib/account.functions";
+import { getMyCart, updateCartQty, removeFromCart, getStaffTierPrices, requestCartSalesman, type StaffTier } from "@/lib/account.functions";
 import { getActiveOffersForParts, computeOfferPrice } from "@/lib/offers.functions";
 import { formatAED } from "@/lib/format";
 import { toast } from "sonner";
-import { ShoppingCart, Trash2, LogIn, Tag } from "lucide-react";
+import { ShoppingCart, Trash2, LogIn, Tag, Headset, Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -26,12 +26,30 @@ function CartPage() {
   const isAdmin = useIsAdmin();
   const isSalesman = useIsSalesman();
   const isStaff = isAdmin || isSalesman;
+  const [requested, setRequested] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["cart"],
     queryFn: () => getMyCart(),
     enabled: !!user,
   });
+
+  const cartSalesmanMut = useMutation({
+    mutationFn: () => requestCartSalesman(),
+    onSuccess: () => {
+      setRequested(true);
+      toast.success("Quote request sent! Your assigned salesman will contact you shortly.");
+
+      const summary = lines.map((l: any) =>
+        `• ${l.part?.name || "Part"} (REF OE:${l.part?.part_number || "N/A"} · ${String(l.part?.manufacturer || "GLOBAL").toUpperCase()}) x${l.quantity}`
+      ).join("\n");
+
+      const waText = encodeURIComponent(`Hi, I'd like to get a quote for the items in my cart:\n${summary}`);
+      window.open(`https://wa.me/971547516365?text=${waText}`, "_blank");
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to submit quote request"),
+  });
+
   const partIds = useMemo(() => items.map((i: any) => i.part?.id).filter(Boolean) as string[], [items]);
 
   const { data: staffPricing } = useQuery({
@@ -189,14 +207,37 @@ function CartPage() {
             <div className="mt-4 flex justify-between border-t pt-3 text-lg font-bold">
               <span>{t("total")}</span><span className="font-mono text-primary">{formatAED(finalTotal)}</span>
             </div>
-            <Link
-              to="/checkout"
-              search={isStaff ? { tier } : undefined as any}
-              className="mt-4 block w-full rounded-md bg-primary py-3 text-center text-sm font-semibold text-primary-foreground hover:opacity-90"
-            >
-              {t("proceedToCheckout")}
-            </Link>
-            <p className="mt-2 text-center text-[10px] text-muted-foreground">{t("codOrQuote")}</p>
+            {isStaff ? (
+              <Link
+                to="/checkout"
+                search={{ tier }}
+                className="mt-4 block w-full rounded-md bg-primary py-3 text-center text-sm font-semibold text-primary-foreground hover:opacity-90"
+              >
+                {t("proceedToCheckout")}
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => cartSalesmanMut.mutate()}
+                disabled={cartSalesmanMut.isPending || requested}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-[#2563eb] hover:bg-blue-700 py-3 text-center text-sm font-semibold text-white shadow-md transition-all disabled:opacity-60"
+              >
+                {requested ? (
+                  <>
+                    <Check className="h-4 w-4 text-emerald-400" />
+                    Request sent to salesman
+                  </>
+                ) : (
+                  <>
+                    <Headset className="h-4 w-4" />
+                    Contact salesman
+                  </>
+                )}
+              </button>
+            )}
+            <p className="mt-2 text-center text-[10px] text-muted-foreground">
+              {isStaff ? t("codOrQuote") : "Request quote & order directly from your assigned salesman"}
+            </p>
           </aside>
         </div>
       )}

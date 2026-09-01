@@ -32,6 +32,14 @@ function CheckoutPage() {
   const isStaff = isAdmin || isSalesman;
   const tier: StaffTier | undefined = isStaff ? (tierParam ?? "ind") : undefined;
 
+  // Redirect regular customers back to cart page as payment methods & direct checkout are hidden for non-staff
+  useEffect(() => {
+    if (!isStaff) {
+      toast.info("Direct checkout is restricted. Please contact your assigned salesman from your cart.");
+      navigate({ to: "/cart" });
+    }
+  }, [isStaff, navigate]);
+
   const { data: items = [] } = useQuery({ queryKey: ["cart"], queryFn: () => getMyCart() });
   const { data: addresses = [] } = useQuery({ queryKey: ["addresses"], queryFn: () => getMyAddresses() });
   const { data: zones = [] } = useQuery({ queryKey: ["shipping_zones"], queryFn: () => getShippingZones() });
