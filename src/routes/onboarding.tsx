@@ -23,8 +23,6 @@ function Onboarding() {
   const [checking, setChecking] = useState(true);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [type, setType] = useState<"IND" | "GAR" | "EXP">("IND");
-  const [company, setCompany] = useState("");
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
   const [show, setShow] = useState(false);
@@ -54,22 +52,15 @@ function Onboarding() {
     return () => { cancelled = true; };
   }, [navigate]);
 
-  const roleOptions = [
-    { value: "IND" as const, title: "Individual Customer", desc: "Personal vehicle owners — retail pricing." },
-    { value: "GAR" as const, title: "Garage / Workshop", desc: "Service centres & mechanics — workshop pricing." },
-    { value: "EXP" as const, title: "Export / Bulk Buyer", desc: "Wholesale & export volumes — export pricing." },
-  ];
 
-  const requiresCompany = type === "GAR" || type === "EXP";
   const passwordValid = pw.length >= 8 && scorePassword(pw) >= 4;
   const formValid = useMemo(() => {
     return (
       name.trim().length >= 2 &&
       passwordValid &&
-      pw === pw2 &&
-      (!requiresCompany || company.trim().length > 0)
+      pw === pw2
     );
-  }, [company, name, passwordValid, pw, pw2, requiresCompany]);
+  }, [name, passwordValid, pw, pw2]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,9 +70,9 @@ function Onboarding() {
       await submit({
         data: {
           full_name: name.trim(),
-          customer_type: type,
+          customer_type: "IND", // Default all new accounts to IND
           phone: phone.trim() || null,
-          company_name: requiresCompany ? company.trim() : null,
+          company_name: null,
           password: pw,
         },
       });
@@ -124,30 +115,7 @@ function Onboarding() {
           <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
             className="mt-1 w-full rounded-md border bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
         </label>
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider">Customer type</span>
-          <div className="mt-2 grid gap-2">
-            {roleOptions.map((opt) => {
-              const active = type === opt.value;
-              return (
-                <label key={opt.value} className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm transition ${active ? "border-primary bg-primary/5" : "hover:border-primary/40"}`}>
-                  <input type="radio" name="ct" value={opt.value} checked={active} onChange={() => setType(opt.value)} className="mt-1" />
-                  <div>
-                    <div className="font-semibold">{opt.title} <span className="ms-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">{opt.value}</span></div>
-                    <div className="text-xs text-muted-foreground">{opt.desc}</div>
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-        {requiresCompany && (
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-wider">Company name</span>
-            <input required value={company} onChange={(e) => setCompany(e.target.value)}
-              className="mt-1 w-full rounded-md border bg-surface px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
-          </label>
-        )}
+        {/* Customer type and Company name removed. All new accounts default to Individual (IND). Superadmin can change this later from the Admin dashboard. */}
         <div className="rounded-md border bg-surface/50 p-4">
           <div className="mb-3 text-xs font-semibold uppercase tracking-wider">Set your password</div>
           <div className="space-y-3">
