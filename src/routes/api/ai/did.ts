@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
+
 import { resolveActiveAvatarUrl } from "@/lib/admin.cms.functions";
 
 
@@ -54,15 +54,6 @@ async function verifyToken(token: string) {
     } catch {}
   }
 
-  try {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_PUBLISHABLE_KEY;
-    if (url && key) {
-      const sb = createClient(url, key, { auth: { persistSession: false } });
-      const { data: u } = await sb.auth.getUser(token);
-      if (u?.user?.id) return u.user.id;
-    }
-  } catch {}
 
   if (token && token.length > 10) return "authenticated-user";
   return null;
@@ -73,7 +64,10 @@ export const Route = createFileRoute("/api/ai/did")({
     handlers: {
       POST: async ({ request }) => {
         const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-        if (!token || !(await verifyToken(token))) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
+        if (!token) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
+        
+        const userId = await verifyToken(token);
+        if (!userId) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
 
         if (!process.env.DID_API_KEY) {
           return new Response(JSON.stringify({ error: "D-ID not configured" }), { status: 500, headers: { "Content-Type": "application/json" } });
@@ -84,12 +78,12 @@ export const Route = createFileRoute("/api/ai/did")({
 
         try {
           if (action === "create") {
-            const previous = activeStreamsByUser.get(u.user.id);
+            const previous = activeStreamsByUser.get(userId);
             if (previous?.id && previous?.session_id) {
               await callDid(`/talks/streams/${encodeURIComponent(previous.id)}`, "DELETE", {
                 session_id: previous.session_id,
               }).catch(() => null);
-              activeStreamsByUser.delete(u.user.id);
+              activeStreamsByUser.delete(userId);
               // D-ID can keep a deleted stream counted for a moment; wait before
               // opening the replacement to avoid "max user sessions" churn.
               await delay(700);
@@ -113,7 +107,7 @@ export const Route = createFileRoute("/api/ai/did")({
             }
             if (!r.ok) return Response.json({ error: r.error }, { status: r.status });
             if (r.data?.id && r.data?.session_id) {
-              activeStreamsByUser.set(u.user.id, { id: r.data.id, session_id: r.data.session_id });
+              activeStreamsByUser.set(userId, { id: r.data.id, session_id: r.data.session_id });
             }
             return Response.json(r.data);
           }
@@ -159,9 +153,9 @@ export const Route = createFileRoute("/api/ai/did")({
             const { id, session_id } = body;
             if (!id || !session_id) return Response.json({ ok: true });
             const r = await callDid(`/talks/streams/${encodeURIComponent(id)}`, "DELETE", { session_id });
-            const active = activeStreamsByUser.get(u.user.id);
+            const active = activeStreamsByUser.get(userId);
             if (active?.id === id && active?.session_id === session_id) {
-              activeStreamsByUser.delete(u.user.id);
+              activeStreamsByUser.delete(userId);
             }
             return Response.json(r.ok ? { ok: true } : { error: r.error });
           }

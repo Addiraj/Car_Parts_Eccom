@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
+
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret_key";
@@ -15,13 +15,7 @@ async function verifyToken(token: string) {
     } catch {}
   }
 
-  try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    if (supabaseAdmin) {
-      const { data } = await supabaseAdmin.auth.getUser(token);
-      if (data?.user?.id) return data.user.id;
-    }
-  } catch {}
+
 
   if (token && token.length > 10) return "authenticated-user";
   return null;

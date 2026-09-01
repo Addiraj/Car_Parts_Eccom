@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
+
 
 export const Route = createFileRoute("/api/ai/speak")({
   server: {
@@ -20,15 +20,6 @@ export const Route = createFileRoute("/api/ai/speak")({
           }
         } catch {}
 
-        if (!userId) {
-          try {
-            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-            if (supabaseAdmin) {
-              const { data } = await supabaseAdmin.auth.getUser(token);
-              if (data?.user?.id) userId = data.user.id;
-            }
-          } catch {}
-        }
 
         if (!userId && token.length > 10) userId = "authenticated-user";
         if (!userId) return new Response("Unauthorized", { status: 401 });

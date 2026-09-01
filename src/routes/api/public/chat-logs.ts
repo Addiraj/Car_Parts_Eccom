@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import type { Database } from "@/integrations/supabase/types";
+import { models } from "@/lib/db/index.server";
 import { verifyChatbotKey } from "@/lib/chatbot-auth.server";
 
 const PayloadSchema = z.object({
@@ -35,25 +34,19 @@ export const Route = createFileRoute("/api/public/chat-logs")({
         }
         const p = parsed.data;
 
-        const supabase = createClient<Database>(
-          process.env.SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!,
-          { auth: { persistSession: false, autoRefreshToken: false } },
-        );
-
-        const { error } = await supabase.from("wa_chat_logs").insert({
-          whatsapp_user_id: p.whatsapp_user_id,
-          user_locale: p.user_locale ?? null,
-          user_message: p.user_message,
-          bot_response: p.bot_response,
-          intent: p.intent ?? null,
-          occurred_at: p.timestamp ?? new Date().toISOString(),
-        } as never);
-
-        if (error) {
+        try {
+          await models.wa_chat_logs.create({
+            whatsapp_user_id: p.whatsapp_user_id,
+            user_locale: p.user_locale ?? null,
+            user_message: p.user_message,
+            bot_response: p.bot_response,
+            intent: p.intent ?? null,
+            occurred_at: p.timestamp ? new Date(p.timestamp) : new Date(),
+          });
+          return Response.json({ success: true }, { status: 201 });
+        } catch (error: any) {
           return Response.json({ success: false, error: error.message }, { status: 500 });
         }
-        return Response.json({ success: true }, { status: 201 });
       },
     },
   },

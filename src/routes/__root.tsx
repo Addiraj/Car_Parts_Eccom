@@ -13,7 +13,6 @@ import { OnboardingGuard } from "@/components/onboarding-guard";
 import appCss from "../styles.css?url";
 import { Header, Footer } from "@/components/shell";
 import { SmoothScroll } from "@/components/smooth-scroll";
-import { supabase } from "@/integrations/supabase/client";
 import { I18nProvider, useI18n } from "@/lib/i18n";
 import { ThemeProvider, useTheme, themeInitScript } from "@/lib/theme";
 import { AuthProvider } from "@/hooks/use-auth";

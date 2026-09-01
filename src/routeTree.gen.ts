@@ -27,7 +27,6 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated.
 import { Route as AuthenticatedCheckoutRouteImport } from './routes/_authenticated.checkout'
 import { Route as AuthenticatedSalesmanRouteImport } from './routes/_authenticated.salesman'
 import { Route as ApiTestRouteImport } from './routes/api/test'
-import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
 import { Route as AuthSignupRouteImport } from './routes/auth.signup'
 import { Route as CatalogBrandRouteImport } from './routes/catalog.$brand'
@@ -67,12 +66,12 @@ import { Route as AuthenticatedAdminWarehousesRouteImport } from './routes/_auth
 import { Route as AuthenticatedOrdersIndexRouteImport } from './routes/_authenticated.orders.index'
 import { Route as AuthenticatedOrdersIdRouteImport } from './routes/_authenticated.orders.$id'
 import { Route as AuthenticatedSalesmanIndexRouteImport } from './routes/_authenticated.salesman.index'
-import { Route as AuthenticatedSalesmanAiLeadsRouteImport } from './routes/_authenticated.salesman.ai-leads'
 import { Route as AuthenticatedSalesmanCartsRouteImport } from './routes/_authenticated.salesman.carts'
 import { Route as AuthenticatedSalesmanConversationsRouteImport } from './routes/_authenticated.salesman.conversations'
 import { Route as AuthenticatedSalesmanCustomerActivityRouteImport } from './routes/_authenticated.salesman.customer-activity'
 import { Route as AuthenticatedSalesmanCustomersRouteImport } from './routes/_authenticated.salesman.customers'
 import { Route as AuthenticatedSalesmanFollowupsRouteImport } from './routes/_authenticated.salesman.followups'
+import { Route as AuthenticatedSalesmanInquiriesRouteImport } from './routes/_authenticated.salesman.inquiries'
 import { Route as AuthenticatedSalesmanNotificationsRouteImport } from './routes/_authenticated.salesman.notifications'
 import { Route as AuthenticatedSalesmanOrdersRouteImport } from './routes/_authenticated.salesman.orders'
 import { Route as AuthenticatedSalesmanQuotationsRouteImport } from './routes/_authenticated.salesman.quotations'
@@ -111,7 +110,6 @@ import { Route as AuthenticatedSalesmanQuotationsIdRouteImport } from './routes/
 import { Route as AuthenticatedSalesmanQuotationsNewRouteImport } from './routes/_authenticated.salesman.quotations.new'
 import { Route as ApiPublicAnalyticsEventsRouteImport } from './routes/api/public/analytics.events'
 import { Route as ApiPublicPromptsIntentKeyRouteImport } from './routes/api/public/prompts.$intentKey'
-import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as AuthenticatedAdminQuotationsIdEditRouteImport } from './routes/_authenticated.admin.quotations.$id.edit'
 import { Route as ApiPublicOrdersIdPdfRouteImport } from './routes/api/public/orders.$id.pdf'
 import { Route as ApiPublicQuotationsTokenPdfRouteImport } from './routes/api/public/quotations.$token.pdf'
@@ -205,11 +203,6 @@ const AuthenticatedSalesmanRoute = AuthenticatedSalesmanRouteImport.update({
 const ApiTestRoute = ApiTestRouteImport.update({
   id: '/api/test',
   path: '/api/test',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthCallbackRoute = AuthCallbackRouteImport.update({
-  id: '/auth/callback',
-  path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthLoginRoute = AuthLoginRouteImport.update({
@@ -431,12 +424,6 @@ const AuthenticatedSalesmanIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedSalesmanRoute,
   } as any)
-const AuthenticatedSalesmanAiLeadsRoute =
-  AuthenticatedSalesmanAiLeadsRouteImport.update({
-    id: '/ai-leads',
-    path: '/ai-leads',
-    getParentRoute: () => AuthenticatedSalesmanRoute,
-  } as any)
 const AuthenticatedSalesmanCartsRoute =
   AuthenticatedSalesmanCartsRouteImport.update({
     id: '/carts',
@@ -465,6 +452,12 @@ const AuthenticatedSalesmanFollowupsRoute =
   AuthenticatedSalesmanFollowupsRouteImport.update({
     id: '/followups',
     path: '/followups',
+    getParentRoute: () => AuthenticatedSalesmanRoute,
+  } as any)
+const AuthenticatedSalesmanInquiriesRoute =
+  AuthenticatedSalesmanInquiriesRouteImport.update({
+    id: '/inquiries',
+    path: '/inquiries',
     getParentRoute: () => AuthenticatedSalesmanRoute,
   } as any)
 const AuthenticatedSalesmanNotificationsRoute =
@@ -683,12 +676,6 @@ const ApiPublicPromptsIntentKeyRoute =
     path: '/api/public/prompts/$intentKey',
     getParentRoute: () => rootRouteImport,
   } as any)
-const LovableEmailQueueProcessRoute =
-  LovableEmailQueueProcessRouteImport.update({
-    id: '/lovable/email/queue/process',
-    path: '/lovable/email/queue/process',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const AuthenticatedAdminQuotationsIdEditRoute =
   AuthenticatedAdminQuotationsIdEditRouteImport.update({
     id: '/edit',
@@ -737,7 +724,6 @@ export interface FileRoutesByFullPath {
   '/checkout': typeof AuthenticatedCheckoutRoute
   '/salesman': typeof AuthenticatedSalesmanRouteWithChildren
   '/api/test': typeof ApiTestRoute
-  '/auth/callback': typeof AuthCallbackRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/catalog/$brand': typeof CatalogBrandRouteWithChildren
@@ -773,12 +759,12 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/warehouses': typeof AuthenticatedAdminWarehousesRoute
   '/orders/$id': typeof AuthenticatedOrdersIdRoute
-  '/salesman/ai-leads': typeof AuthenticatedSalesmanAiLeadsRoute
   '/salesman/carts': typeof AuthenticatedSalesmanCartsRoute
   '/salesman/conversations': typeof AuthenticatedSalesmanConversationsRoute
   '/salesman/customer-activity': typeof AuthenticatedSalesmanCustomerActivityRoute
   '/salesman/customers': typeof AuthenticatedSalesmanCustomersRouteWithChildren
   '/salesman/followups': typeof AuthenticatedSalesmanFollowupsRoute
+  '/salesman/inquiries': typeof AuthenticatedSalesmanInquiriesRoute
   '/salesman/notifications': typeof AuthenticatedSalesmanNotificationsRoute
   '/salesman/orders': typeof AuthenticatedSalesmanOrdersRouteWithChildren
   '/salesman/quotations': typeof AuthenticatedSalesmanQuotationsRouteWithChildren
@@ -820,7 +806,6 @@ export interface FileRoutesByFullPath {
   '/salesman/quotations/new': typeof AuthenticatedSalesmanQuotationsNewRoute
   '/api/public/analytics/events': typeof ApiPublicAnalyticsEventsRoute
   '/api/public/prompts/$intentKey': typeof ApiPublicPromptsIntentKeyRoute
-  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/admin/orders/': typeof AuthenticatedAdminOrdersIndexRoute
   '/admin/quotations/$id/edit': typeof AuthenticatedAdminQuotationsIdEditRoute
   '/api/public/orders/$id/pdf': typeof ApiPublicOrdersIdPdfRoute
@@ -842,7 +827,6 @@ export interface FileRoutesByTo {
   '/addresses': typeof AuthenticatedAddressesRoute
   '/checkout': typeof AuthenticatedCheckoutRoute
   '/api/test': typeof ApiTestRoute
-  '/auth/callback': typeof AuthCallbackRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/catalog/$brand': typeof CatalogBrandRouteWithChildren
@@ -878,12 +862,12 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/warehouses': typeof AuthenticatedAdminWarehousesRoute
   '/orders/$id': typeof AuthenticatedOrdersIdRoute
-  '/salesman/ai-leads': typeof AuthenticatedSalesmanAiLeadsRoute
   '/salesman/carts': typeof AuthenticatedSalesmanCartsRoute
   '/salesman/conversations': typeof AuthenticatedSalesmanConversationsRoute
   '/salesman/customer-activity': typeof AuthenticatedSalesmanCustomerActivityRoute
   '/salesman/customers': typeof AuthenticatedSalesmanCustomersRouteWithChildren
   '/salesman/followups': typeof AuthenticatedSalesmanFollowupsRoute
+  '/salesman/inquiries': typeof AuthenticatedSalesmanInquiriesRoute
   '/salesman/notifications': typeof AuthenticatedSalesmanNotificationsRoute
   '/salesman/orders': typeof AuthenticatedSalesmanOrdersRouteWithChildren
   '/salesman/quotations': typeof AuthenticatedSalesmanQuotationsRouteWithChildren
@@ -925,7 +909,6 @@ export interface FileRoutesByTo {
   '/salesman/quotations/new': typeof AuthenticatedSalesmanQuotationsNewRoute
   '/api/public/analytics/events': typeof ApiPublicAnalyticsEventsRoute
   '/api/public/prompts/$intentKey': typeof ApiPublicPromptsIntentKeyRoute
-  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/admin/orders': typeof AuthenticatedAdminOrdersIndexRoute
   '/admin/quotations/$id/edit': typeof AuthenticatedAdminQuotationsIdEditRoute
   '/api/public/orders/$id/pdf': typeof ApiPublicOrdersIdPdfRoute
@@ -953,7 +936,6 @@ export interface FileRoutesById {
   '/_authenticated/checkout': typeof AuthenticatedCheckoutRoute
   '/_authenticated/salesman': typeof AuthenticatedSalesmanRouteWithChildren
   '/api/test': typeof ApiTestRoute
-  '/auth/callback': typeof AuthCallbackRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/catalog/$brand': typeof CatalogBrandRouteWithChildren
@@ -989,12 +971,12 @@ export interface FileRoutesById {
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/warehouses': typeof AuthenticatedAdminWarehousesRoute
   '/_authenticated/orders/$id': typeof AuthenticatedOrdersIdRoute
-  '/_authenticated/salesman/ai-leads': typeof AuthenticatedSalesmanAiLeadsRoute
   '/_authenticated/salesman/carts': typeof AuthenticatedSalesmanCartsRoute
   '/_authenticated/salesman/conversations': typeof AuthenticatedSalesmanConversationsRoute
   '/_authenticated/salesman/customer-activity': typeof AuthenticatedSalesmanCustomerActivityRoute
   '/_authenticated/salesman/customers': typeof AuthenticatedSalesmanCustomersRouteWithChildren
   '/_authenticated/salesman/followups': typeof AuthenticatedSalesmanFollowupsRoute
+  '/_authenticated/salesman/inquiries': typeof AuthenticatedSalesmanInquiriesRoute
   '/_authenticated/salesman/notifications': typeof AuthenticatedSalesmanNotificationsRoute
   '/_authenticated/salesman/orders': typeof AuthenticatedSalesmanOrdersRouteWithChildren
   '/_authenticated/salesman/quotations': typeof AuthenticatedSalesmanQuotationsRouteWithChildren
@@ -1036,7 +1018,6 @@ export interface FileRoutesById {
   '/_authenticated/salesman/quotations/new': typeof AuthenticatedSalesmanQuotationsNewRoute
   '/api/public/analytics/events': typeof ApiPublicAnalyticsEventsRoute
   '/api/public/prompts/$intentKey': typeof ApiPublicPromptsIntentKeyRoute
-  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/_authenticated/admin/orders/': typeof AuthenticatedAdminOrdersIndexRoute
   '/_authenticated/admin/quotations/$id/edit': typeof AuthenticatedAdminQuotationsIdEditRoute
   '/api/public/orders/$id/pdf': typeof ApiPublicOrdersIdPdfRoute
@@ -1064,7 +1045,6 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/salesman'
     | '/api/test'
-    | '/auth/callback'
     | '/auth/login'
     | '/auth/signup'
     | '/catalog/$brand'
@@ -1100,12 +1080,12 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/warehouses'
     | '/orders/$id'
-    | '/salesman/ai-leads'
     | '/salesman/carts'
     | '/salesman/conversations'
     | '/salesman/customer-activity'
     | '/salesman/customers'
     | '/salesman/followups'
+    | '/salesman/inquiries'
     | '/salesman/notifications'
     | '/salesman/orders'
     | '/salesman/quotations'
@@ -1147,7 +1127,6 @@ export interface FileRouteTypes {
     | '/salesman/quotations/new'
     | '/api/public/analytics/events'
     | '/api/public/prompts/$intentKey'
-    | '/lovable/email/queue/process'
     | '/admin/orders/'
     | '/admin/quotations/$id/edit'
     | '/api/public/orders/$id/pdf'
@@ -1169,7 +1148,6 @@ export interface FileRouteTypes {
     | '/addresses'
     | '/checkout'
     | '/api/test'
-    | '/auth/callback'
     | '/auth/login'
     | '/auth/signup'
     | '/catalog/$brand'
@@ -1205,12 +1183,12 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/warehouses'
     | '/orders/$id'
-    | '/salesman/ai-leads'
     | '/salesman/carts'
     | '/salesman/conversations'
     | '/salesman/customer-activity'
     | '/salesman/customers'
     | '/salesman/followups'
+    | '/salesman/inquiries'
     | '/salesman/notifications'
     | '/salesman/orders'
     | '/salesman/quotations'
@@ -1252,7 +1230,6 @@ export interface FileRouteTypes {
     | '/salesman/quotations/new'
     | '/api/public/analytics/events'
     | '/api/public/prompts/$intentKey'
-    | '/lovable/email/queue/process'
     | '/admin/orders'
     | '/admin/quotations/$id/edit'
     | '/api/public/orders/$id/pdf'
@@ -1279,7 +1256,6 @@ export interface FileRouteTypes {
     | '/_authenticated/checkout'
     | '/_authenticated/salesman'
     | '/api/test'
-    | '/auth/callback'
     | '/auth/login'
     | '/auth/signup'
     | '/catalog/$brand'
@@ -1315,12 +1291,12 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/warehouses'
     | '/_authenticated/orders/$id'
-    | '/_authenticated/salesman/ai-leads'
     | '/_authenticated/salesman/carts'
     | '/_authenticated/salesman/conversations'
     | '/_authenticated/salesman/customer-activity'
     | '/_authenticated/salesman/customers'
     | '/_authenticated/salesman/followups'
+    | '/_authenticated/salesman/inquiries'
     | '/_authenticated/salesman/notifications'
     | '/_authenticated/salesman/orders'
     | '/_authenticated/salesman/quotations'
@@ -1362,7 +1338,6 @@ export interface FileRouteTypes {
     | '/_authenticated/salesman/quotations/new'
     | '/api/public/analytics/events'
     | '/api/public/prompts/$intentKey'
-    | '/lovable/email/queue/process'
     | '/_authenticated/admin/orders/'
     | '/_authenticated/admin/quotations/$id/edit'
     | '/api/public/orders/$id/pdf'
@@ -1385,7 +1360,6 @@ export interface RootRouteChildren {
   VinRoute: typeof VinRouteWithChildren
   WishlistRoute: typeof WishlistRoute
   ApiTestRoute: typeof ApiTestRoute
-  AuthCallbackRoute: typeof AuthCallbackRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthSignupRoute: typeof AuthSignupRoute
   CategorySlugRoute: typeof CategorySlugRoute
@@ -1405,7 +1379,6 @@ export interface RootRouteChildren {
   ApiVinLookupRoute: typeof ApiVinLookupRoute
   ApiPublicAnalyticsEventsRoute: typeof ApiPublicAnalyticsEventsRoute
   ApiPublicPromptsIntentKeyRoute: typeof ApiPublicPromptsIntentKeyRoute
-  LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   ApiPublicOrdersIdPdfRoute: typeof ApiPublicOrdersIdPdfRoute
   ApiPublicQuotationsTokenPdfRoute: typeof ApiPublicQuotationsTokenPdfRoute
   ApiPublicQuotationsTokenPrintRoute: typeof ApiPublicQuotationsTokenPrintRoute
@@ -1537,13 +1510,6 @@ declare module '@tanstack/react-router' {
       path: '/api/test'
       fullPath: '/api/test'
       preLoaderRoute: typeof ApiTestRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth/callback': {
-      id: '/auth/callback'
-      path: '/auth/callback'
-      fullPath: '/auth/callback'
-      preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/login': {
@@ -1819,13 +1785,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSalesmanIndexRouteImport
       parentRoute: typeof AuthenticatedSalesmanRoute
     }
-    '/_authenticated/salesman/ai-leads': {
-      id: '/_authenticated/salesman/ai-leads'
-      path: '/ai-leads'
-      fullPath: '/salesman/ai-leads'
-      preLoaderRoute: typeof AuthenticatedSalesmanAiLeadsRouteImport
-      parentRoute: typeof AuthenticatedSalesmanRoute
-    }
     '/_authenticated/salesman/carts': {
       id: '/_authenticated/salesman/carts'
       path: '/carts'
@@ -1859,6 +1818,13 @@ declare module '@tanstack/react-router' {
       path: '/followups'
       fullPath: '/salesman/followups'
       preLoaderRoute: typeof AuthenticatedSalesmanFollowupsRouteImport
+      parentRoute: typeof AuthenticatedSalesmanRoute
+    }
+    '/_authenticated/salesman/inquiries': {
+      id: '/_authenticated/salesman/inquiries'
+      path: '/inquiries'
+      fullPath: '/salesman/inquiries'
+      preLoaderRoute: typeof AuthenticatedSalesmanInquiriesRouteImport
       parentRoute: typeof AuthenticatedSalesmanRoute
     }
     '/_authenticated/salesman/notifications': {
@@ -2127,13 +2093,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPromptsIntentKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/lovable/email/queue/process': {
-      id: '/lovable/email/queue/process'
-      path: '/lovable/email/queue/process'
-      fullPath: '/lovable/email/queue/process'
-      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_authenticated/admin/quotations/$id/edit': {
       id: '/_authenticated/admin/quotations/$id/edit'
       path: '/edit'
@@ -2387,12 +2346,12 @@ const AuthenticatedSalesmanQuotationsRouteWithChildren =
   )
 
 interface AuthenticatedSalesmanRouteChildren {
-  AuthenticatedSalesmanAiLeadsRoute: typeof AuthenticatedSalesmanAiLeadsRoute
   AuthenticatedSalesmanCartsRoute: typeof AuthenticatedSalesmanCartsRoute
   AuthenticatedSalesmanConversationsRoute: typeof AuthenticatedSalesmanConversationsRoute
   AuthenticatedSalesmanCustomerActivityRoute: typeof AuthenticatedSalesmanCustomerActivityRoute
   AuthenticatedSalesmanCustomersRoute: typeof AuthenticatedSalesmanCustomersRouteWithChildren
   AuthenticatedSalesmanFollowupsRoute: typeof AuthenticatedSalesmanFollowupsRoute
+  AuthenticatedSalesmanInquiriesRoute: typeof AuthenticatedSalesmanInquiriesRoute
   AuthenticatedSalesmanNotificationsRoute: typeof AuthenticatedSalesmanNotificationsRoute
   AuthenticatedSalesmanOrdersRoute: typeof AuthenticatedSalesmanOrdersRouteWithChildren
   AuthenticatedSalesmanQuotationsRoute: typeof AuthenticatedSalesmanQuotationsRouteWithChildren
@@ -2400,7 +2359,6 @@ interface AuthenticatedSalesmanRouteChildren {
 }
 
 const AuthenticatedSalesmanRouteChildren: AuthenticatedSalesmanRouteChildren = {
-  AuthenticatedSalesmanAiLeadsRoute: AuthenticatedSalesmanAiLeadsRoute,
   AuthenticatedSalesmanCartsRoute: AuthenticatedSalesmanCartsRoute,
   AuthenticatedSalesmanConversationsRoute:
     AuthenticatedSalesmanConversationsRoute,
@@ -2409,6 +2367,7 @@ const AuthenticatedSalesmanRouteChildren: AuthenticatedSalesmanRouteChildren = {
   AuthenticatedSalesmanCustomersRoute:
     AuthenticatedSalesmanCustomersRouteWithChildren,
   AuthenticatedSalesmanFollowupsRoute: AuthenticatedSalesmanFollowupsRoute,
+  AuthenticatedSalesmanInquiriesRoute: AuthenticatedSalesmanInquiriesRoute,
   AuthenticatedSalesmanNotificationsRoute:
     AuthenticatedSalesmanNotificationsRoute,
   AuthenticatedSalesmanOrdersRoute:
@@ -2507,7 +2466,6 @@ const rootRouteChildren: RootRouteChildren = {
   VinRoute: VinRouteWithChildren,
   WishlistRoute: WishlistRoute,
   ApiTestRoute: ApiTestRoute,
-  AuthCallbackRoute: AuthCallbackRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthSignupRoute: AuthSignupRoute,
   CategorySlugRoute: CategorySlugRoute,
@@ -2527,7 +2485,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiVinLookupRoute: ApiVinLookupRoute,
   ApiPublicAnalyticsEventsRoute: ApiPublicAnalyticsEventsRoute,
   ApiPublicPromptsIntentKeyRoute: ApiPublicPromptsIntentKeyRoute,
-  LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   ApiPublicOrdersIdPdfRoute: ApiPublicOrdersIdPdfRoute,
   ApiPublicQuotationsTokenPdfRoute: ApiPublicQuotationsTokenPdfRoute,
   ApiPublicQuotationsTokenPrintRoute: ApiPublicQuotationsTokenPrintRoute,

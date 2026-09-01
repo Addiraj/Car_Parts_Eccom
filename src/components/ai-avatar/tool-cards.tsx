@@ -114,9 +114,16 @@ function PartGrid({ parts, empty }: { parts: Part[]; empty: string }) {
 function VehicleCard({ v }: { v: Record<string, any> }) {
   const make = v.make ?? v.Make ?? null;
   const model = v.model ?? v.Model ?? null;
+  const modelNumber =
+    v.modelNumber ??
+    v["Model Number"] ??
+    v.model_number ??
+    v.details?.["Model Number"] ??
+    v.details?.model_number ??
+    model;
   const fields = [v.year, make, model, v.engine ?? v.Engine].filter(Boolean);
   const action = useAvatarAction();
-  const canBrowse = Boolean(make && model);
+  const canBrowse = Boolean(make && modelNumber);
   return (
     <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
       <div className="flex items-center gap-2 text-[12px] font-medium text-blue-700">
@@ -128,8 +135,8 @@ function VehicleCard({ v }: { v: Record<string, any> }) {
         <div className="mt-2 flex flex-wrap gap-1.5">
           <Link
             to="/vin/$brand/$modelNumber"
-            params={{ brand: String(make), modelNumber: String(model) }}
-            search={{ modelName: String(model) }}
+            params={{ brand: String(make), modelNumber: String(modelNumber) }}
+            search={{ modelName: String(model || "") }}
             className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-blue-700 shadow-xs"
           >
             <Package className="h-3 w-3" /> Browse Catalog
@@ -393,9 +400,11 @@ function PremiumPartCard({ p, isAlternative = false }: { p: Part; isAlternative?
               <span className="font-bold text-xs uppercase text-slate-800 line-clamp-2 leading-tight">
                 {p.name ?? "Part"}
               </span>
-              <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold tracking-wide whitespace-nowrap", badgeCls)}>
-                {badgeText}
-              </span>
+              {isStaff && (
+                <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold tracking-wide whitespace-nowrap", badgeCls)}>
+                  {badgeText}
+                </span>
+              )}
             </div>
 
             {/* OE Ref Number */}
@@ -461,8 +470,48 @@ function PremiumPartCard({ p, isAlternative = false }: { p: Part; isAlternative?
   );
 }
 
+function OutOfStockInquiryBlock({ query, partNumber, name }: { query: string, partNumber?: string, name?: string }) {
+  const action = useAvatarAction();
+  const waMsg = encodeURIComponent(`Hi, I'd like to enquire about part ${partNumber || query} — ${name || ""}`);
+  const waUrl = `https://wa.me/971547516365?text=${waMsg}`;
+  return (
+    <div className="flex flex-col rounded-lg border border-red-200 bg-red-50 p-4 gap-3 shadow-sm w-full">
+      <div>
+        <div className="font-bold text-red-800 text-sm">Part Unavailable</div>
+        <div className="text-red-700 text-[11px] mt-1">We couldn't find available stock for <strong>{partNumber || query}</strong>. Please contact our sales team to check inbound inventory or arrange a special order.</div>
+      </div>
+      {action && (
+        <div className="flex gap-2">
+          <button
+            onClick={() => action(`Please connect me with a salesman regarding out of stock part: ${partNumber || query}`)}
+            className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-md py-2 text-[10px] font-bold transition flex items-center justify-center gap-1 shadow-sm"
+          >
+            <UserCheck className="h-3 w-3" /> Contact Salesman
+          </button>
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-md py-2 text-[10px] font-bold transition flex items-center justify-center gap-1 shadow-xs"
+          >
+            <MessageCircle className="h-3 w-3 text-emerald-600" /> WhatsApp
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PartNumberSearchResult({ query, parts, alternatives }: { query: string; parts: any[]; alternatives: any[] }) {
-  if (!parts.length) return <p className="text-[11px] text-slate-500">No matching parts found.</p>;
+  const isStaff = useIsStaff();
+  
+  if (isStaff && !parts.length && !alternatives.length) {
+    return <p className="text-[11px] text-slate-500">No matching parts found.</p>;
+  }
+  
+  const mainAvailable = parts.filter(p => isStaff || Number(p.stock ?? 0) > 0);
+  const mainOos = !isStaff ? parts.filter(p => Number(p.stock ?? 0) <= 0) : [];
+  const altsAvailable = alternatives.filter(p => isStaff || Number(p.stock ?? 0) > 0);
   
   return (
     <div className="flex flex-col gap-4 my-2">
@@ -472,23 +521,30 @@ function PartNumberSearchResult({ query, parts, alternatives }: { query: string;
           YOUR PART NUMBER — {query}
         </div>
         <div className="flex flex-col gap-2">
-          {parts.map((p) => (
+          {mainAvailable.map((p) => (
             <PremiumPartCard key={p.id} p={p} isAlternative={false} />
           ))}
+          {mainOos.map((p) => (
+            <OutOfStockInquiryBlock key={p.id} query={query} partNumber={p.part_number} name={p.name} />
+          ))}
+          {/* If completely not found for a normal customer, just show the inquiry block */}
+          {!isStaff && parts.length === 0 && (
+             <OutOfStockInquiryBlock query={query} />
+          )}
         </div>
       </div>
 
       {/* Alternative Parts Section */}
-      {alternatives.length > 0 && (
+      {altsAvailable.length > 0 && (
         <div className="flex flex-col gap-1.5 mt-1">
           <div className="text-slate-500 font-extrabold tracking-wider text-[11px] uppercase">
-            OTHER OPTIONS ({alternatives.length})
+            OTHER OPTIONS ({altsAvailable.length})
           </div>
           <div className="text-slate-400 text-[10px] leading-tight">
             Compatible replacements we stock
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1.5">
-            {alternatives.map((alt) => (
+            {altsAvailable.map((alt) => (
               <PremiumPartCard key={alt.id} p={alt} isAlternative={true} />
             ))}
           </div>
@@ -559,7 +615,15 @@ export function ToolPartView({ part }: { part: any }) {
     case "tool-ocrVin":
       return (
         <div className="my-2">
-          <VehicleCard v={{ ...(out?.decoded ?? {}), vin: out?.vin }} />
+          <VehicleCard v={{
+            ...(out?.decoded ?? {}),
+            vin: out?.vin,
+            modelNumber:
+              out?.decoded?.modelNumber ??
+              out?.decoded?.details?.["Model Number"] ??
+              out?.decoded?.details?.model_number ??
+              null,
+          }} />
         </div>
       );
     case "tool-checkStock":

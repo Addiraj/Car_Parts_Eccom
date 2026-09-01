@@ -13,11 +13,18 @@ import {
   Tool, ToolHeader, ToolContent, ToolInput, ToolOutput,
 } from "@/components/ai-elements/tool";
 import { Button } from "@/components/ui/button";
-import { Mic, ImagePlus, Loader2, MessageSquarePlus, Trash2, PanelLeftOpen, PanelLeftClose } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { Mic, ImagePlus, Camera, FileUp, Loader2, MessageSquarePlus, Trash2, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import { QUICK_ACTIONS } from "./quick-actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import * as XLSX from "xlsx";
+import Papa from "papaparse";
+import * as pdfjsLib from "pdfjs-dist";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString();
 
 type Thread = { id: string; title: string };
 
@@ -38,9 +45,10 @@ export function AssistantChat({
 }) {
   const [token, setToken] = React.useState<string | null>(null);
   React.useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setToken(data.session?.access_token ?? null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setToken(s?.access_token ?? null));
-    return () => sub.subscription.unsubscribe();
+    setToken(localStorage.getItem("jwt_token"));
+    const handleStorage = () => setToken(localStorage.getItem("jwt_token"));
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
   const transport = React.useMemo(
@@ -49,8 +57,7 @@ export function AssistantChat({
         api: "/api/ai/chat",
         body: () => ({ threadId }),
         headers: async () => {
-          const { data } = await supabase.auth.getSession();
-          const t = data.session?.access_token || (typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null);
+          const t = typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null;
           return t ? ({ Authorization: `Bearer ${t}` } as Record<string, string>) : ({} as Record<string, string>);
         },
         fetch: (async (url: any, init: any) => {
@@ -74,23 +81,29 @@ export function AssistantChat({
   React.useEffect(() => {
     if (!threadId) { setMessages([]); return; }
     (async () => {
-      const { data } = await supabase
-        .from("ai_chat_messages")
-        .select("id, role, text, parts, created_at")
-        .eq("thread_id", threadId)
-        .order("created_at", { ascending: true });
-      const ui = (data ?? []).map((m: any) => ({
-        id: m.id,
-        role: m.role as "user" | "assistant",
-        parts: Array.isArray(m.parts) && m.parts.length ? m.parts : [{ type: "text", text: m.text ?? "" }],
-      }));
-      setMessages(ui as any);
+      try {
+        const t = localStorage.getItem("jwt_token");
+        const headers: Record<string, string> = t ? { Authorization: `Bearer ${t}` } : {};
+        const res = await fetch(`/api/ai/chat?threadId=${threadId}`, { headers });
+        if (!res.ok) throw new Error("Failed to load messages");
+        const data = await res.json();
+        const ui = (data ?? []).map((m: any) => ({
+          id: m.id,
+          role: m.role as "user" | "assistant",
+          parts: Array.isArray(m.parts) && m.parts.length ? m.parts : [{ type: "text", text: m.text ?? "" }],
+        }));
+        setMessages(ui as any);
+      } catch (err) {
+        console.error(err);
+      }
     })();
   }, [threadId, setMessages]);
 
   const [input, setInput] = React.useState("");
   const [uploading, setUploading] = React.useState(false);
-  const fileRef = React.useRef<HTMLInputElement>(null);
+  const imageRef = React.useRef<HTMLInputElement>(null);
+  const cameraRef = React.useRef<HTMLInputElement>(null);
+  const docRef = React.useRef<HTMLInputElement>(null);
   const isLoading = status === "submitted" || status === "streaming";
 
   const ensureThread = async (): Promise<string | null> => {
@@ -101,8 +114,7 @@ export function AssistantChat({
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isLoading) return;
-    const { data } = await supabase.auth.getSession();
-    const t = data.session?.access_token || (typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null);
+    const t = typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null;
     if (!t) { toast.error("Please sign in to chat"); return; }
     await ensureThread();
     setInput("");
@@ -110,23 +122,122 @@ export function AssistantChat({
   };
 
 
+  const parseExcelOrCsv = async (file: File) => {
+    return new Promise<any[]>((resolve, reject) => {
+      if (file.name.match(/\.csv$/i) || file.type === "text/csv") {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => resolve(results.data),
+          error: (err) => reject(err),
+        });
+      } else {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = e.target?.result;
+            const wb = XLSX.read(data, { type: "array" });
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(sheet);
+            resolve(json);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = (err) => reject(err);
+        reader.readAsArrayBuffer(file);
+      }
+    });
+  };
+
+  const renderPdfToImages = async (file: File): Promise<File[]> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const numPages = Math.min(pdf.numPages, 4);
+    const imageFiles: File[] = [];
+
+    for (let i = 1; i <= numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) continue;
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+      if (blob) {
+        imageFiles.push(new File([blob], `${file.name.replace(/\.pdf$/i, "")}_page_${i}.jpg`, { type: "image/jpeg" }));
+      }
+    }
+    return imageFiles;
+  };
+
   const handleUpload = async (file: File) => {
-    const currentToken = token || (typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null);
-    if (!currentToken) { toast.error("Sign in to upload images"); return; }
+    const currentToken = typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null;
+    if (!currentToken) { toast.error("Sign in to upload files"); return; }
+    
+    let filesToUpload: File[] = [file];
+    let isDataExtraction = false;
+    let dataExtractionJson = "";
+
+    if (file.name.match(/\.(csv|xlsx|xls)$/i) || file.type === "text/csv") {
+      try {
+        const data = await parseExcelOrCsv(file);
+        if (data.length > 50) {
+          toast.error("Limit of 50 rows exceeded.");
+          return;
+        }
+        isDataExtraction = true;
+        dataExtractionJson = JSON.stringify(data).slice(0, 3000); // safety cap
+      } catch (e) {
+        toast.error("Failed to parse document");
+        return;
+      }
+    } else if (file.name.match(/\.pdf$/i) || file.type === "application/pdf") {
+      try {
+        setUploading(true);
+        toast.info("Processing PDF...");
+        filesToUpload = await renderPdfToImages(file);
+      } catch (e) {
+        toast.error("Failed to process PDF pages");
+        setUploading(false);
+        return;
+      }
+    }
+
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/ai/upload", {
-        method: "POST",
-        body: fd,
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const { url } = await res.json();
-      if (!url) throw new Error("No URL returned");
       await ensureThread();
-      sendMessage({ text: `I'm sharing an image. URL: ${url}\n\nPlease analyze it using the appropriate tool (identifyPartFromImage / identifyWarningLight / ocrVin).` });
+      const urls: string[] = [];
+
+      for (const f of filesToUpload) {
+        const fd = new FormData();
+        fd.append("file", f);
+        const res = await fetch("/api/ai/upload", {
+          method: "POST",
+          body: fd,
+          headers: { Authorization: `Bearer ${currentToken}` },
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const { url } = await res.json();
+        if (!url) throw new Error("No URL returned");
+        urls.push(url);
+      }
+
+      const isImage = filesToUpload.every(f => f.type.startsWith("image/"));
+      let promptText = "";
+
+      if (isDataExtraction) {
+        promptText = `I have uploaded a document. URL: ${urls[0]}\n\nHere is the extracted data:\n${dataExtractionJson}\n\nPlease identify any part numbers in this data and fetch their details using searchPartsByNumber. Do NOT list the parts in your text response; the UI will display them automatically as cards.`;
+      } else if (isImage) {
+        promptText = `I'm sharing image(s). URLs:\n${urls.join("\n")}\n\nPlease analyze them. If the image contains a 17-character VIN (like on a vehicle registration document or VIN plate), you MUST use the 'ocrVin' tool to extract and decode it first. If it is a car part, use 'identifyPartFromImage'. If it is a dashboard light, use 'identifyWarningLight'.\nCRITICAL: When calling a tool, you MUST pass the EXACT URL string provided above without any modifications.`;
+      } else {
+        promptText = `I'm sharing a document. URL: ${urls[0]}\n\nPlease analyze this document for relevant part information.`;
+      }
+
+      sendMessage({ text: promptText });
     } catch (e: any) {
       toast.error(e.message ?? "Upload failed");
     } finally {
@@ -292,9 +403,31 @@ export function AssistantChat({
                 <MessageContent>
                   {(m.parts ?? []).map((part: any, i: number) => {
                     if (part.type === "text") {
-                      return m.role === "assistant"
-                        ? <MessageResponse key={i}>{part.text}</MessageResponse>
-                        : <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
+                      if (m.role === "assistant") {
+                        return <MessageResponse key={i}>{part.text}</MessageResponse>;
+                      }
+                      const text: string = part.text ?? "";
+                      if (
+                        text.startsWith("I'm sharing image(s)") ||
+                        text.startsWith("I have uploaded a document") ||
+                        text.startsWith("I'm sharing a document")
+                      ) {
+                        const urlMatch = text.match(/\/uploads\/[^\s\n]+/g) ?? [];
+                        return (
+                          <span key={i} className="flex flex-wrap gap-1.5">
+                            {urlMatch.length > 0 ? urlMatch.map((u, ui) => (
+                              <span key={ui} className="inline-flex items-center gap-1 rounded-md bg-blue-100 border border-blue-200 px-2 py-1 text-[11px] text-blue-700">
+                                <span>📷</span><span>Image shared</span>
+                              </span>
+                            )) : (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 border border-slate-200 px-2 py-1 text-[11px] text-slate-600">
+                                <span>📄</span><span>Document shared</span>
+                              </span>
+                            )}
+                          </span>
+                        );
+                      }
+                      return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
                     }
                     if (part.type?.startsWith?.("tool-")) {
                       return (
@@ -336,9 +469,32 @@ export function AssistantChat({
         ) : null}
 
         <input
-          ref={fileRef}
+          ref={imageRef}
           type="file"
           accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleUpload(f);
+            e.target.value = "";
+          }}
+        />
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleUpload(f);
+            e.target.value = "";
+          }}
+        />
+        <input
+          ref={docRef}
+          type="file"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,text/csv"
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -359,9 +515,17 @@ export function AssistantChat({
           />
           <PromptInputFooter>
             <PromptInputTools>
-              <PromptInputButton type="button" onClick={() => fileRef.current?.click()} disabled={uploading}>
+              <PromptInputButton type="button" onClick={() => imageRef.current?.click()} disabled={uploading}>
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
                 <span className="sr-only">Upload image</span>
+              </PromptInputButton>
+              <PromptInputButton type="button" onClick={() => cameraRef.current?.click()} disabled={uploading}>
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                <span className="sr-only">Take photo</span>
+              </PromptInputButton>
+              <PromptInputButton type="button" onClick={() => docRef.current?.click()} disabled={uploading}>
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+                <span className="sr-only">Upload document</span>
               </PromptInputButton>
               <PromptInputButton
                 type="button"

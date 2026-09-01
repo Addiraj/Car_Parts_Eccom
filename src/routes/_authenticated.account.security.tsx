@@ -1,9 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { listMyLogins } from "@/lib/security.functions";
-import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
-import { ShieldCheck, Monitor, Smartphone, MapPin, LogOut, Loader2 } from "lucide-react";
+import { ShieldCheck, Monitor, Smartphone, MapPin, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/account/security")({
@@ -17,19 +16,8 @@ function Security() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setCurrentSession(data.session?.access_token?.slice(-12) ?? null);
-    });
+    setCurrentSession(localStorage.getItem("jwt_token")?.slice(-12) ?? null);
   }, []);
-
-  const signOutOthers = async () => {
-    setBusy(true);
-    const { error } = await supabase.auth.signOut({ scope: "others" });
-    setBusy(false);
-    if (error) return toast.error(error.message);
-    toast.success("Signed out of other sessions");
-    refetch();
-  };
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
@@ -41,15 +29,7 @@ function Security() {
           <h1 className="text-2xl font-bold tracking-tight">Security</h1>
           <p className="text-sm text-muted-foreground">Review recent sign-ins and manage active sessions.</p>
         </div>
-        <button
-          onClick={signOutOthers}
-          disabled={busy}
-          className="ms-auto inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:border-destructive hover:text-destructive disabled:opacity-50"
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />} Sign out other sessions
-        </button>
       </div>
-
       <div className="mt-8 overflow-hidden rounded-lg border bg-surface">
         <div className="border-b px-4 py-3 text-sm font-semibold">Recent sign-in activity</div>
         {isLoading ? (
