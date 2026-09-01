@@ -5,6 +5,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { decodeVinNHTSA, isLikelyVin } from "./vin.server";
+import fs from "fs/promises";
+import path from "path";
 import { models, sequelize, Op } from "@/lib/db/index.server";
 import { QueryTypes } from "sequelize";
 
@@ -89,7 +91,55 @@ export function buildAssistantTools(ctx: Ctx) {
           }
 
           await ctx.logEvent("part_search", { query, brand, count: results.length });
-          return { results, alternatives, query };
+          
+          let isStaff = false;
+          let assignedSalesmanId: string | null = null;
+          if (ctx.userId) {
+            const roleRow = await models.user_roles.findOne({ where: { user_id: ctx.userId } });
+            const role = roleRow ? roleRow.get("role") : "customer";
+            if (["super_admin", "admin", "salesman"].includes(role as string)) isStaff = true;
+            
+            const a = await models.customer_assignments.findOne({
+              attributes: ["salesman_id"],
+              where: { customer_id: ctx.userId },
+              order: [["assigned_at", "DESC"]]
+            });
+            if (a) assignedSalesmanId = a.get("salesman_id") as string;
+          }
+
+          const outOfStockParts = results.filter((p: any) => Number(p.stock ?? 0) <= 0);
+          
+          if (!isStaff && (results.length === 0 || outOfStockParts.length > 0)) {
+            try {
+              const prof = ctx.userId ? await models.profiles.findOne({ where: { id: ctx.userId } }) : null;
+              const p = prof ? prof.get({ plain: true }) : null;
+              await models.ai_leads.create({
+                thread_id: ctx.threadId,
+                user_id: ctx.userId,
+                name: p?.full_name ?? null,
+                phone: p?.phone ?? null,
+                email: null,
+                reason: `Out of Stock / Not Found Search: ${query}`,
+                status: "new",
+                assigned_salesman_id: assignedSalesmanId,
+                vehicle: {}
+              });
+            } catch (e) { console.error("Failed to log stock inquiry", e); }
+          }
+
+          let aiInstruction = "CRITICAL: The UI is already displaying these parts as rich cards! DO NOT list or describe these parts in your text response. Say a simple 1-sentence acknowledgement like 'Here are the options we found:' and STOP.";
+          if (!isStaff && results.length === 0) {
+            aiInstruction = "CRITICAL: No parts were found. The UI has rendered a 'Contact Salesman' block. DO NOT say the item is out of stock or not found. Simply say: 'I couldn't find that part, but you can use the buttons below to check with our team.'";
+          } else if (!isStaff && outOfStockParts.length > 0) {
+            aiInstruction = "CRITICAL: The parts found are OUT OF STOCK! The UI is rendering a 'Contact Salesman' block automatically. DO NOT list the part details and DO NOT say the item is out of stock. Simply say: 'This part requires a manual check. Please use the buttons below to contact our team.'";
+          }
+
+          return { 
+            _AI_INSTRUCTION_: aiInstruction,
+            results, 
+            alternatives, 
+            query 
+          };
         } catch (error: any) {
           return { error: error.message, results: [], alternatives: [], query };
         }
@@ -98,7 +148,7 @@ export function buildAssistantTools(ctx: Ctx) {
 
     decodeVin: tool({
       description:
-        "Decode a 17-character VIN to vehicle make / model / year / engine using the NHTSA database. Saves the vehicle on the conversation so later questions can use it automatically.",
+        "Decode a 17-character VIN to vehicle make / model / year / engine. Saves the vehicle on the conversation so later questions can use it automatically.",
       inputSchema: z.object({ vin: z.string().describe("17-character VIN") }),
       execute: async ({ vin }) => {
         if (!isLikelyVin(vin)) return { error: "Invalid VIN format (must be 17 chars, no I/O/Q)" };
@@ -202,7 +252,18 @@ export function buildAssistantTools(ctx: Ctx) {
               type: QueryTypes.SELECT
             }
           );
-          return { results };
+
+          let aiInstruction = "CRITICAL: The UI is already displaying these parts as rich cards! DO NOT list or describe these parts in your text response. Say a simple 1-sentence acknowledgement like 'Here are the options we found:' and STOP.";
+          if (results.length === 0) {
+            aiInstruction = "CRITICAL: No parts were found. You MUST inform the user that the part was not found, and explicitly offer them the option to contact a salesman or inquire via WhatsApp.";
+          } else if (results.every((p: any) => Number(p.stock ?? 0) <= 0)) {
+            aiInstruction = "CRITICAL: The parts found are OUT OF STOCK! The UI is displaying the cards, do NOT list the part details. You MUST briefly inform the user that it is out of stock, and explicitly offer them the option to contact a salesman or inquire via WhatsApp.";
+          }
+
+          return { 
+            _AI_INSTRUCTION_: aiInstruction,
+            results 
+          };
         } catch (error: any) {
           return { error: error.message, results: [] };
         }
@@ -299,7 +360,7 @@ export function buildAssistantTools(ctx: Ctx) {
     identifyPartFromImage: tool({
       description:
         "Identify a vehicle part shown in a photo. Provide the public URL of the image. Returns guessed part name and suggested catalog matches.",
-      inputSchema: z.object({ imageUrl: z.string().url(), hint: z.string().optional() }),
+      inputSchema: z.object({ imageUrl: z.string(), hint: z.string().optional() }),
       execute: async ({ imageUrl, hint }) => {
         const p = { content: "You are an automotive parts expert. Identify the car part in the image. Respond ONLY with strict JSON: {\"partName\": string, \"confidence\": number, \"category\": string, \"suggestedNumbers\": string[]}" };
         const out = await visionJson(p.content, imageUrl, hint);
@@ -325,7 +386,7 @@ export function buildAssistantTools(ctx: Ctx) {
 
     identifyWarningLight: tool({
       description: "Identify a dashboard warning / indicator light from a photo and explain severity + recommended action.",
-      inputSchema: z.object({ imageUrl: z.string().url() }),
+      inputSchema: z.object({ imageUrl: z.string() }),
       execute: async ({ imageUrl }) => {
         const p = { content: "You are an automotive technician. Identify the dashboard warning symbol. Respond ONLY with strict JSON: {\"name\": string, \"severity\": \"info\"|\"caution\"|\"critical\", \"description\": string, \"action\": string}" };
         const out = await visionJson(p.content, imageUrl);
@@ -336,14 +397,16 @@ export function buildAssistantTools(ctx: Ctx) {
     }),
 
     ocrVin: tool({
-      description: "Read a VIN string from a photo of a VIN plate, dashboard, windshield, or registration. Then decode it.",
-      inputSchema: z.object({ imageUrl: z.string().url() }),
+      description: "Read a VIN string from a photo of a VIN plate, dashboard, windshield, or registration. Then decode it using the carparts API.",
+      inputSchema: z.object({ imageUrl: z.string() }),
       execute: async ({ imageUrl }) => {
         const p = { content: "Extract the 17-character VIN from this image. Respond ONLY with strict JSON: {\"vin\": string}" };
         const out = await visionJson(p.content, imageUrl);
         const vin: string | undefined = out?.vin;
         if (!vin || !isLikelyVin(vin)) return { error: "No valid VIN detected", raw: out };
+
         const decoded = await decodeVinNHTSA(vin);
+
         if (decoded && ctx.threadId) {
           await models.ai_chat_threads.update(
             { vehicle_context: decoded },
@@ -632,8 +695,63 @@ export function buildAssistantTools(ctx: Ctx) {
 async function visionJson(systemPrompt: string, imageUrl: string, hint?: string): Promise<any> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return null;
+  let finalImageUrl = imageUrl;
+  if (imageUrl.startsWith("/uploads/")) {
+    try {
+      let filePath = path.join(process.cwd(), "public", imageUrl);
+      let buffer: Buffer | null = null;
+      try {
+        buffer = await fs.readFile(filePath);
+      } catch {
+        // Fallback: search public/uploads recursively for matching file/token
+        const base = path.basename(imageUrl);
+        const searchSuffix = base.split(/[-_]/).pop() || base;
+        const findMatching = async (dir: string): Promise<string | null> => {
+          const entries = await fs.readdir(dir, { withFileTypes: true });
+          for (const e of entries) {
+            const full = path.join(dir, e.name);
+            if (e.isDirectory()) {
+              const sub = await findMatching(full);
+              if (sub) return sub;
+            } else if (e.isFile()) {
+              if (e.name === base || e.name.includes(searchSuffix) || base.includes(e.name)) {
+                return full;
+              }
+            }
+          }
+          return null;
+        };
+        const uploadsRoot = path.join(process.cwd(), "public", "uploads");
+        const matched = await findMatching(uploadsRoot);
+        if (matched) {
+          filePath = matched;
+          buffer = await fs.readFile(filePath);
+        } else {
+          // If still not found, just grab the most recent file in public/uploads
+          const entries = await fs.readdir(uploadsRoot, { withFileTypes: true });
+          const files = entries.filter((e) => e.isFile()).map((e) => path.join(uploadsRoot, e.name));
+          if (files.length > 0) {
+            filePath = files[files.length - 1];
+            buffer = await fs.readFile(filePath);
+          } else {
+            throw new Error(`File not found: ${imageUrl}`);
+          }
+        }
+      }
+      const ext = path.extname(filePath).toLowerCase();
+      let mimeType = "image/jpeg";
+      if (ext === ".png") mimeType = "image/png";
+      else if (ext === ".webp") mimeType = "image/webp";
+      else if (ext === ".gif") mimeType = "image/gif";
+      finalImageUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
+    } catch (err) {
+      console.error("Failed to read local image:", err);
+      return null;
+    }
+  }
+
   const body = {
-    model: "gpt-4o-mini",
+    model: "gpt-4.1-mini",
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: systemPrompt },
@@ -641,7 +759,7 @@ async function visionJson(systemPrompt: string, imageUrl: string, hint?: string)
         role: "user",
         content: [
           ...(hint ? [{ type: "text", text: hint }] : [{ type: "text", text: "Analyze this image." }]),
-          { type: "image_url", image_url: { url: imageUrl } },
+          { type: "image_url", image_url: { url: finalImageUrl } },
         ],
       },
     ],

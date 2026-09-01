@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
+
 import {
   convertToModelMessages,
   streamText,
@@ -33,17 +33,7 @@ async function authUser(request: Request) {
     } catch { }
   }
 
-  // 2. Try Supabase auth token
-  try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    if (supabaseAdmin) {
-      const { data, error } = await supabaseAdmin.auth.getUser(token);
-      if (data?.user?.id) return data.user.id;
-      if (error) console.error("[authUser] Supabase token error:", error);
-    }
-  } catch (e) {
-    console.error("[authUser] Supabase client import error:", e);
-  }
+
 
   // 3. Fallback for non-empty token string
   if (token && token.length > 10) return "authenticated-user";
@@ -109,6 +99,9 @@ async function buildSystem(
   const sections: string[] = [
     p.content.replace("{{vehicle}}", vehBlock).replace("{{profile}}", profBlock),
     CONTEXT_MEMORY_RULES,
+    "CRITICAL UI RULE: NEVER list part details (part number, price, brand) in your text response! The UI will render rich cards automatically. Your text response must be a single short sentence like 'Here are the options we found:' without any bullet points or lists.",
+    "CRITICAL IMAGE RULE: If the user uploads an image of a vehicle registration document, a VIN plate, or any document, you MUST use the `ocrVin` tool FIRST to extract and decode the VIN. Do NOT use `identifyPartFromImage` for documents!",
+    "CRITICAL CATALOG LINK RULE: If you provide a direct link to a VIN parts catalog, ALWAYS format it as `/vin/{Brand}/{ModelNumber}?modelName={ModelName}` (for example: `/vin/BMW/FR71?modelName=535i`), using the dynamic modelNumber/code (e.g. FR71) rather than the model name in the path."
   ];
   if (p.aliasesText?.trim()) sections.push(`\n--- PARTS ALIASES (normalize user phrasing) ---\n${p.aliasesText.trim()}`);
   if (p.clarificationRulesText?.trim()) sections.push(`\n--- CLARIFICATION RULES (ask before searching when ambiguous) ---\n${p.clarificationRulesText.trim()}`);
@@ -121,6 +114,21 @@ async function buildSystem(
 export const Route = createFileRoute("/api/ai/chat")({
   server: {
     handlers: {
+      GET: async ({ request }) => {
+        const userId = await authUser(request);
+        const url = new URL(request.url);
+        const threadId = url.searchParams.get("threadId");
+        if (!threadId) return new Response("missing threadId", { status: 400 });
+
+        const messages = await models.ai_chat_messages.findAll({
+          where: { thread_id: threadId },
+          order: [["created_at", "ASC"]],
+          attributes: ["id", "role", "text", "parts", "created_at"],
+          raw: true,
+        });
+
+        return Response.json(messages);
+      },
       POST: async ({ request }) => {
         const body = (await request.json()) as ChatBody;
         const messages = body.messages ?? [];
@@ -194,17 +202,10 @@ export const Route = createFileRoute("/api/ai/chat")({
           });
           const prof = profRow ? profRow.get({ plain: true }) : null;
 
-          let email = null;
-          try {
-            const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-            const { data: u } = await supabaseAdmin.auth.admin.getUserById(userId);
-            email = u?.user?.email ?? null;
-          } catch { }
-
           profile = {
             name: prof?.full_name ?? null,
             phone: prof?.phone ?? null,
-            email,
+            email: null,
           };
         } catch { /* non-fatal */ }
 

@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import type { Database } from "@/integrations/supabase/types";
+import { models } from "@/lib/db/index.server";
 import { verifyChatbotKey } from "@/lib/chatbot-auth.server";
 
 const PayloadSchema = z.object({
@@ -33,23 +32,17 @@ export const Route = createFileRoute("/api/public/analytics/events")({
         }
         const p = parsed.data;
 
-        const supabase = createClient<Database>(
-          process.env.SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!,
-          { auth: { persistSession: false, autoRefreshToken: false } },
-        );
-
-        const { error } = await supabase.from("wa_analytics_events").insert({
-          whatsapp_user_id: p.whatsapp_user_id,
-          event_type: p.event_type,
-          event_data: p.event_data as never,
-          occurred_at: p.timestamp ?? new Date().toISOString(),
-        } as never);
-
-        if (error) {
+        try {
+          await models.wa_analytics_events.create({
+            whatsapp_user_id: p.whatsapp_user_id,
+            event_type: p.event_type,
+            event_data: p.event_data as any,
+            occurred_at: p.timestamp ? new Date(p.timestamp) : new Date(),
+          });
+          return Response.json({ success: true }, { status: 201 });
+        } catch (error: any) {
           return Response.json({ success: false, error: error.message }, { status: 500 });
         }
-        return Response.json({ success: true }, { status: 201 });
       },
     },
   },

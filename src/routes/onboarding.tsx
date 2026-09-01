@@ -4,23 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 import { Eye, EyeOff, Loader2, Lock, UserCircle } from "lucide-react";
 import { toast } from "sonner";
 import { PasswordStrength, scorePassword } from "@/components/password-strength";
-import { supabase } from "@/integrations/supabase/client";
 import { checkProfileComplete } from "@/lib/onboarding";
 import { completeOnboarding } from "@/lib/security.functions";
 
 export const Route = createFileRoute("/onboarding")({
   ssr: false,
   beforeLoad: async () => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) throw redirect({ to: "/auth/login", search: { redirect: "/onboarding" } });
-    return { user: data.user };
+    // handled inside component to use localStorage
+    return {};
   },
   head: () => ({ meta: [{ title: "Complete your profile — Car Parts Dubai" }] }),
   component: Onboarding,
 });
 
 function Onboarding() {
-  const { user } = Route.useRouteContext();
   const navigate = useNavigate();
   const submit = useServerFn(completeOnboarding);
   const [checking, setChecking] = useState(true);
@@ -35,13 +32,27 @@ function Onboarding() {
 
   useEffect(() => {
     let cancelled = false;
-    checkProfileComplete(user.id).then((complete) => {
-      if (cancelled) return;
-      if (complete) navigate({ to: "/", replace: true });
-      else setChecking(false);
+    const token = localStorage.getItem("jwt_token");
+    if (!token) {
+      navigate({ to: "/auth/login", search: { redirect: "/onboarding" } });
+      return;
+    }
+    
+    // We parse token just to get userId, but since checkProfileComplete requires user id,
+    // actually checkProfileComplete uses the serverFn which uses the auth middleware, 
+    // we don't need to pass user.id! Wait, checkProfileComplete(user.id) ? 
+    // Let's modify onboarding.tsx to call needsOnboarding instead.
+    
+    import("@/lib/security.functions").then(m => {
+      m.needsOnboarding().then((res) => {
+        if (cancelled) return;
+        if (!res.needs) navigate({ to: "/", replace: true });
+        else setChecking(false);
+      });
     });
+    
     return () => { cancelled = true; };
-  }, [navigate, user.id]);
+  }, [navigate]);
 
   const roleOptions = [
     { value: "IND" as const, title: "Individual Customer", desc: "Personal vehicle owners — retail pricing." },
@@ -65,14 +76,13 @@ function Onboarding() {
     if (!formValid) return toast.error("Please complete all required fields");
     setBusy(true);
     try {
-      const { error: pwErr } = await supabase.auth.updateUser({ password: pw });
-      if (pwErr) throw new Error(pwErr.message);
       await submit({
         data: {
           full_name: name.trim(),
           customer_type: type,
           phone: phone.trim() || null,
           company_name: requiresCompany ? company.trim() : null,
+          password: pw,
         },
       });
       toast.success("Welcome aboard!");

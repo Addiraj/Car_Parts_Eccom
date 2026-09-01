@@ -1,7 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { User, ShoppingCart, Heart, Wrench, LogOut, Package, MapPin, Wallet, ShieldCheck } from "lucide-react";
 import { useI18n } from "@/lib/i18n";

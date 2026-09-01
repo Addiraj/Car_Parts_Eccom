@@ -8,13 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, SearchX, UserCheck } from "lucide-react";
 
-export const Route = createFileRoute("/_authenticated/salesman/ai-leads")({
-  component: AiLeadsPage,
+export const Route = createFileRoute("/_authenticated/salesman/inquiries")({
+  component: InquiriesPage,
 });
 
-function AiLeadsPage() {
+function InquiriesPage() {
   const list = useServerFn(salesmanListAiLeads);
   const update = useServerFn(updateAiLead);
   const qc = useQueryClient();
@@ -27,29 +27,35 @@ function AiLeadsPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">My AI Leads</h1>
+      <h1 className="text-2xl font-bold mb-4">Inquiries & AI Leads</h1>
       <Card>
-        <CardHeader><CardTitle className="text-base">{leads.data?.length ?? 0} leads</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{leads.data?.length ?? 0} inquiries</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {(leads.data ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No leads yet.</p> : null}
-          {(leads.data ?? []).map((l: any) => (
-            <div key={l.id} className="rounded border p-3 text-sm flex flex-wrap gap-3">
-              <div className="flex-1 min-w-[200px]">
-                <div className="font-medium">{l.name || "Unnamed"} <Badge variant="secondary" className="ml-2">{l.status}</Badge></div>
-                <div className="text-xs text-muted-foreground">{l.phone || l.email || "no contact"} · {format(new Date(l.created_at), "PP p")}</div>
-                <div className="mt-1">{l.reason}</div>
+          {(leads.data ?? []).map((l: any) => {
+            const isStockInquiry = l.status === "stock_inquiry" || l.reason?.toLowerCase().includes("out of stock");
+            return (
+              <div key={l.id} className={`rounded border p-3 text-sm flex flex-wrap gap-3 ${isStockInquiry ? "bg-red-50/50 border-red-100" : ""}`}>
+                <div className="flex-shrink-0 pt-1">
+                  {isStockInquiry ? <SearchX className="h-5 w-5 text-red-500" /> : <UserCheck className="h-5 w-5 text-blue-500" />}
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <div className="font-medium">{l.name || "Unnamed Customer"} <Badge variant={isStockInquiry ? "destructive" : "secondary"} className="ml-2">{isStockInquiry ? "Stock Inquiry" : l.status}</Badge></div>
+                  <div className="text-xs text-muted-foreground">{l.phone || l.email || "no contact"} · {format(new Date(l.created_at), "PP p")}</div>
+                  <div className="mt-1 font-semibold text-slate-800">{l.reason}</div>
+                </div>
+                <div className="flex gap-1 items-start">
+                  {l.thread_id && (
+                    <Button size="sm" variant="outline" onClick={() => setViewThread(l.thread_id)}>
+                      <MessageCircle className="h-4 w-4 mr-1" /> View chat
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => m.mutate({ id: l.id, status: "contacted" })}>Mark contacted</Button>
+                  <Button size="sm" onClick={() => m.mutate({ id: l.id, status: "closed" })}>Close</Button>
+                </div>
               </div>
-              <div className="flex gap-1 items-start">
-                {l.thread_id && (
-                  <Button size="sm" variant="outline" onClick={() => setViewThread(l.thread_id)}>
-                    <MessageCircle className="h-4 w-4 mr-1" /> View chat
-                  </Button>
-                )}
-                <Button size="sm" variant="outline" onClick={() => m.mutate({ id: l.id, status: "contacted" })}>Mark contacted</Button>
-                <Button size="sm" onClick={() => m.mutate({ id: l.id, status: "closed" })}>Close</Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 

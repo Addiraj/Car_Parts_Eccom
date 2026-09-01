@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
+import { models } from "@/lib/db/index.server";
 
 export const Route = createFileRoute("/api/public/quotations/$token/print")({
   server: {
@@ -11,24 +10,18 @@ export const Route = createFileRoute("/api/public/quotations/$token/print")({
         const url = new URL(request.url);
         const auto = url.searchParams.get("auto") === "1";
 
-        const supabase = createClient<Database>(
-          process.env.SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!,
-          { auth: { persistSession: false, autoRefreshToken: false } },
-        );
-
-        const { data: quote } = await supabase
-          .from("quotations")
-          .select("*")
-          .eq("share_token", token)
-          .maybeSingle();
+        const quote = await models.quotations.findOne({
+          where: { share_token: token },
+          raw: true,
+        });
+        
         if (!quote) return new Response("Quotation not found", { status: 404 });
 
-        const { data: items } = await supabase
-          .from("quotation_items")
-          .select("*")
-          .eq("quotation_id", quote.id)
-          .order("created_at");
+        const items = await models.quotation_items.findAll({
+          where: { quotation_id: quote.id },
+          order: [["created_at", "ASC"]],
+          raw: true,
+        });
 
         const html = renderQuotationHtml(quote as any, (items ?? []) as any[], auto);
         return new Response(html, {

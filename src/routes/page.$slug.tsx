@@ -1,23 +1,16 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
+import { models } from "@/lib/db/index.server";
 
 const getPublishedPage = createServerFn({ method: "POST" })
   .validator((d: { slug: string }) => d)
   .handler(async ({ data }) => {
-    const supabase = createClient<Database>(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_PUBLISHABLE_KEY!,
-      { auth: { storage: undefined, persistSession: false, autoRefreshToken: false } },
-    );
-    const { data: row } = await supabase
-      .from("cms_pages")
-      .select("slug, title, body_html, meta_title, meta_description, published_at")
-      .eq("slug", data.slug)
-      .eq("is_published", true)
-      .maybeSingle();
-    return row;
+    const row = await models.cms_pages.findOne({
+      where: { slug: data.slug, is_published: true },
+      attributes: ["slug", "title", "body_html", "meta_title", "meta_description", "published_at"],
+      raw: true,
+    });
+    return row as any;
   });
 
 export const Route = createFileRoute("/page/$slug")({

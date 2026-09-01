@@ -30,7 +30,7 @@ const nav = [
   { to: "/salesman/followups", labelKey: "salesman.followups", icon: Calendar },
   { to: "/salesman/quotations", labelKey: "salesman.quotations", icon: FileText },
   { to: "/salesman/orders", labelKey: "salesman.orders", icon: ShoppingBag },
-  { to: "/salesman/ai-leads", labelKey: "salesman.aiLeads", icon: Bot },
+  { to: "/salesman/inquiries", labelKey: "salesman.aiLeads", icon: Bot },
   { to: "/salesman/conversations", labelKey: "salesman.aiConversations", icon: MessageCircle },
 ];
 

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { salesmanGetCustomer, salesmanCustomerActivity } from "@/lib/admin.salesmen.functions";
 import { salesmanListCustomerAiThreads, salesmanGetAiThreadMessages } from "@/lib/ai-chat.functions";
 import { listCustomerNotes, createCustomerNote, listFollowups, createFollowup, completeFollowup } from "@/lib/customer-crm.functions";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { ArrowLeft, Activity, MessageCircle, StickyNote, CalendarClock, Bot, ChevronRight, ChevronDown } from "lucide-react";
@@ -43,18 +42,7 @@ function CustomerDetail() {
     queryFn: () => listFollowups({ data: { customer_id: id } }),
   });
 
-  // Realtime: refetch activity on new inserts for this customer
-  useEffect(() => {
-    const ch = supabase
-      .channel(`customer-activity-${id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "customer_activities", filter: `customer_id=eq.${id}` },
-        () => qc.invalidateQueries({ queryKey: ["sm-customer-activity", id] }),
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [id, qc]);
+  // Realtime removed: using polling via refetchInterval already defined on the query.
 
   const c: any = customer.data ?? {};
   const acts: any[] = (activity.data as any) ?? [];

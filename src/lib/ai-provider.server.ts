@@ -14,7 +14,7 @@ export const OPENAI_BASE_URL = "https://api.openai.com/v1";
 /** Default model ids used across the app. */
 export const AI_MODELS = {
   chat: "gpt-4o-mini",
-  vision: "gpt-4o-mini",
+  vision: "gpt-4.1-mini",
   tts: "gpt-4o-mini-tts",
   transcribe: "gpt-4o-mini-transcribe",
 } as const;

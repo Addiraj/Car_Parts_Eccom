@@ -10,10 +10,18 @@ import {
   PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit, PromptInputTools, PromptInputButton,
 } from "@/components/ai-elements/prompt-input";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import { X, Mic, Square, Volume2, VolumeX, History, Video, MessageSquarePlus, Trash2 } from "lucide-react";
+import { X, Mic, Square, Volume2, VolumeX, History, Video, MessageSquarePlus, Trash2, ImagePlus, Camera, FileUp, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
+import Papa from "papaparse";
+import * as pdfjsLib from "pdfjs-dist";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString();
 import { AvatarSimli, type AvatarSimliHandle } from "./avatar-simli";
 import { useVoice } from "./use-voice";
 import { ToolPartView, AvatarActionContext } from "./tool-cards";
@@ -288,6 +296,10 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
   }, [status, messages, voiceOn, voice]);
 
   const [input, setInput] = React.useState("");
+  const [uploading, setUploading] = React.useState(false);
+  const imageRef = React.useRef<HTMLInputElement>(null);
+  const cameraRef = React.useRef<HTMLInputElement>(null);
+  const docRef = React.useRef<HTMLInputElement>(null);
 
   const ensureSignedIn = async () => {
     const { data } = await supabase.auth.getSession();
@@ -308,6 +320,133 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
     skipNextSpeakRef.current = false;
     sendMessage({ text: `${text}\n\n(${LANG_INSTRUCTION[lang]})` });
 
+  };
+
+  const parseExcelOrCsv = async (file: File) => {
+    return new Promise<any[]>((resolve, reject) => {
+      if (file.name.match(/\.csv$/i) || file.type === "text/csv") {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => resolve(results.data),
+          error: (err) => reject(err),
+        });
+      } else {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = e.target?.result;
+            const wb = XLSX.read(data, { type: "array" });
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(sheet);
+            resolve(json);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = (err) => reject(err);
+        reader.readAsArrayBuffer(file);
+      }
+    });
+  };
+
+  const renderPdfToImages = async (file: File): Promise<File[]> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const numPages = Math.min(pdf.numPages, 4);
+    const imageFiles: File[] = [];
+
+    for (let i = 1; i <= numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) continue;
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+      if (blob) {
+        imageFiles.push(new File([blob], `${file.name.replace(/\.pdf$/i, "")}_page_${i}.jpg`, { type: "image/jpeg" }));
+      }
+    }
+    return imageFiles;
+  };
+
+  const handleUpload = async (file: File) => {
+    if (!(await ensureSignedIn())) return;
+    
+    let filesToUpload: File[] = [file];
+    let isDataExtraction = false;
+    let dataExtractionJson = "";
+
+    if (file.name.match(/\.(csv|xlsx|xls)$/i) || file.type === "text/csv") {
+      try {
+        const data = await parseExcelOrCsv(file);
+        if (data.length > 50) {
+          toast.error("Limit of 50 rows exceeded.");
+          return;
+        }
+        isDataExtraction = true;
+        dataExtractionJson = JSON.stringify(data).slice(0, 3000); // safety cap
+      } catch (e) {
+        toast.error("Failed to parse document");
+        return;
+      }
+    } else if (file.name.match(/\.pdf$/i) || file.type === "application/pdf") {
+      try {
+        setUploading(true);
+        toast.info("Processing PDF...");
+        filesToUpload = await renderPdfToImages(file);
+      } catch (e) {
+        toast.error("Failed to process PDF pages");
+        setUploading(false);
+        return;
+      }
+    }
+
+    setUploading(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token || (typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null);
+      
+      const urls: string[] = [];
+      for (const f of filesToUpload) {
+        const fd = new FormData();
+        fd.append("file", f);
+        const res = await fetch("/api/ai/upload", {
+          method: "POST",
+          body: fd,
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const { url } = await res.json();
+        if (!url) throw new Error("No URL returned");
+        urls.push(url);
+      }
+
+      const isImage = filesToUpload.every(f => f.type.startsWith("image/"));
+      let promptText = "";
+
+      if (isDataExtraction) {
+        promptText = `I have uploaded a document. URL: ${urls[0]}\n\nHere is the extracted data:\n${dataExtractionJson}\n\nPlease identify any part numbers in this data and fetch their details using searchPartsByNumber. Do NOT list the parts in your text response; the UI will display them automatically as cards.\n\n(${LANG_INSTRUCTION[lang]})`;
+      } else if (isImage) {
+        promptText = `I'm sharing image(s). URLs:\n${urls.join("\n")}\n\nPlease analyze them. If the image contains a 17-character VIN (like on a vehicle registration document or VIN plate), you MUST use the 'ocrVin' tool to extract and decode it first. If it is a car part, use 'identifyPartFromImage'. If it is a dashboard light, use 'identifyWarningLight'.\nCRITICAL: When calling a tool, you MUST pass the EXACT URL string provided above without any modifications.\n\n(${LANG_INSTRUCTION[lang]})`;
+      } else {
+        promptText = `I'm sharing a document. URL: ${urls[0]}\n\nPlease analyze this document for relevant part information.\n\n(${LANG_INSTRUCTION[lang]})`;
+      }
+
+      voice.cancel();
+      try { simliRef.current?.stopSpeaking(); } catch { /* noop */ }
+      userRequestedSpeechRef.current = true;
+      skipNextSpeakRef.current = false;
+      sendMessage({ text: promptText });
+    } catch (e: any) {
+      toast.error(e.message ?? "Upload failed");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleMic = async () => {
@@ -566,9 +705,35 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
                         <MessageContent>
                           {(m.parts ?? []).map((part: any, i: number) => {
                             if (part.type === "text") {
-                              return m.role === "assistant"
-                                ? <MessageResponse key={i}>{part.text}</MessageResponse>
-                                : <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
+                              if (m.role === "assistant") {
+                                return <MessageResponse key={i}>{part.text}</MessageResponse>;
+                              }
+                              // Hide internal image/document prompts from user bubble
+                              const text: string = part.text ?? "";
+                              if (
+                                text.startsWith("I'm sharing image(s)") ||
+                                text.startsWith("I have uploaded a document") ||
+                                text.startsWith("I'm sharing a document")
+                              ) {
+                                // Extract URLs for preview
+                                const urlMatch = text.match(/\/uploads\/[^\s\n]+/g) ?? [];
+                                return (
+                                  <span key={i} className="flex flex-wrap gap-1.5">
+                                    {urlMatch.length > 0 ? urlMatch.map((u, ui) => (
+                                      <span key={ui} className="inline-flex items-center gap-1 rounded-md bg-blue-100 border border-blue-200 px-2 py-1 text-[11px] text-blue-700">
+                                        <span>📷</span>
+                                        <span>Image shared</span>
+                                      </span>
+                                    )) : (
+                                      <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 border border-slate-200 px-2 py-1 text-[11px] text-slate-600">
+                                        <span>📄</span>
+                                        <span>Document shared</span>
+                                      </span>
+                                    )}
+                                  </span>
+                                );
+                              }
+                              return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
                             }
                             if (typeof part.type === "string" && part.type.startsWith("tool-")) {
                               return <ToolPartView key={`part-${i}`} part={part} />;
@@ -595,6 +760,10 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
           </Conversation>
         </AvatarActionContext.Provider>
 
+        <input ref={imageRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }} />
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }} />
+        <input ref={docRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }} />
+
         <PromptInput onSubmit={handleSend} className="border-t border-slate-200 bg-white">
           <PromptInputTextarea
             value={input}
@@ -604,6 +773,18 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
           />
           <PromptInputFooter>
             <PromptInputTools>
+              <PromptInputButton type="button" onClick={() => imageRef.current?.click()} disabled={uploading}>
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                <span className="sr-only">Upload image</span>
+              </PromptInputButton>
+              <PromptInputButton type="button" onClick={() => cameraRef.current?.click()} disabled={uploading}>
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                <span className="sr-only">Take photo</span>
+              </PromptInputButton>
+              <PromptInputButton type="button" onClick={() => docRef.current?.click()} disabled={uploading}>
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+                <span className="sr-only">Upload document</span>
+              </PromptInputButton>
               <PromptInputButton
                 type="button"
                 onClick={handleMic}
