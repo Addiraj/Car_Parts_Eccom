@@ -445,6 +445,20 @@ export const getMyWishlistIds = createServerFn({ method: "GET" })
     return items.map(i => i.part_id);
   });
 
+export const getMyWishlistPns = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const items = await models.wishlist_items.findAll({
+      where: { user_id: context.userId },
+      include: [{
+        model: models.parts,
+        as: 'part',
+        attributes: ["id", "part_number"]
+      }]
+    });
+    return items.map(i => (i as any).part?.part_number).filter(Boolean) as string[];
+  });
+
 export const getMyWishlist = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -616,3 +630,41 @@ export const requestPartSalesman = createServerFn({ method: "POST" })
 
     return { ok: true };
   });
+
+export const requestCartSalesman = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const items = await models.cart_items.findAll({
+      where: { user_id: context.userId },
+      include: [{
+        model: models.parts,
+        as: 'part',
+        attributes: ["id", "part_number", "name", "price", "manufacturer"]
+      }]
+    });
+
+    if (!items || items.length === 0) {
+      throw new Error("Your cart is empty");
+    }
+
+    const assign = await models.customer_assignments.findOne({ where: { customer_id: context.userId } });
+    const salesmanId = assign?.salesman_id ?? null;
+
+    const cartSummaryLines = items.map((i: any) => {
+      const p = i.part;
+      return `• ${p?.name || "Part"} (REF OE:${p?.part_number || "N/A"} · ${String(p?.manufacturer || "GLOBAL").toUpperCase()}) x${i.quantity}`;
+    });
+
+    await models.admin_notifications.create({
+      type: "lead",
+      title: `Cart Quote Request (${items.length} items)`,
+      body: `Customer requested a quote for their cart:\n${cartSummaryLines.join("\n")}`,
+      entity_type: "cart_request",
+      entity_id: context.userId,
+      salesman_id: salesmanId,
+      metadata: { customer_id: context.userId, item_count: items.length },
+    });
+
+    return { ok: true, itemCount: items.length, summary: cartSummaryLines.join("\n") };
+  });
+

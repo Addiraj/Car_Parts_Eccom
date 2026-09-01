@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getMyCart, updateCartQty, removeFromCart, getStaffTierPrices, type StaffTier } from "@/lib/account.functions";
+import { getMyCart, updateCartQty, removeFromCart, getStaffTierPrices, requestCartSalesman, type StaffTier } from "@/lib/account.functions";
 import { getActiveOffersForParts, computeOfferPrice } from "@/lib/offers.functions";
 import { formatAED } from "@/lib/format";
 import { toast } from "sonner";
-import { ShoppingCart, Trash2, LogIn, Tag } from "lucide-react";
+import { ShoppingCart, Trash2, LogIn, Tag, Headset, Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -26,12 +26,30 @@ function CartPage() {
   const isAdmin = useIsAdmin();
   const isSalesman = useIsSalesman();
   const isStaff = isAdmin || isSalesman;
+  const [requested, setRequested] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["cart"],
     queryFn: () => getMyCart(),
     enabled: !!user,
   });
+
+  const cartSalesmanMut = useMutation({
+    mutationFn: () => requestCartSalesman(),
+    onSuccess: () => {
+      setRequested(true);
+      toast.success("Quote request sent! Your assigned salesman will contact you shortly.");
+
+      const summary = lines.map((l: any) =>
+        `• ${l.part?.name || "Part"} (REF OE:${l.part?.part_number || "N/A"} · ${String(l.part?.manufacturer || "GLOBAL").toUpperCase()}) x${l.quantity}`
+      ).join("\n");
+
+      const waText = encodeURIComponent(`Hi, I'd like to get a quote for the items in my cart:\n${summary}`);
+      window.open(`https://wa.me/971547516365?text=${waText}`, "_blank");
+    },
+    onError: (e: any) => toast.error(e?.message || "Failed to submit quote request"),
+  });
+
   const partIds = useMemo(() => items.map((i: any) => i.part?.id).filter(Boolean) as string[], [items]);
 
   const { data: staffPricing } = useQuery({
@@ -110,7 +128,13 @@ function CartPage() {
             {lines.map((it: any) => (
               <li key={it.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
                 <div className="flex-1 min-w-0">
-                  <div className="font-mono text-[10px] text-muted-foreground">{it.part?.part_number}</div>
+                  <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground flex-wrap mb-1">
+                    <span className="font-semibold text-foreground dark:text-slate-200">REF OE:{it.part?.part_number}</span>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span className="font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 border border-blue-200/60 dark:border-blue-800/60 px-2 py-0.5 rounded text-[10px] uppercase tracking-wide">
+                      {String(it.part?.manufacturer || "GLOBAL").toUpperCase()}
+                    </span>
+                  </div>
                   <Link to="/parts/$id" params={{ id: it.part.id }} className="block truncate text-sm font-medium hover:text-primary">{it.part?.name}</Link>
                   {it.offer && (
                     <div className="mt-1 inline-flex items-center gap-1 rounded bg-destructive/15 px-1.5 py-0.5 text-[10px] font-bold text-destructive">
@@ -183,14 +207,37 @@ function CartPage() {
             <div className="mt-4 flex justify-between border-t pt-3 text-lg font-bold">
               <span>{t("total")}</span><span className="font-mono text-primary">{formatAED(finalTotal)}</span>
             </div>
-            <Link
-              to="/checkout"
-              search={isStaff ? { tier } : undefined as any}
-              className="mt-4 block w-full rounded-md bg-primary py-3 text-center text-sm font-semibold text-primary-foreground hover:opacity-90"
-            >
-              {t("proceedToCheckout")}
-            </Link>
-            <p className="mt-2 text-center text-[10px] text-muted-foreground">{t("codOrQuote")}</p>
+            {isStaff ? (
+              <Link
+                to="/checkout"
+                search={{ tier }}
+                className="mt-4 block w-full rounded-md bg-primary py-3 text-center text-sm font-semibold text-primary-foreground hover:opacity-90"
+              >
+                {t("proceedToCheckout")}
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => cartSalesmanMut.mutate()}
+                disabled={cartSalesmanMut.isPending || requested}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-[#2563eb] hover:bg-blue-700 py-3 text-center text-sm font-semibold text-white shadow-md transition-all disabled:opacity-60"
+              >
+                {requested ? (
+                  <>
+                    <Check className="h-4 w-4 text-emerald-400" />
+                    Request sent to salesman
+                  </>
+                ) : (
+                  <>
+                    <Headset className="h-4 w-4" />
+                    Contact salesman
+                  </>
+                )}
+              </button>
+            )}
+            <p className="mt-2 text-center text-[10px] text-muted-foreground">
+              {isStaff ? t("codOrQuote") : "Request quote & order directly from your assigned salesman"}
+            </p>
           </aside>
         </div>
       )}

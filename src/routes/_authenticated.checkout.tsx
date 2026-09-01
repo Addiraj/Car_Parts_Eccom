@@ -32,6 +32,14 @@ function CheckoutPage() {
   const isStaff = isAdmin || isSalesman;
   const tier: StaffTier | undefined = isStaff ? (tierParam ?? "ind") : undefined;
 
+  // Redirect regular customers back to cart page as payment methods & direct checkout are hidden for non-staff
+  useEffect(() => {
+    if (!isStaff) {
+      toast.info("Direct checkout is restricted. Please contact your assigned salesman from your cart.");
+      navigate({ to: "/cart" });
+    }
+  }, [isStaff, navigate]);
+
   const { data: items = [] } = useQuery({ queryKey: ["cart"], queryFn: () => getMyCart() });
   const { data: addresses = [] } = useQuery({ queryKey: ["addresses"], queryFn: () => getMyAddresses() });
   const { data: zones = [] } = useQuery({ queryKey: ["shipping_zones"], queryFn: () => getShippingZones() });
@@ -303,7 +311,15 @@ function CheckoutPage() {
           <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto text-xs">
             {items.map((it: any) => (
               <li key={it.id} className="flex justify-between gap-2">
-                <span className="truncate"><span className="font-mono text-muted-foreground">{it.quantity}× </span>{it.part?.name}</span>
+                <span className="truncate">
+                  <span className="font-mono text-muted-foreground">{it.quantity}× </span>
+                  {it.part?.name}
+                  {it.part?.manufacturer && (
+                    <span className="ml-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase">
+                      ({String(it.part.manufacturer).toUpperCase()})
+                    </span>
+                  )}
+                </span>
                 <span className="font-mono">{formatAED(unitFor(it) * it.quantity)}</span>
               </li>
             ))}
