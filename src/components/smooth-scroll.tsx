@@ -19,7 +19,7 @@ export function SmoothScroll() {
     raf = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(raf);
-      lenis.destroy();
+      if (lenis?.destroy) lenis.destroy();
     };
   }, []);
   return null;

@@ -272,7 +272,7 @@ export const adminDeleteAllParts = createServerFn({ method: "POST" })
     await models.stock_levels.destroy({ where: {} }).catch(() => {});
     await models.stock_movements.destroy({ where: {} }).catch(() => {});
     await models.cart_items.destroy({ where: {} }).catch(() => {});
-    await models.wishlists.destroy({ where: {} }).catch(() => {});
+    await models.wishlist_items.destroy({ where: {} }).catch(() => {});
 
     try {
       await models.parts.destroy({ where: {}, truncate: true, cascade: true });
