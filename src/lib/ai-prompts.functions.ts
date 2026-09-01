@@ -140,7 +140,7 @@ export const uploadPromptReference = createServerFn({ method: "POST" })
       if (lowerName.endsWith(".txt") || (data.contentType ?? "").startsWith("text/")) {
         extractedText = buf.toString("utf8");
       } else if (lowerName.endsWith(".pdf") || data.contentType === "application/pdf") {
-        const mod = (await import("pdf-parse")) as unknown as {
+        const mod = (await import(/* @vite-ignore */ "pdf-parse")) as unknown as {
           default?: (b: Buffer) => Promise<{ text: string }>;
           PDFParse?: new (opts: { data: Buffer }) => { getText: () => Promise<{ text: string }> };
         };

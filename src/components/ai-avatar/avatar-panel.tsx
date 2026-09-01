@@ -16,12 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
-import * as pdfjsLib from "pdfjs-dist";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
 import { AvatarSimli, type AvatarSimliHandle } from "./avatar-simli";
 import { useVoice } from "./use-voice";
 import { ToolPartView, AvatarActionContext } from "./tool-cards";
@@ -351,6 +346,12 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
   };
 
   const renderPdfToImages = async (file: File): Promise<File[]> => {
+    const pdfjsLib = await import("pdfjs-dist");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      "pdfjs-dist/build/pdf.worker.min.mjs",
+      import.meta.url
+    ).toString();
+
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     const numPages = Math.min(pdf.numPages, 4);
