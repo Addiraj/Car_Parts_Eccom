@@ -6,24 +6,28 @@ import { parseUA } from "@/lib/ua-parse";
 import { models } from "@/lib/db/index.server";
 import bcrypt from "bcryptjs";
 
-export async function verifyTurnstileToken(token: string) {
-  const secret = process.env.TURNSTILE_SECRET_KEY;
-  if (!secret) return true; // Fail open if no secret configured
-  if (!token) return false;
-
+export async function verifyRecaptchaToken(token: string) {
+  const secret = process.env.RECAPTCHA_SECRET_KEY;
+  if (!secret) {
+    console.warn("RECAPTCHA_SECRET_KEY not set. Skipping verification (unsafe).");
+    return true; // Bypass if not configured
+  }
   try {
-    const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+    const params = new URLSearchParams();
+    params.append('secret', secret);
+    params.append('response', token);
+
+    const res = await fetch("https://www.google.com/recaptcha/api/siteverify", {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        secret,
-        response: token,
-      }).toString(),
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params.toString(),
     });
     const data = await res.json();
-    return !!data.success;
+    return data.success === true;
   } catch (error) {
-    console.error("Turnstile verification failed:", error);
+    console.error("reCAPTCHA verification failed:", error);
     return false;
   }
 }

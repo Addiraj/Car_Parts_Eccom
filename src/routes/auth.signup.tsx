@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { useState, useEffect, useRef } from "react";
-import { Turnstile } from "@marsidev/react-turnstile";
+import ReCAPTCHA from "react-google-recaptcha";
 import { useServerFn } from "@tanstack/react-start";
 import { register, sendOtp } from "@/lib/auth.functions";
 import { useAuth } from "@/hooks/use-auth";
@@ -36,9 +36,9 @@ function Signup() {
   const [busy, setBusy] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
-  const [turnstileToken, setTurnstileToken] = useState("");
-  const turnstileRef = useRef<any>(null);
-  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
+  const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || "";
 
   const submitRegister = useServerFn(register);
   const triggerSendOtp = useServerFn(sendOtp);
@@ -57,19 +57,19 @@ function Signup() {
     if (!email || !fullName || !phone) {
       return toast.error("Please fill in all required fields including your phone number");
     }
-    if (!turnstileToken) {
+    if (!recaptchaToken) {
       return toast.error("Please complete the CAPTCHA");
     }
     setBusy(true);
     try {
-      await triggerSendOtp({ data: { email, turnstileToken } });
+      await triggerSendOtp({ data: { email, recaptchaToken } });
       setStep("otp");
       setCountdown(60);
       toast.success("OTP sent to your email");
     } catch (err: any) {
       toast.error(err.message || "Failed to send OTP");
-      turnstileRef.current?.reset();
-      setTurnstileToken("");
+      recaptchaRef.current?.reset();
+      setRecaptchaToken(null);
     } finally {
       setBusy(false);
     }
@@ -148,16 +148,16 @@ function Signup() {
                 </label>
 
                 <div className="flex justify-center my-4">
-                  <Turnstile 
-                    siteKey={turnstileSiteKey} 
-                    ref={turnstileRef}
-                    onSuccess={(token) => setTurnstileToken(token)}
-                    onError={() => setTurnstileToken("")}
-                    onExpire={() => setTurnstileToken("")}
+                  <ReCAPTCHA
+                    sitekey={recaptchaSiteKey}
+                    ref={recaptchaRef}
+                    onChange={(token) => setRecaptchaToken(token)}
+                    onErrored={() => setRecaptchaToken(null)}
+                    onExpired={() => setRecaptchaToken(null)}
                   />
                 </div>
 
-                <button disabled={busy || !turnstileToken} className="w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground flex justify-center items-center gap-2 disabled:opacity-50">
+                <button disabled={busy || !recaptchaToken} className="w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground flex justify-center items-center gap-2 disabled:opacity-50">
                   {busy && <Loader2 className="w-4 h-4 animate-spin" />}
                   Continue
                 </button>

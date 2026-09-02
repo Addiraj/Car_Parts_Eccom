@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { useState, useEffect, useRef } from "react";
-import { Turnstile } from "@marsidev/react-turnstile";
+import ReCAPTCHA from "react-google-recaptcha";
 import { useServerFn } from "@tanstack/react-start";
 import { login, sendOtp } from "@/lib/auth.functions";
 import { useAuth } from "@/hooks/use-auth";
@@ -37,9 +37,9 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
-  const [turnstileToken, setTurnstileToken] = useState("");
-  const turnstileRef = useRef<any>(null);
-  const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null);
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
+  const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || "";
 
   const navigate = useNavigate();
   const submitLogin = useServerFn(login);
@@ -67,19 +67,19 @@ function Login() {
     if (!email || !email.includes("@")) {
       return toast.error("Please enter a valid email address");
     }
-    if (!turnstileToken) {
+    if (!recaptchaToken) {
       return toast.error("Please complete the CAPTCHA");
     }
     setLoading(true);
     try {
-      await triggerSendOtp({ data: { email, turnstileToken } });
+      await triggerSendOtp({ data: { email, recaptchaToken } });
       setStep("otp");
       setCountdown(60);
       toast.success("OTP sent to your email");
     } catch (err: any) {
       toast.error(err.message || "Failed to send OTP");
-      turnstileRef.current?.reset();
-      setTurnstileToken("");
+      recaptchaRef.current?.reset();
+      setRecaptchaToken(null);
     } finally {
       setLoading(false);
     }
@@ -90,7 +90,7 @@ function Login() {
     setLoading(true);
     
     try {
-      const data: any = { email, turnstileToken };
+      const data: any = { email, recaptchaToken };
       if (isAdminEmail) data.password = password;
       else data.otp = otp;
 
@@ -116,8 +116,8 @@ function Login() {
 
     } catch (error: any) {
       toast.error(error.message || "Invalid credentials. Please try again.");
-      turnstileRef.current?.reset();
-      setTurnstileToken("");
+      recaptchaRef.current?.reset();
+      setRecaptchaToken(null);
     } finally {
       setLoading(false);
     }
@@ -156,16 +156,15 @@ function Login() {
                 )}
 
                 <div className="flex justify-center my-4">
-                  <Turnstile 
-                    siteKey={turnstileSiteKey} 
-                    ref={turnstileRef}
-                    onSuccess={(token) => setTurnstileToken(token)}
-                    onError={() => setTurnstileToken("")}
-                    onExpire={() => setTurnstileToken("")}
+                  <ReCAPTCHA
+                    sitekey={recaptchaSiteKey}
+                    ref={recaptchaRef}
+                    onChange={(token) => setRecaptchaToken(token)}
+                    onErrored={() => setRecaptchaToken(null)}
+                    onExpired={() => setRecaptchaToken(null)}
                   />
                 </div>
-
-                <button disabled={loading || !turnstileToken} className="w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground flex justify-center items-center gap-2 disabled:opacity-50">
+                <button disabled={loading || !recaptchaToken} className="w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-primary-foreground flex justify-center items-center gap-2 disabled:opacity-50">
                   {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                   {isAdminEmail ? t("signIn") : "Continue"}
                 </button>

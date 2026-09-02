@@ -14,6 +14,7 @@ import {
 } from "@/components/ai-elements/tool";
 import { Button } from "@/components/ui/button";
 import { Mic, ImagePlus, Camera, FileUp, Loader2, MessageSquarePlus, Trash2, PanelLeftOpen, PanelLeftClose } from "lucide-react";
+import { CameraModal } from "@/components/ui/camera-modal";
 import { QUICK_ACTIONS } from "./quick-actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -98,8 +99,8 @@ export function AssistantChat({
   const [input, setInput] = React.useState("");
   const [uploading, setUploading] = React.useState(false);
   const imageRef = React.useRef<HTMLInputElement>(null);
-  const cameraRef = React.useRef<HTMLInputElement>(null);
   const docRef = React.useRef<HTMLInputElement>(null);
+  const [cameraOpen, setCameraOpen] = React.useState(false);
   const isLoading = status === "submitted" || status === "streaming";
 
   const ensureThread = async (): Promise<string | null> => {
@@ -492,17 +493,10 @@ export function AssistantChat({
             e.target.value = "";
           }}
         />
-        <input
-          ref={cameraRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) handleUpload(f);
-            e.target.value = "";
-          }}
+        <CameraModal
+          open={cameraOpen}
+          onClose={() => setCameraOpen(false)}
+          onCapture={(file) => handleUpload(file)}
         />
         <input
           ref={docRef}
@@ -532,7 +526,7 @@ export function AssistantChat({
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
                 <span className="sr-only">Upload image</span>
               </PromptInputButton>
-              <PromptInputButton type="button" onClick={() => cameraRef.current?.click()} disabled={uploading}>
+              <PromptInputButton type="button" onClick={() => setCameraOpen(true)} disabled={uploading}>
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                 <span className="sr-only">Take photo</span>
               </PromptInputButton>

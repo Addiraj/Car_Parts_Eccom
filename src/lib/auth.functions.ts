@@ -3,7 +3,7 @@ import { z } from "zod";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import { models } from "./db/index.server";
-import { verifyTurnstileToken } from "./security.functions";
+import { verifyRecaptchaToken } from "./security.functions";
 
 const getJwtSecret = () => process.env.JWT_SECRET || (() => { throw new Error("JWT_SECRET env var is not set"); })();
 
@@ -20,9 +20,9 @@ const getMailer = () => {
 };
 
 export const sendOtp = createServerFn({ method: "POST" })
-  .validator(z.object({ email: z.string().email(), turnstileToken: z.string().min(1, "CAPTCHA is required") }))
-  .handler(async ({ data: { email, turnstileToken } }) => {
-    const isValid = await verifyTurnstileToken(turnstileToken);
+  .validator(z.object({ email: z.string().email(), recaptchaToken: z.string().min(1, "CAPTCHA is required") }))
+  .handler(async ({ data: { email, recaptchaToken } }) => {
+    const isValid = await verifyRecaptchaToken(recaptchaToken);
     if (!isValid) throw new Error("Invalid or expired CAPTCHA");
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -62,13 +62,13 @@ export const sendOtp = createServerFn({ method: "POST" })
   });
 
 export const login = createServerFn({ method: "POST" })
-  .validator(z.object({ email: z.string().min(1), password: z.string().optional(), otp: z.string().optional(), turnstileToken: z.string().optional() }))
-  .handler(async ({ data: { email, password, otp, turnstileToken } }) => {
+  .validator(z.object({ email: z.string().min(1), password: z.string().optional(), otp: z.string().optional(), recaptchaToken: z.string().optional() }))
+  .handler(async ({ data: { email, password, otp, recaptchaToken } }) => {
     let user;
 
     if (email === "admin" || email === "superadmin") {
-      if (!turnstileToken) throw new Error("CAPTCHA is required");
-      const isValid = await verifyTurnstileToken(turnstileToken);
+      if (!recaptchaToken) throw new Error("CAPTCHA is required");
+      const isValid = await verifyRecaptchaToken(recaptchaToken);
       if (!isValid) throw new Error("Invalid or expired CAPTCHA");
 
       if (password !== `${email}@123`) {
