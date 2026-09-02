@@ -1,6 +1,5 @@
 import * as React from "react";
 import { createParser } from "eventsource-parser";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 /**
@@ -24,9 +23,8 @@ export function useVoice() {
   const ampTimerRef = React.useRef<number | null>(null);
   const abortRef = React.useRef<AbortController | null>(null);
 
-  const getToken = React.useCallback(async () => {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token ?? null;
+  const getToken = React.useCallback(() => {
+    return localStorage.getItem("jwt_token") ?? null;
   }, []);
 
   const startRecording = React.useCallback(async () => {
@@ -64,7 +62,7 @@ export function useVoice() {
         const blob = new Blob(chunksRef.current, { type: rec.mimeType });
         if (blob.size < 1024) { resolve(""); return; }
         try {
-          const token = await getToken();
+          const token = getToken();
           const fd = new FormData();
           fd.append("file", blob);
           const res = await fetch("/api/ai/transcribe", {
@@ -116,8 +114,7 @@ export function useVoice() {
   const speak = React.useCallback(async (text: string) => {
     if (!text?.trim()) return;
     cancel();
-    const token = await getToken();
-    if (!token) return;
+    const token = getToken();
 
     const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!ctxRef.current) ctxRef.current = new Ctx({ sampleRate: 24000 });

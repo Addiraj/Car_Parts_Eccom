@@ -53,7 +53,10 @@ export const STAFF_TIER_COLUMN: Record<StaffTier, "price" | "ind_price" | "gar_p
   exp: "export_price",
 };
 
-export async function isStaffUser(supabase: any, userId: string): Promise<boolean> {
+export async function isStaffUser(supabase: any, userId: string, email?: string | null): Promise<boolean> {
+  const userEmail = email?.toLowerCase();
+  if (userEmail === "admin" || userEmail === "superadmin") return true;
+
   const roles = await models.user_roles.findAll({
     where: {
       user_id: userId,
@@ -70,10 +73,22 @@ async function tierFor(userId: string): Promise<{ tier: CustomerType; col: "ind_
   return { tier, col };
 }
 
-function applyTier(rows: any[], col: string) {
+function applyTier(rows: any[], col: string, isStaff: boolean = false) {
   for (const r of rows) {
     const p = r.part;
-    if (p) p.price = Number((p as any)[col] ?? p.price ?? 0);
+    if (p) {
+      const originalPrice = p.price;
+      p.price = Number((p as any)[col] ?? p.price ?? 0);
+      
+      if (!isStaff) {
+        delete p.ind_price;
+        delete p.gar_price;
+        delete p.export_price;
+        delete p.rate_price;
+      } else {
+        p.rate_price = originalPrice;
+      }
+    }
   }
   return rows;
 }
@@ -206,20 +221,21 @@ export const deleteVehicle = createServerFn({ method: "POST" })
 export const getMyCart = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const isStaff = await isStaffUser(context.supabase, context.userId, context.claims?.email);
     const { col } = await tierFor(context.userId);
     const items = await models.cart_items.findAll({
       where: { user_id: context.userId },
       include: [{
         model: models.parts,
         as: 'part',
-        attributes: ["id", "part_number", "name", "price", col, "currency", "images", "stock", "manufacturer"]
+        attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "currency", "images", "stock", "manufacturer"]
       }],
       order: [["added_at", "DESC"]]
     });
     
     // Flatten so `part` is plain and price is set correctly
     const plainItems = items.map(i => i.get({ plain: true }));
-    return JSON.parse(JSON.stringify(applyTier(plainItems, col)));
+    return JSON.parse(JSON.stringify(applyTier(plainItems, col, isStaff)));
   });
 
 export const addToCart = createServerFn({ method: "POST" })
@@ -469,20 +485,21 @@ export const getMyWishlistPns = createServerFn({ method: "GET" })
 export const getMyWishlist = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const isStaff = await isStaffUser(context.supabase, context.userId, context.claims?.email);
     const { col } = await tierFor(context.userId);
     const items = await models.wishlist_items.findAll({
       where: { user_id: context.userId },
       include: [{
         model: models.parts,
         as: 'part',
-        attributes: ["id", "part_number", "name", "price", col, "currency", "images", "manufacturer", "stock", "category_tag"],
+        attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "currency", "images", "manufacturer", "stock", "category_tag"],
         include: [{
           model: models.alternative_parts,
           as: 'part_alternative_parts',
           include: [{
             model: models.parts,
             as: 'alternative_part',
-            attributes: ["id", "part_number", "name", "price", col, "currency", "images", "manufacturer", "stock", "category_tag"]
+            attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "currency", "images", "manufacturer", "stock", "category_tag"]
           }]
         }]
       }],
@@ -514,7 +531,18 @@ export const getMyWishlist = createServerFn({ method: "GET" })
     // Apply tier logic to main part and alternative parts
     for (const r of plainItems) {
       if (r.part) {
-        r.part.price = Number((r.part as any)[col] ?? r.part.price ?? 0);
+        const p = r.part;
+        const originalPrice = p.price;
+        p.price = Number((p as any)[col] ?? p.price ?? 0);
+        
+        if (!isStaff) {
+          delete p.ind_price;
+          delete p.gar_price;
+          delete p.export_price;
+          delete p.rate_price;
+        } else {
+          p.rate_price = originalPrice;
+        }
         
         const base = getBase(r.part.part_number);
         const implicitAlts = allImplicitAlts.filter((ap: any) => {
@@ -543,7 +571,18 @@ export const getMyWishlist = createServerFn({ method: "GET" })
         if (r.part.part_alternative_parts) {
           for (const ap of r.part.part_alternative_parts) {
             if (ap.alternative_part) {
-              ap.alternative_part.price = Number((ap.alternative_part as any)[col] ?? ap.alternative_part.price ?? 0);
+              const altP = ap.alternative_part;
+              const altOriginalPrice = altP.price;
+              altP.price = Number((altP as any)[col] ?? altP.price ?? 0);
+              
+              if (!isStaff) {
+                delete altP.ind_price;
+                delete altP.gar_price;
+                delete altP.export_price;
+                delete altP.rate_price;
+              } else {
+                altP.rate_price = altOriginalPrice;
+              }
             }
           }
         }

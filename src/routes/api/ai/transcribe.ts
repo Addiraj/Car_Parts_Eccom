@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
+import jwt from "jsonwebtoken";
 
 export const Route = createFileRoute("/api/ai/transcribe")({
   server: {
@@ -7,11 +7,16 @@ export const Route = createFileRoute("/api/ai/transcribe")({
       POST: async ({ request }) => {
         const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
         if (!token) return new Response("Unauthorized", { status: 401 });
-        const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
-          auth: { persistSession: false },
-        });
-        const { data: u } = await sb.auth.getUser(token);
-        const userId = u.user?.id;
+
+        // Use local JWT verification (same as all other endpoints)
+        const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret_for_dev_only_change_in_prod";
+        let userId: string | null = null;
+        try {
+          const decoded = jwt.verify(token, JWT_SECRET) as { sub?: string; id?: string };
+          userId = decoded.sub || decoded.id || null;
+        } catch {
+          return new Response("Unauthorized: Invalid token", { status: 401 });
+        }
         if (!userId) return new Response("Unauthorized", { status: 401 });
 
         const key = process.env.OPENAI_API_KEY;
