@@ -14,18 +14,18 @@ export default defineConfig({
     serverFns: { disableCsrfMiddlewareWarning: true },
   },
   // IMPORTANT:
-   // Override Lovable's default Cloudflare target.
-   // This makes the production build a normal Node.js HTTP server.
-   nitro: {
-     preset: "node-server",
-     rollupConfig: {
-           external: [
-             "sequelize",
-             "pg",
-             "pg-hstore",
-           ],
-         },
-   },
+  // Override Lovable's default Cloudflare target.
+  // This makes the production build a normal Node.js HTTP server.
+  //  nitro: {
+  //    preset: "node-server",
+  //    rollupConfig: {
+  //          external: [
+  //            "sequelize",
+  //            "pg",
+  //            "pg-hstore",
+  //          ],
+  //        },
+  //  },
   vite: {
     plugins: [
       {
@@ -34,8 +34,8 @@ export default defineConfig({
         configResolved() {
           if (typeof globalThis !== 'undefined' && !(globalThis as any).DOMMatrix) {
             (globalThis as any).DOMMatrix = class DOMMatrix {
-              a=1;b=0;c=0;d=1;e=0;f=0;m11=1;m12=0;m21=0;m22=1;m41=0;m42=0;
-              constructor() {}
+              a = 1; b = 0; c = 0; d = 1; e = 0; f = 0; m11 = 1; m12 = 0; m21 = 0; m22 = 1; m41 = 0; m42 = 0;
+              constructor() { }
             };
           }
         }

@@ -14,19 +14,19 @@ import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { SignInDialog } from "@/components/sign-in-dialog";
 import { useState } from "react";
 
-export const homePartsQO = (page: number, isStaff: boolean = false) =>
+export const homePartsQO = (page: number, isStaff: boolean = false, brand?: string) =>
   queryOptions({
-    queryKey: ["home-parts", page, isStaff],
-    queryFn: () => listPartsPaged({ data: { page, pageSize: 24 } }),
+    queryKey: ["home-parts", page, isStaff, brand],
+    queryFn: () => listPartsPaged({ data: { page, pageSize: 24, brand } }),
   });
 
-type Props = { page: number; basePath: "/" | "/products" };
+type Props = { page: number; brand?: string; basePath: "/" | "/products" };
 
-export function AllParts({ page, basePath }: Props) {
+export function AllParts({ page, brand, basePath }: Props) {
   const { t } = useI18n();
   const isStaff = useIsStaff();
   const navigate = useNavigate();
-  const partsQuery = useQuery({ ...homePartsQO(page, isStaff), placeholderData: keepPreviousData });
+  const partsQuery = useQuery({ ...homePartsQO(page, isStaff, brand), placeholderData: keepPreviousData });
   const { items = [], total = 0, pageSize = 24 } = partsQuery.data ?? {};
   const isFetching = partsQuery.isFetching;
   const pages = Math.max(1, Math.ceil(total / pageSize));
@@ -41,6 +41,12 @@ export function AllParts({ page, basePath }: Props) {
     enabled: !!user,
   });
   const wishlistIds = wishlistQ.data || [];
+
+  const mfgQ = useQuery({
+    queryKey: ["part-manufacturers"],
+    queryFn: () => import("@/lib/catalog.functions").then(m => m.getPartManufacturers()),
+  });
+  const manufacturers = mfgQ.data || [];
 
   const toggleWishlistMut = useMutation({
     mutationFn: (partId: string) => toggleWishlist({ data: { partId } }),
@@ -102,12 +108,31 @@ export function AllParts({ page, basePath }: Props) {
             Every part, <span className="italic text-foreground/60">all of it.</span>
           </h2>
           <p className="mt-4 max-w-xl text-sm text-muted-foreground">
-            {total.toLocaleString()} parts available. Showing page {page} of {pages}.
+            {total.toLocaleString()} parts available{brand && ` for ${brand}`}. Showing page {page} of {pages}.
           </p>
         </Reveal>
-        <Link to="/search" className="link-underline hidden text-sm uppercase tracking-[0.2em] md:inline-flex">
-          Refine search
-        </Link>
+        <div className="flex items-center gap-4">
+          <select
+            value={brand || ""}
+            onChange={(e) => {
+              void navigate({ 
+                to: basePath, 
+                search: (prev: any) => ({ ...prev, page: 1, brand: e.target.value || undefined }), 
+                replace: true 
+              });
+            }}
+            className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="">All Brands</option>
+            {manufacturers.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+
+          <Link to="/search" className="link-underline hidden text-sm uppercase tracking-[0.2em] md:inline-flex">
+            Refine search
+          </Link>
+        </div>
       </div>
 
       {items.length === 0 && !isFetching ? (

@@ -268,15 +268,29 @@ export const getFeaturedParts = createServerFn({ method: "GET" }).handler(async 
   });
 });
 
+export const getPartManufacturers = createServerFn({ method: "GET" }).handler(async () => {
+  const list = await sequelize.query(
+    "SELECT DISTINCT manufacturer FROM parts WHERE manufacturer IS NOT NULL ORDER BY manufacturer ASC",
+    { type: QueryTypes.SELECT }
+  );
+  return list.map((r: any) => r.manufacturer as string);
+});
+
 export const listPartsPaged = createServerFn({ method: "GET" })
-  .validator((d: { page?: number; pageSize?: number } = {}) => d)
+  .validator((d: { page?: number; pageSize?: number; brand?: string } = {}) => d)
   .handler(async ({ data }) => {
     const { tier, isStaff } = await viewerContext();
     const page = Math.max(1, Math.floor(data.page ?? 1));
     const pageSize = Math.min(60, Math.max(1, Math.floor(data.pageSize ?? 24)));
     const offset = (page - 1) * pageSize;
 
+    const where: any = {};
+    if (data.brand) {
+      where.manufacturer = { [Op.iLike]: data.brand };
+    }
+
     const { rows: items, count } = await models.parts.findAndCountAll({
+      where,
       attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "images", "manufacturer", "is_oem", "stock", "category_tag"],
       include: [{
         model: models.alternative_parts,

@@ -284,7 +284,7 @@ export const adminImportPartsBatch = createServerFn({ method: "POST" })
         is_oem: true,
         images: [],
 
-        unique_value: r.unique_value ?? null,
+        unique_value: r.unique_value?.trim() || null,
         specs: {
           rate_price: r.rate_price ?? null,
         },
@@ -325,19 +325,21 @@ export const adminImportPartsBatch = createServerFn({ method: "POST" })
       try {
         await models.parts.bulkCreate(uniqueValid, {
           updateOnDuplicate: ["manufacturer", "oem_number", "name", "description", "category_tag", "price", "ind_price", "gar_price", "export_price", "stock", "is_oem", "part_number"],
-          conflictAttributes: ["unique_value"]
+          conflictAttributes: ["unique_value"],
+          validate: false
         } as any);
       } catch (error: any) {
         failed += valid.length;
         inserted = 0;
         updated = 0;
+        const details = error.errors ? error.errors.map((e: any) => e.message).join(', ') : error.message;
         // record per-row db errors so the UI can list them
         for (const m of validMeta) {
           errors.push({
             rowIndex: m.rowIndex,
             part_number: m.part_number,
             manufacturer: m.manufacturer,
-            reason: `db-error: ${error.message}`,
+            reason: `db-error: ${details}`,
           });
         }
       }
