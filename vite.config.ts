@@ -16,16 +16,16 @@ export default defineConfig({
   // IMPORTANT:
   // Override Lovable's default Cloudflare target.
   // This makes the production build a normal Node.js HTTP server.
-  //  nitro: {
-  //    preset: "node-server",
-  //    rollupConfig: {
-  //          external: [
-  //            "sequelize",
-  //            "pg",
-  //            "pg-hstore",
-  //          ],
-  //        },
-  //  },
+  nitro: {
+    preset: "node-server",
+    rollupConfig: {
+      external: [
+        "sequelize",
+        "pg",
+        "pg-hstore",
+      ],
+    },
+  },
   vite: {
     plugins: [
       {
