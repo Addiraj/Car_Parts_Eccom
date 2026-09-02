@@ -17,11 +17,11 @@ async function viewerContext(): Promise<{ tier: CustomerType; isStaff: boolean }
     if (!auth) return { tier: "IND", isStaff: false };
     const token = auth.replace(/^Bearer\s+/i, "").trim();
     if (!token) return { tier: "IND", isStaff: false };
-    
+
     // Use local JWT verification instead of Supabase
     const jwt = (await import("jsonwebtoken")).default;
     const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret_for_dev_only_change_in_prod";
-    
+
     let userId;
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as { sub?: string; id?: string };
@@ -29,17 +29,17 @@ async function viewerContext(): Promise<{ tier: CustomerType; isStaff: boolean }
     } catch {
       return { tier: "IND", isStaff: false };
     }
-    
+
     if (!userId) return { tier: "IND", isStaff: false };
-    
-    const profile = await models.profiles.findOne({ where: { id: userId }});
+
+    const profile = await models.profiles.findOne({ where: { id: userId } });
     const t = (profile?.customer_type ?? "IND") as CustomerType;
     const tier = t === "GAR" || t === "EXP" ? t : "IND";
-    
-    const roleRow = await models.user_roles.findOne({ 
+
+    const roleRow = await models.user_roles.findOne({
       where: { user_id: userId, role: { [Op.in]: ['admin', 'superadmin', 'salesman'] } }
     });
-    
+
     return { tier, isStaff: !!roleRow };
   } catch {
     return { tier: "IND", isStaff: false };
@@ -71,7 +71,7 @@ export const getBrandWithModels = createServerFn({ method: "GET" })
         attributes: ["id", "slug", "name", "image_url"]
       }]
     });
-    
+
     if (!brand) return null;
     return brand.get({ plain: true });
   });
@@ -163,7 +163,7 @@ export const getPart = createServerFn({ method: "GET" })
         attributes: ["id", "name", "slug", "parent_id"]
       }]
     });
-    
+
     if (!part) return null;
 
     const alts = await models.alternative_parts.findAll({
@@ -193,9 +193,9 @@ export const getPart = createServerFn({ method: "GET" })
       part: projected,
       alternatives: alts.map(a => {
         const altData = a.get({ plain: true });
-        return { 
-          ...altData, 
-          part: altData.alternative_part ? projectPart(altData.alternative_part as any, tier) : null 
+        return {
+          ...altData,
+          part: altData.alternative_part ? projectPart(altData.alternative_part as any, tier) : null
         };
       }),
       viewerTier: tier,
@@ -211,10 +211,10 @@ export const getDiagram = createServerFn({ method: "GET" })
       where: { id: data.id },
       attributes: ["id", "title", "image_url", "width", "height", "category_id", "engine_id"]
     });
-    
+
     if (!diagramRow) return null;
     const diagram = diagramRow.get({ plain: true });
-    
+
     // Using raw query to fetch hotspots and associated parts efficiently
     const hotspots = await sequelize.query(`
       SELECT 
@@ -268,7 +268,7 @@ export const listPartsPaged = createServerFn({ method: "GET" })
     const page = Math.max(1, Math.floor(data.page ?? 1));
     const pageSize = Math.min(60, Math.max(1, Math.floor(data.pageSize ?? 24)));
     const offset = (page - 1) * pageSize;
-    
+
     const { rows: items, count } = await models.parts.findAndCountAll({
       attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "images", "manufacturer", "is_oem", "stock", "category_tag"],
       include: [{
@@ -294,22 +294,22 @@ export const listPartsPaged = createServerFn({ method: "GET" })
           projected.gar_price = plain.gar_price;
           projected.export_price = plain.export_price;
         }
-        
+
         // Process nested alternative parts
         if (projected.part_alternative_parts && Array.isArray(projected.part_alternative_parts)) {
           projected.part_alternative_parts = projected.part_alternative_parts.map((ap: any) => {
             if (ap.alternative_part) {
               ap.alternative_part = projectPart(ap.alternative_part, tier);
               if (isStaff) {
-                ap.alternative_part.ind_price = plain.part_alternative_parts.find((x:any) => x.id === ap.id)?.alternative_part?.ind_price;
-                ap.alternative_part.gar_price = plain.part_alternative_parts.find((x:any) => x.id === ap.id)?.alternative_part?.gar_price;
-                ap.alternative_part.export_price = plain.part_alternative_parts.find((x:any) => x.id === ap.id)?.alternative_part?.export_price;
+                ap.alternative_part.ind_price = plain.part_alternative_parts.find((x: any) => x.id === ap.id)?.alternative_part?.ind_price;
+                ap.alternative_part.gar_price = plain.part_alternative_parts.find((x: any) => x.id === ap.id)?.alternative_part?.gar_price;
+                ap.alternative_part.export_price = plain.part_alternative_parts.find((x: any) => x.id === ap.id)?.alternative_part?.export_price;
               }
             }
             return ap;
           });
         }
-        
+
         return projected;
       }),
       total: count,
@@ -444,22 +444,22 @@ export const searchParts = createServerFn({ method: "GET" })
           projected.gar_price = (p as any).gar_price;
           projected.export_price = (p as any).export_price;
         }
-        
+
         // Process nested alternative parts
         if (projected.part_alternative_parts && Array.isArray(projected.part_alternative_parts)) {
           projected.part_alternative_parts = projected.part_alternative_parts.map((ap: any) => {
             if (ap.alternative_part) {
               ap.alternative_part = projectPart(ap.alternative_part, tier);
               if (isStaff) {
-                ap.alternative_part.ind_price = (p as any).part_alternative_parts.find((x:any) => x.id === ap.id)?.alternative_part?.ind_price;
-                ap.alternative_part.gar_price = (p as any).part_alternative_parts.find((x:any) => x.id === ap.id)?.alternative_part?.gar_price;
-                ap.alternative_part.export_price = (p as any).part_alternative_parts.find((x:any) => x.id === ap.id)?.alternative_part?.export_price;
+                ap.alternative_part.ind_price = (p as any).part_alternative_parts.find((x: any) => x.id === ap.id)?.alternative_part?.ind_price;
+                ap.alternative_part.gar_price = (p as any).part_alternative_parts.find((x: any) => x.id === ap.id)?.alternative_part?.gar_price;
+                ap.alternative_part.export_price = (p as any).part_alternative_parts.find((x: any) => x.id === ap.id)?.alternative_part?.export_price;
               }
             }
             return ap;
           });
         }
-        
+
         return projected;
       }),
       categories: categories.map((c: any) => c.get({ plain: true })),
@@ -487,7 +487,7 @@ export const decodeVin = createServerFn({ method: "POST" })
       });
       if (!res.ok) return { ok: false as const, error: `Custom API error ${res.status}` };
       const json = await res.json();
-      
+
       if (json.Error) return { ok: false as const, error: json.Error };
 
       return {

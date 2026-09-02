@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-export type PartCardProps = { 
+export type PartCardProps = {
   part: any;
   isWishlisted?: boolean;
   onToggleWishlist?: (partId?: string) => void;
@@ -24,7 +24,7 @@ function SupersededItemCard({ alt, isStaff, onAddToCart }: { alt: any; isStaff: 
   const { user } = useAuth();
   const router = useRouter();
   const [requested, setRequested] = useState(false);
-  
+
   const altStock = Number(alt.stock ?? 0);
   const altInStock = altStock > 0;
   const brand = String(alt.manufacturer || "GLOBAL").toUpperCase();
@@ -58,7 +58,7 @@ function SupersededItemCard({ alt, isStaff, onAddToCart }: { alt: any; isStaff: 
         </span>
         {altInStock ? (
           <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800/50 px-2 py-0.5 rounded border border-emerald-200 uppercase whitespace-nowrap">
-            {altStock} IN STOCK
+            {isStaff ? `${altStock} IN STOCK` : "IN STOCK"}
           </span>
         ) : (
           <span className="text-[10px] font-bold text-red-600 bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30 px-2 py-0.5 rounded uppercase whitespace-nowrap">
@@ -105,20 +105,20 @@ function SupersededItemCard({ alt, isStaff, onAddToCart }: { alt: any; isStaff: 
       {/* Buttons */}
       <div className="flex flex-col gap-2 mt-auto">
         {altInStock ? (
-          <Button 
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAddToCart?.(alt.id); }} 
-            variant="default" 
-            size="sm" 
+          <Button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAddToCart?.(alt.id); }}
+            variant="default"
+            size="sm"
             className="w-full h-9 text-[12px] font-semibold bg-[#2563eb] hover:bg-blue-600 text-white"
           >
             <ShoppingCart className="w-3.5 h-3.5 mr-2" /> Add to cart
           </Button>
         ) : (
           <>
-            <Button 
+            <Button
               disabled
-              variant="outline" 
-              size="sm" 
+              variant="outline"
+              size="sm"
               className="w-full h-9 text-[12px] text-muted-foreground font-semibold bg-muted/40 border-border cursor-not-allowed dark:bg-slate-900/50 dark:border-slate-800 dark:text-slate-500"
             >
               <ShoppingCart className="w-3.5 h-3.5 mr-2" /> Out of stock
@@ -153,54 +153,54 @@ export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlist
   const isStaff = useIsStaff();
   const router = useRouter();
   const [popupOpen, setPopupOpen] = useState(false);
-  
+
   const stock = Number(p.stock ?? 0);
   const inStock = stock > 0;
-  
+
   const visibleSuperseded = supersededParts?.filter(sp => isStaff || Number(sp.alternative_part?.stock ?? 0) > 0 || true) || [];
-  
+
   const waMsg = encodeURIComponent(`Hi, I'd like to enquire about part REF OE:${p.part_number} — ${p.name}`);
   const waUrl = `https://wa.me/971547516365?text=${waMsg}`;
 
   const brand = String(p.manufacturer || "GLOBAL").toUpperCase();
-  const brandFontSize = brand.length <= 5 
-    ? "text-2xl" 
-    : brand.length <= 8 
-      ? "text-xl" 
-      : brand.length <= 11 
-        ? "text-sm sm:text-base" 
+  const brandFontSize = brand.length <= 5
+    ? "text-2xl"
+    : brand.length <= 8
+      ? "text-xl"
+      : brand.length <= 11
+        ? "text-sm sm:text-base"
         : "text-xs";
 
   return (
-    <div 
+    <div
       className={`flex flex-col border border-border rounded-lg bg-card text-card-foreground overflow-hidden shadow-sm h-full hover:border-primary hover:shadow-md transition-all relative dark:bg-[#0d111c] dark:border-slate-800 dark:hover:border-blue-500/50 ${href ? 'cursor-pointer' : ''}`}
       onClick={() => { if (href) router.navigate({ to: href as any }) }}
     >
       <div className="flex flex-1">
         {/* Left side: Brand */}
         <div className="w-[30%] bg-muted/40 dark:bg-slate-900/60 flex items-center justify-center p-2.5 sm:p-4 border-r border-border dark:border-slate-800/80 shrink-0 overflow-hidden">
-          <span 
+          <span
             className={`font-black text-center text-foreground dark:text-white font-mono tracking-tight whitespace-nowrap overflow-hidden text-ellipsis max-w-full ${brandFontSize}`}
             title={brand}
           >
             {brand}
           </span>
         </div>
-        
+
         {/* Right side: Details */}
         <div className="w-[70%] p-4 flex flex-col justify-between bg-card dark:bg-[#0d111c] relative">
           <div>
             <div className="flex justify-between items-start mb-1 gap-2">
               <h3 className="font-bold text-[13px] uppercase leading-tight line-clamp-2 text-foreground dark:text-slate-100">{p.name}</h3>
             </div>
-            
+
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               <div className="text-[11px] text-muted-foreground dark:text-slate-400 font-mono uppercase tracking-wide">
                 REF OE:{p.part_number} · {p.manufacturer || "GLOBAL"}
               </div>
               {inStock ? (
                 <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800/50 px-2 py-0.5 rounded border border-emerald-200 uppercase whitespace-nowrap shrink-0">
-                  {stock} IN STOCK
+                  {isStaff ? `${stock} IN STOCK` : "IN STOCK"}
                 </span>
               ) : isStaff ? (
                 <span className="text-[10px] font-bold text-red-600 bg-red-50 dark:bg-red-950/60 dark:text-red-400 dark:border-red-800/50 px-2 py-0.5 rounded border border-red-200 uppercase whitespace-nowrap shrink-0">
@@ -208,18 +208,18 @@ export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlist
                 </span>
               ) : null}
             </div>
-            
+
             {isStaff && (
               <div className="text-[10px] text-muted-foreground/70 dark:text-slate-500 font-bold mb-1.5 tracking-wider">
                 ALL TIERS
               </div>
             )}
-            
+
             {isStaff ? (
               <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mb-4">
                 <div className="flex items-center text-[10px] rounded bg-muted/60 dark:bg-slate-900/80 border border-border/50 dark:border-slate-800 overflow-hidden">
                   <span className="bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold px-2 py-1 w-12 text-center border-r border-blue-200/40 dark:border-blue-800/40">RATE</span>
-                  <span className="text-blue-600 dark:text-blue-400 font-bold px-2.5">{formatAED(Number(p.price))}</span>
+                  <span className="text-blue-600 dark:text-blue-400 font-bold px-2.5">{formatAED(Number(p.specs?.rate_price ?? p.price))}</span>
                 </div>
                 <div className="flex items-center text-[10px] rounded bg-muted/60 dark:bg-slate-900/80 border border-border/50 dark:border-slate-800 overflow-hidden">
                   <span className="bg-muted text-muted-foreground dark:bg-slate-800 dark:text-slate-400 font-bold px-2 py-1 w-12 text-center border-r border-border dark:border-slate-700">IND</span>
@@ -241,7 +241,7 @@ export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlist
               </div>
             )}
           </div>
-          
+
           <div className="flex items-center gap-2 mt-auto border-t border-border dark:border-slate-800 pt-3">
             {inStock ? (
               <Button onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAddToCart?.(p.id); }} variant="default" size="sm" className="flex-1 h-9 text-[12px] font-semibold bg-[#2563eb] hover:bg-blue-600 text-white">
@@ -252,8 +252,8 @@ export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlist
                 <ShoppingCart className="w-3.5 h-3.5 mr-2" /> Out of stock
               </Button>
             )}
-            
-            <a 
+
+            <a
               href={waUrl}
               target="_blank"
               rel="noreferrer"
@@ -265,16 +265,15 @@ export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlist
             </a>
 
             {!hideWishlistButton && (
-              <Button 
+              <Button
                 type="button"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleWishlist?.(p.id); }}
-                variant="outline" 
-                size="sm" 
-                className={`h-9 w-9 p-0 shrink-0 transition-colors ${
-                  isWishlisted 
-                    ? 'text-red-500 border-red-200 bg-red-50 dark:bg-red-950/40 dark:border-red-800/60 dark:text-red-400' 
+                variant="outline"
+                size="sm"
+                className={`h-9 w-9 p-0 shrink-0 transition-colors ${isWishlisted
+                    ? 'text-red-500 border-red-200 bg-red-50 dark:bg-red-950/40 dark:border-red-800/60 dark:text-red-400'
                     : 'text-muted-foreground border-border hover:bg-accent dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800'
-                }`}
+                  }`}
                 title={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
               >
                 <Heart className={`w-4 h-4 transition-transform active:scale-125 ${isWishlisted ? 'fill-current' : ''}`} />
@@ -283,12 +282,12 @@ export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlist
           </div>
         </div>
       </div>
-      
+
       {visibleSuperseded.length > 0 && (
         <div className="border-t border-border dark:border-slate-800 p-2 bg-muted/30 dark:bg-slate-900/50">
-          <Button 
+          <Button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPopupOpen(true); }}
-            variant="ghost" 
+            variant="ghost"
             className="w-full h-8 text-[11px] text-primary font-semibold hover:bg-primary/10 flex justify-between px-3"
           >
             <span>{visibleSuperseded.length} Superseded / Alternate {visibleSuperseded.length === 1 ? 'Number' : 'Numbers'}</span>
@@ -311,9 +310,9 @@ export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlist
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
             {visibleSuperseded.map((sp: any) => (
               sp.alternative_part && (
-                <SupersededItemCard 
-                  key={sp.id} 
-                  alt={sp.alternative_part} 
+                <SupersededItemCard
+                  key={sp.id}
+                  alt={sp.alternative_part}
                   isStaff={isStaff}
                   onAddToCart={onAddToCart}
                 />

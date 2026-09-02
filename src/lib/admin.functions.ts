@@ -276,7 +276,7 @@ export const adminImportPartsBatch = createServerFn({ method: "POST" })
         name,
         description: r.description || null,
         category_tag: r.category_tag || null,
-        price: r.ind_price ?? r.price ?? 0,
+        price: r.price ?? r.rate_price ?? r.ind_price ?? 0,
         ind_price: r.ind_price ?? null,
         gar_price: r.gar_price ?? r.garage_price ?? null,
         export_price: r.export_price ?? null,
