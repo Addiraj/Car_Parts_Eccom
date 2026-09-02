@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { Sequelize, Op } from 'sequelize';
 import { initModels } from './generated_models/init-models';
 export { Op };
@@ -9,7 +10,7 @@ if (typeof window === 'undefined') {
   const dbHost = process.env.DB_HOST || 'localhost';
   const dbPort = Number(process.env.DB_PORT) || 5432;
   const dbUser = process.env.DB_USER || 'postgres';
-  const dbPassword = process.env.DB_PASSWORD || 'postgres'; 
+  const dbPassword = process.env.DB_PASSWORD || 'postgres';
   const dbName = process.env.DB_NAME || 'dubai_carparts';
 
   sequelize = new Sequelize(dbName, dbUser, dbPassword, {
@@ -29,7 +30,7 @@ if (typeof window === 'undefined') {
   sequelize.authenticate()
     .then(async () => {
       console.log(`[Sequelize] Successfully connected to ${dbName} on ${dbHost}:${dbPort}`);
-      
+
       // Auto-migrate & verify required schema tables on startup
       try {
         await sequelize.query(`
@@ -195,7 +196,7 @@ if (typeof window === 'undefined') {
           $f$ LANGUAGE plpgsql;
 
           DROP FUNCTION IF EXISTS get_active_offer_for_part(UUID);
-          CREATE OR REPLACE FUNCTION get_active_offer_for_part(_part_id UUID) 
+          CREATE OR REPLACE FUNCTION get_active_offer_for_part(_part_id UUID)
           RETURNS TABLE (
             offer_id UUID,
             offer_name TEXT,
@@ -207,7 +208,7 @@ if (typeof window === 'undefined') {
           ) AS $f$
           BEGIN
             RETURN QUERY
-            SELECT 
+            SELECT
               so.id AS offer_id,
               so.offer_name,
               so.discount_type::text,
@@ -231,9 +232,9 @@ if (typeof window === 'undefined') {
         const existingPrompt = await sequelize.query("SELECT id FROM public.ai_prompts WHERE key = 'system'");
         if (existingPrompt[0].length === 0) {
           await sequelize.query(`
-            INSERT INTO public.ai_prompts 
-            (id, key, name, description, content, model, temperature, version, is_active, updated_at) 
-            VALUES 
+            INSERT INTO public.ai_prompts
+            (id, key, name, description, content, model, temperature, version, is_active, updated_at)
+            VALUES
             (gen_random_uuid(), 'system', 'System Prompt', 'Core instructions for the chatbot.', 'You are a helpful assistant.', 'gpt-4o-mini', 0.4, 0, true, NOW())
           `);
           console.log('[Sequelize] Seeded default system AI prompt.');
