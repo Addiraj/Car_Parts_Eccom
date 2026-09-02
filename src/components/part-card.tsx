@@ -20,7 +20,7 @@ export type PartCardProps = {
   href?: string;
 };
 
-function SupersededItemCard({ alt, isStaff, onAddToCart }: { alt: any; isStaff: boolean; onAddToCart?: (id?: string) => void }) {
+export function SupersededItemCard({ alt, isStaff, onAddToCart }: { alt: any; isStaff: boolean; onAddToCart?: (id?: string) => void }) {
   const { user } = useAuth();
   const router = useRouter();
   const [requested, setRequested] = useState(false);
