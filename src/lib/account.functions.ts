@@ -433,6 +433,13 @@ export const removeFromCart = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const clearCart = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await models.cart_items.destroy({ where: { user_id: context.userId } });
+    return { ok: true };
+  });
+
 /* ============= WISHLIST ============= */
 
 export const getMyWishlistIds = createServerFn({ method: "GET" })
@@ -587,6 +594,13 @@ export const toggleWishlist = createServerFn({ method: "POST" })
     }
     await models.wishlist_items.create({ user_id: context.userId, part_id: finalPartId });
     return { added: true, partId: finalPartId, partNumber: part.part_number };
+  });
+
+export const clearWishlist = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await models.wishlist_items.destroy({ where: { user_id: context.userId } });
+    return { ok: true };
   });
 
 /* ============= COUNTS (for navbar badges) ============= */

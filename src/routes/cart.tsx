@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getMyCart, updateCartQty, removeFromCart, getStaffTierPrices, requestCartSalesman, type StaffTier } from "@/lib/account.functions";
+import { getMyCart, updateCartQty, removeFromCart, clearCart, getStaffTierPrices, requestCartSalesman, type StaffTier } from "@/lib/account.functions";
 import { getActiveOffersForParts, computeOfferPrice } from "@/lib/offers.functions";
 import { formatAED } from "@/lib/format";
 import { toast } from "sonner";
@@ -90,6 +90,14 @@ function CartPage() {
       toast.success(t("remove"));
     },
   });
+  const clearCartMut = useMutation({
+    mutationFn: () => clearCart(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cart"] });
+      qc.invalidateQueries({ queryKey: ["cart-count"] });
+      toast.success("Cart cleared");
+    },
+  });
 
   if (!user) {
     return (
@@ -113,7 +121,22 @@ function CartPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
-      <h1 className="text-3xl font-bold tracking-tight">{t("yourCart")}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-3xl font-bold tracking-tight">{t("yourCart")}</h1>
+        {!isLoading && items.length > 0 && (
+          <button
+            onClick={() => {
+              if (window.confirm("Are you sure you want to remove all items from your cart?")) {
+                clearCartMut.mutate();
+              }
+            }}
+            disabled={clearCartMut.isPending}
+            className="flex items-center gap-1.5 rounded-md border border-destructive/30 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 disabled:opacity-50"
+          >
+            <Trash2 className="h-4 w-4" /> Clear All
+          </button>
+        )}
+      </div>
       {isLoading && <p className="mt-6 text-sm text-muted-foreground">{t("loading")}</p>}
       {!isLoading && items.length === 0 && (
         <div className="mt-8 grid place-items-center rounded-lg border border-dashed bg-surface-2 p-12 text-center">

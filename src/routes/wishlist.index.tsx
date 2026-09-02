@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { getMyWishlist, toggleWishlist, addToCart, requestPartSalesman } from "@/lib/account.functions";
-import { Heart, LogIn, ShoppingCart, MessageCircle, ChevronRight, Headset, Check } from "lucide-react";
+import { getMyWishlist, toggleWishlist, addToCart, requestPartSalesman, clearWishlist } from "@/lib/account.functions";
+import { Heart, LogIn, ShoppingCart, MessageCircle, ChevronRight, Headset, Check, Trash2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsStaff } from "@/hooks/use-is-staff";
@@ -224,6 +224,17 @@ function WishlistPage() {
     },
   });
 
+  const clearWishlistMut = useMutation({
+    mutationFn: () => clearWishlist(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["wishlist"] });
+      qc.invalidateQueries({ queryKey: ["wishlist-count"] });
+      qc.invalidateQueries({ queryKey: ["wishlist-ids"] });
+      qc.invalidateQueries({ queryKey: ["wishlist-pns"] });
+      toast.success("Wishlist cleared");
+    },
+  });
+
   const addMut = useMutation({
     mutationFn: (partId: string) => addToCart({ data: { partId } }),
     onSuccess: () => {
@@ -273,17 +284,30 @@ function WishlistPage() {
           </p>
         </div>
 
-        {/* Big "Get Quote" Button */}
+        {/* Big "Get Quote" Button & Clear All */}
         {!isLoading && items.length > 0 && (
-          <Link
-            to="/wishlist/quote"
-            className="inline-flex items-center gap-3 px-7 py-3.5 rounded-full bg-[#2563eb] hover:bg-blue-700 text-white font-bold text-base shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] group self-start sm:self-auto"
-          >
-            Get quote
-            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/20 group-hover:bg-white/30 transition-colors">
-              <ChevronRight className="w-5 h-5 text-white group-hover:translate-x-0.5 transition-transform" />
-            </span>
-          </Link>
+          <div className="flex items-center gap-3 self-start sm:self-auto">
+            <button
+              onClick={() => {
+                if (window.confirm("Are you sure you want to remove all items from your wishlist?")) {
+                  clearWishlistMut.mutate();
+                }
+              }}
+              disabled={clearWishlistMut.isPending}
+              className="flex h-[52px] items-center gap-2 rounded-full border border-destructive/30 bg-destructive/5 px-5 text-sm font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+            >
+              <Trash2 className="h-4 w-4" /> Clear All
+            </button>
+            <Link
+              to="/wishlist/quote"
+              className="inline-flex items-center gap-3 px-7 h-[52px] rounded-full bg-[#2563eb] hover:bg-blue-700 text-white font-bold text-base shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] group"
+            >
+              Get quote
+              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/20 group-hover:bg-white/30 transition-colors">
+                <ChevronRight className="w-5 h-5 text-white group-hover:translate-x-0.5 transition-transform" />
+              </span>
+            </Link>
+          </div>
         )}
       </div>
 
