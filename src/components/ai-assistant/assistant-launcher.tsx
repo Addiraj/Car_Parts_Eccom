@@ -67,16 +67,8 @@ export function AssistantLauncher() {
 
   const newThread = async (): Promise<string | null> => {
     if (!isLoggedIn) { toast.error("Please sign in to start a conversation"); return null; }
-    try {
-      const data = await fetchCreateThread({ data: { title: "New conversation" } });
-      const id = data.id;
-      setThreadId(id);
-      refresh();
-      return id;
-    } catch (error: any) {
-      toast.error(error?.message ?? "Failed to create");
-      return null;
-    }
+    setThreadId(null);
+    return null;
   };
 
   const deleteThread = async (id: string) => {

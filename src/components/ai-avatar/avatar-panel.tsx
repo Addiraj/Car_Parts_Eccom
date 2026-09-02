@@ -11,6 +11,7 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { X, Mic, Square, Volume2, VolumeX, History, Video, MessageSquarePlus, Trash2, ImagePlus, Camera, FileUp, Loader2 } from "lucide-react";
+import { CameraModal } from "@/components/ui/camera-modal";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -293,8 +294,8 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
   const [input, setInput] = React.useState("");
   const [uploading, setUploading] = React.useState(false);
   const imageRef = React.useRef<HTMLInputElement>(null);
-  const cameraRef = React.useRef<HTMLInputElement>(null);
   const docRef = React.useRef<HTMLInputElement>(null);
+  const [cameraOpen, setCameraOpen] = React.useState(false);
 
   const ensureSignedIn = async () => {
     const { data } = await supabase.auth.getSession();
@@ -762,7 +763,7 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
         </AvatarActionContext.Provider>
 
         <input ref={imageRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }} />
-        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }} />
+        <CameraModal open={cameraOpen} onClose={() => setCameraOpen(false)} onCapture={(file) => handleUpload(file)} />
         <input ref={docRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }} />
 
         <PromptInput onSubmit={handleSend} className="border-t border-slate-200 bg-white">
@@ -778,7 +779,7 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
                 <span className="sr-only">Upload image</span>
               </PromptInputButton>
-              <PromptInputButton type="button" onClick={() => cameraRef.current?.click()} disabled={uploading}>
+              <PromptInputButton type="button" onClick={() => setCameraOpen(true)} disabled={uploading}>
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                 <span className="sr-only">Take photo</span>
               </PromptInputButton>
