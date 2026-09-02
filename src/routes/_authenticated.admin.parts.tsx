@@ -648,7 +648,8 @@ function ImportPanel() {
                 toast.warning("Couldn't detect price/quantity columns — check CSV headers");
               }
               const indP = mapped.ind_price != null ? toNum(mapped.ind_price) : null;
-              const basePrice = mapped.price != null ? toNum(mapped.price) : (indP ?? 0);
+              const rateP = mapped.rate_price != null ? toNum(mapped.rate_price) : null;
+              const basePrice = mapped.price != null ? toNum(mapped.price) : (rateP ?? indP ?? 0);
               buffer.push({
                 rowIndex: rowCursor,
                 category_tag: mapped.category_tag?.toString().trim() || null,
@@ -658,9 +659,9 @@ function ImportPanel() {
                 description: mapped.description?.toString().trim() || null,
                 unique_value: mapped.unique_value?.toString().trim() || null,
                 stock: Math.max(0, Math.floor(toNum(mapped.stock))),
-                rate_price: mapped.rate_price != null ? toNum(mapped.rate_price) : null,
+                rate_price: rateP,
                 price: basePrice,
-                ind_price: indP ?? basePrice,
+                ind_price: indP,
                 gar_price: mapped.gar_price != null ? toNum(mapped.gar_price) : null,
                 export_price: mapped.export_price != null ? toNum(mapped.export_price) : null,
               });
