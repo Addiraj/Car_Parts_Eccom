@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { decodeVin } from "@/lib/catalog.functions";
 import { addVehicle, getMyGarage } from "@/lib/account.functions";
 import { useAuth } from "@/hooks/use-auth";
+import { useIsStaff } from "@/hooks/use-is-staff";
 import { toast } from "sonner";
 import { ScanLine, Car, Plus, Check } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -20,6 +21,7 @@ function VinPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
+  const isStaff = useIsStaff();
   const [vin, setVin] = useState("");
   const [signInOpen, setSignInOpen] = useState(false);
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
@@ -189,10 +191,10 @@ function VinPage() {
             <button
               type="button"
               className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-8 py-4 rounded-xl shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={user ? !profile?.vin_catalog_enabled : false}
-              title={user && !profile?.vin_catalog_enabled ? "You do not have access to browse the catalog" : undefined}
+              disabled={user ? !(profile?.vin_catalog_enabled || isStaff) : false}
+              title={user && !(profile?.vin_catalog_enabled || isStaff) ? "You do not have access to browse the catalog" : undefined}
               onClick={() => {
-                if (user && !profile?.vin_catalog_enabled) {
+                if (user && !(profile?.vin_catalog_enabled || isStaff)) {
                   toast.error("You do not have access to browse the catalog. Please contact the administrator.");
                   return;
                 }
