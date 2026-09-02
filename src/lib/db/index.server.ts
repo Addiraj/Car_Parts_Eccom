@@ -1,4 +1,3 @@
-import 'dotenv/config'
 import { Sequelize, Op } from 'sequelize';
 import { initModels } from './generated_models/init-models';
 export { Op };
@@ -7,6 +6,12 @@ export let sequelize: any;
 export let models: any;
 
 if (typeof window === 'undefined') {
+  // Dynamic + guarded: `dotenv/config` self-executes on import and reads
+  // process.argv, which throws ReferenceError if this module chain ever
+  // ends up in a client bundle. Node already reads .env in production via
+  // PM2's --env-file flag; this is just a fallback for direct `node` runs.
+  void import('dotenv/config');
+
   const dbHost = process.env.DB_HOST || 'localhost';
   const dbPort = Number(process.env.DB_PORT) || 5432;
   const dbUser = process.env.DB_USER || 'postgres';
