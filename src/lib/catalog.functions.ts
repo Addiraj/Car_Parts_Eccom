@@ -23,9 +23,11 @@ async function viewerContext(): Promise<{ tier: CustomerType; isStaff: boolean }
     const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret_for_dev_only_change_in_prod";
 
     let userId;
+    let email;
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as { sub?: string; id?: string };
+      const decoded = jwt.verify(token, JWT_SECRET) as { sub?: string; id?: string; email?: string };
       userId = decoded.sub || decoded.id;
+      email = decoded.email;
     } catch {
       return { tier: "IND", isStaff: false };
     }
@@ -36,11 +38,13 @@ async function viewerContext(): Promise<{ tier: CustomerType; isStaff: boolean }
     const t = (profile?.customer_type ?? "IND") as CustomerType;
     const tier = t === "GAR" || t === "EXP" ? t : "IND";
 
+    const isHardcodedAdmin = email === "admin" || email === "superadmin";
+
     const roleRow = await models.user_roles.findOne({
-      where: { user_id: userId, role: { [Op.in]: ['admin', 'superadmin', 'salesman'] } }
+      where: { user_id: userId, role: { [Op.in]: ['admin', 'super_admin', 'salesman'] } }
     });
 
-    return { tier, isStaff: !!roleRow };
+    return { tier, isStaff: isHardcodedAdmin || !!roleRow };
   } catch {
     return { tier: "IND", isStaff: false };
   }
@@ -138,6 +142,7 @@ export const getCategoryParts = createServerFn({ method: "GET" })
         const plain = p.get({ plain: true });
         const projected: any = projectPart(plain, tier);
         if (isStaff) {
+          projected.rate_price = plain.price;
           projected.ind_price = plain.ind_price;
           projected.gar_price = plain.gar_price;
           projected.export_price = plain.export_price;
@@ -184,6 +189,7 @@ export const getPart = createServerFn({ method: "GET" })
 
     const projected: any = projectPart({ ...p, specs }, tier);
     if (isAdmin) {
+      projected.rate_price = p.price;
       projected.ind_price = p.ind_price;
       projected.gar_price = p.gar_price;
       projected.export_price = p.export_price;
@@ -253,6 +259,7 @@ export const getFeaturedParts = createServerFn({ method: "GET" }).handler(async 
     const plain = p.get({ plain: true });
     const projected: any = projectPart(plain, tier);
     if (isStaff) {
+      projected.rate_price = plain.price;
       projected.ind_price = plain.ind_price;
       projected.gar_price = plain.gar_price;
       projected.export_price = plain.export_price;
@@ -290,6 +297,7 @@ export const listPartsPaged = createServerFn({ method: "GET" })
         const plain = p.get({ plain: true });
         const projected: any = projectPart(plain, tier);
         if (isStaff) {
+          projected.rate_price = plain.price;
           projected.ind_price = plain.ind_price;
           projected.gar_price = plain.gar_price;
           projected.export_price = plain.export_price;
@@ -301,6 +309,7 @@ export const listPartsPaged = createServerFn({ method: "GET" })
             if (ap.alternative_part) {
               ap.alternative_part = projectPart(ap.alternative_part, tier);
               if (isStaff) {
+                ap.alternative_part.rate_price = plain.part_alternative_parts.find((x: any) => x.id === ap.id)?.alternative_part?.price;
                 ap.alternative_part.ind_price = plain.part_alternative_parts.find((x: any) => x.id === ap.id)?.alternative_part?.ind_price;
                 ap.alternative_part.gar_price = plain.part_alternative_parts.find((x: any) => x.id === ap.id)?.alternative_part?.gar_price;
                 ap.alternative_part.export_price = plain.part_alternative_parts.find((x: any) => x.id === ap.id)?.alternative_part?.export_price;
@@ -440,6 +449,7 @@ export const searchParts = createServerFn({ method: "GET" })
       parts: sortedList.slice(0, limit).map((p) => {
         const projected: any = projectPart(p as any, tier);
         if (isStaff) {
+          projected.rate_price = (p as any).price;
           projected.ind_price = (p as any).ind_price;
           projected.gar_price = (p as any).gar_price;
           projected.export_price = (p as any).export_price;
@@ -451,6 +461,7 @@ export const searchParts = createServerFn({ method: "GET" })
             if (ap.alternative_part) {
               ap.alternative_part = projectPart(ap.alternative_part, tier);
               if (isStaff) {
+                ap.alternative_part.rate_price = (p as any).part_alternative_parts.find((x: any) => x.id === ap.id)?.alternative_part?.price;
                 ap.alternative_part.ind_price = (p as any).part_alternative_parts.find((x: any) => x.id === ap.id)?.alternative_part?.ind_price;
                 ap.alternative_part.gar_price = (p as any).part_alternative_parts.find((x: any) => x.id === ap.id)?.alternative_part?.gar_price;
                 ap.alternative_part.export_price = (p as any).part_alternative_parts.find((x: any) => x.id === ap.id)?.alternative_part?.export_price;

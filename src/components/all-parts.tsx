@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { listPartsPaged } from "@/lib/catalog.functions";
 import { formatAED } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
-import { useIsAdmin } from "@/hooks/use-is-admin";
+import { useIsStaff } from "@/hooks/use-is-staff";
 import { Reveal, TiltCard } from "@/components/motion-primitives";
 import { PartThumb } from "@/components/part-thumb";
 import { PartCard } from "@/components/part-card";
@@ -14,9 +14,9 @@ import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { SignInDialog } from "@/components/sign-in-dialog";
 import { useState } from "react";
 
-export const homePartsQO = (page: number) =>
+export const homePartsQO = (page: number, isStaff: boolean = false) =>
   queryOptions({
-    queryKey: ["home-parts", page],
+    queryKey: ["home-parts", page, isStaff],
     queryFn: () => listPartsPaged({ data: { page, pageSize: 24 } }),
   });
 
@@ -24,9 +24,9 @@ type Props = { page: number; basePath: "/" | "/products" };
 
 export function AllParts({ page, basePath }: Props) {
   const { t } = useI18n();
-  const isAdmin = useIsAdmin();
+  const isStaff = useIsStaff();
   const navigate = useNavigate();
-  const partsQuery = useQuery({ ...homePartsQO(page), placeholderData: keepPreviousData });
+  const partsQuery = useQuery({ ...homePartsQO(page, isStaff), placeholderData: keepPreviousData });
   const { items = [], total = 0, pageSize = 24 } = partsQuery.data ?? {};
   const isFetching = partsQuery.isFetching;
   const pages = Math.max(1, Math.ceil(total / pageSize));
