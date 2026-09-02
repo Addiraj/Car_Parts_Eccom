@@ -433,7 +433,7 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
       if (isDataExtraction) {
         promptText = `I have uploaded a document. URL: ${urls[0]}\n\nHere is the extracted data:\n${dataExtractionJson}\n\nPlease identify any part numbers in this data and fetch their details using searchPartsByNumber. Do NOT list the parts in your text response; the UI will display them automatically as cards.\n\n(${LANG_INSTRUCTION[lang]})`;
       } else if (isImage) {
-        promptText = `I'm sharing image(s). URLs:\n${urls.join("\n")}\n\nPlease analyze them. If the image contains a 17-character VIN (like on a vehicle registration document or VIN plate), you MUST use the 'ocrVin' tool to extract and decode it first. If it is a car part, use 'identifyPartFromImage'. If it is a dashboard light, use 'identifyWarningLight'.\nCRITICAL: When calling a tool, you MUST pass the EXACT URL string provided above without any modifications.\n\n(${LANG_INSTRUCTION[lang]})`;
+        promptText = `I'm sharing image(s). URLs:\n${urls.join("\n")}\n\nPlease first analyze them using the 'analyzeImage' tool. After analyzing, if it contains a 17-digit VIN, use 'ocrVin' to decode it. If it contains part numbers, use 'searchPartsByNumber' to display them. If it's a warning light, explain it. Otherwise, reply according to the analysis.\nCRITICAL: When calling a tool, you MUST pass the EXACT URL string provided above without any modifications.\n\n(${LANG_INSTRUCTION[lang]})`;
       } else {
         promptText = `I'm sharing a document. URL: ${urls[0]}\n\nPlease analyze this document for relevant part information.\n\n(${LANG_INSTRUCTION[lang]})`;
       }

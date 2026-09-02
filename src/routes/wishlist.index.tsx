@@ -128,7 +128,7 @@ function WishlistPartCard({ item, isStaff, onRemove, onAddToCart }: {
                 <div className="text-[10px] text-muted-foreground/70 dark:text-slate-500 font-bold mb-1 tracking-wider">ALL TIERS</div>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 mb-3">
                   {[
-                    { label: "RATE", val: p.price, accent: true },
+                    { label: "RATE", val: p.rate_price ?? p.price, accent: true },
                     { label: "IND", val: p.ind_price ?? p.price },
                     { label: "GAR", val: p.gar_price ?? p.price },
                     { label: "EXP", val: p.export_price ?? p.price },

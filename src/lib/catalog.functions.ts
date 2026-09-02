@@ -199,9 +199,17 @@ export const getPart = createServerFn({ method: "GET" })
       part: projected,
       alternatives: alts.map(a => {
         const altData = a.get({ plain: true });
+        const altPart = altData.alternative_part;
+        let pAlt: any = altPart ? projectPart(altPart as any, tier) : null;
+        if (isAdmin && pAlt && altPart) {
+          pAlt.rate_price = altPart.price;
+          pAlt.ind_price = altPart.ind_price;
+          pAlt.gar_price = altPart.gar_price;
+          pAlt.export_price = altPart.export_price;
+        }
         return {
           ...altData,
-          part: altData.alternative_part ? projectPart(altData.alternative_part as any, tier) : null
+          part: pAlt
         };
       }),
       viewerTier: tier,

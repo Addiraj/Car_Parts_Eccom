@@ -109,7 +109,7 @@ function AltPartCard({
           {isStaff && (
             <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] mb-2">
               {[
-                { label: "RATE", val: alt.price, accent: true },
+                { label: "RATE", val: alt.rate_price ?? alt.price, accent: true },
                 { label: "IND", val: alt.ind_price ?? alt.price },
                 { label: "GAR", val: alt.gar_price ?? alt.price },
                 { label: "EXP", val: alt.export_price ?? alt.price },

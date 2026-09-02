@@ -357,6 +357,21 @@ export function buildAssistantTools(ctx: Ctx) {
       },
     }),
 
+    analyzeImage: tool({
+      description: "Analyze an image to extract text and determine its contents (VIN, part numbers, warning lights, or general info).",
+      inputSchema: z.object({ imageUrl: z.string() }),
+      execute: async ({ imageUrl }) => {
+        const p = { content: "Analyze this image in detail. Respond ONLY with strict JSON: {\"summary\": \"brief description of the image\", \"extractedText\": \"any text found\", \"isVinDocument\": boolean, \"isWarningLight\": boolean, \"isCarPart\": boolean, \"vin\": \"17-char VIN if found or null\", \"partNumbers\": [\"array of part numbers if found\"], \"warningLightName\": \"name of warning light if found or null\"}" };
+        const out = await visionJson(p.content, imageUrl);
+        if (!out) return { error: "Could not analyze image" };
+        
+        return {
+           analysis: out,
+           instructionsForAI: "Based on this analysis: if 'vin' is present, you may decode it or present it. If 'partNumbers' are present, you MUST call 'searchPartsByNumber' to display them. If 'isWarningLight' is true, explain the warning light. Otherwise, reply to the user based on the summary."
+        };
+      },
+    }),
+
     identifyPartFromImage: tool({
       description:
         "Identify a vehicle part shown in a photo. Provide the public URL of the image. Returns guessed part name and suggested catalog matches.",

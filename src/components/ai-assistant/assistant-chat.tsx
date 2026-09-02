@@ -39,6 +39,7 @@ export function AssistantChat({
   onThreadIdResolved?: (id: string) => void;
 }) {
   const [token, setToken] = React.useState<string | null>(null);
+  const [isRecording, setIsRecording] = React.useState(false);
   React.useEffect(() => {
     setToken(localStorage.getItem("jwt_token"));
     const handleStorage = () => setToken(localStorage.getItem("jwt_token"));
@@ -233,7 +234,7 @@ export function AssistantChat({
       if (isDataExtraction) {
         promptText = `I have uploaded a document. URL: ${urls[0]}\n\nHere is the extracted data:\n${dataExtractionJson}\n\nPlease identify any part numbers in this data and fetch their details using searchPartsByNumber. Do NOT list the parts in your text response; the UI will display them automatically as cards.`;
       } else if (isImage) {
-        promptText = `I'm sharing image(s). URLs:\n${urls.join("\n")}\n\nPlease analyze them. If the image contains a 17-character VIN (like on a vehicle registration document or VIN plate), you MUST use the 'ocrVin' tool to extract and decode it first. If it is a car part, use 'identifyPartFromImage'. If it is a dashboard light, use 'identifyWarningLight'.\nCRITICAL: When calling a tool, you MUST pass the EXACT URL string provided above without any modifications.`;
+        promptText = `I'm sharing image(s). URLs:\n${urls.join("\n")}\n\nPlease first analyze them using the 'analyzeImage' tool. After analyzing, if it contains a 17-digit VIN, use 'ocrVin' to decode it. If it contains part numbers, use 'searchPartsByNumber' to display them. If it's a warning light, explain it. Otherwise, reply according to the analysis.\nCRITICAL: When calling a tool, you MUST pass the EXACT URL string provided above without any modifications.`;
       } else {
         promptText = `I'm sharing a document. URL: ${urls[0]}\n\nPlease analyze this document for relevant part information.`;
       }
@@ -256,12 +257,18 @@ export function AssistantChat({
       const chunks: Blob[] = [];
       rec.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data);
       rec.onstop = async () => {
+        setIsRecording(false);
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunks, { type: rec.mimeType });
         if (blob.size < 1024) { toast.error("Recording too short"); return; }
+        toast.message("Transcribing…");
         const fd = new FormData();
         fd.append("file", blob);
-        const res = await fetch("/api/ai/transcribe", { method: "POST", body: fd });
+        const res = await fetch("/api/ai/transcribe", {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: fd,
+        });
         if (!res.ok) { toast.error("Transcription failed"); return; }
         // parse SSE
         const reader = res.body!.getReader();
@@ -284,13 +291,18 @@ export function AssistantChat({
             } catch {/* ignore */ }
           }
         }
-        if (full) setInput((s) => (s ? s + " " : "") + full);
+        if (full) {
+          // Auto-send the transcribed message immediately
+          sendMessage({ text: full });
+        }
       };
       rec.start();
-      toast.message("Recording… click mic again to stop");
+      setIsRecording(true);
+      toast.message("Recording… tap mic again to stop & send");
       // store recorder on window so we can stop
       (window as any).__assistantRecorder = rec;
     } catch {
+      setIsRecording(false);
       const rec = (window as any).__assistantRecorder as MediaRecorder | undefined;
       if (rec && rec.state === "recording") rec.stop();
     }
@@ -530,14 +542,15 @@ export function AssistantChat({
               </PromptInputButton>
               <PromptInputButton
                 type="button"
+                title={isRecording ? "Stop recording & send" : "Voice input"}
                 onClick={() => {
-                  const rec = (window as any).__assistantRecorder as MediaRecorder | undefined;
-                  if (rec && rec.state === "recording") stopVoice();
+                  if (isRecording) stopVoice();
                   else handleVoice();
                 }}
+                className={isRecording ? "text-red-500 animate-pulse" : ""}
               >
-                <Mic className="h-4 w-4" />
-                <span className="sr-only">Voice input</span>
+                <Mic className={`h-4 w-4 ${isRecording ? "fill-red-500 text-red-500" : ""}`} />
+                <span className="sr-only">{isRecording ? "Stop recording" : "Voice input"}</span>
               </PromptInputButton>
             </PromptInputTools>
             <PromptInputSubmit status={status} disabled={!input.trim() || isLoading} />

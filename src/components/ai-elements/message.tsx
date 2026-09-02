@@ -36,11 +36,49 @@ export type MessageResponseProps = HTMLAttributes<HTMLDivElement> & {
   children?: string;
 };
 
-export const MessageResponse = ({ className, children, ...props }: MessageResponseProps) => (
-  <div className={cn("whitespace-pre-wrap break-words", className)} {...props}>
-    {children}
-  </div>
-);
+export const MessageResponse = ({ className, children, ...props }: MessageResponseProps) => {
+  if (typeof children !== "string") {
+    return (
+      <div className={cn("whitespace-pre-wrap break-words", className)} {...props}>
+        {children}
+      </div>
+    );
+  }
+
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  // Match [text](url)
+  const regex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  let match;
+
+  while ((match = regex.exec(children)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(children.substring(lastIndex, match.index));
+    }
+    parts.push(
+      <a
+        key={match.index}
+        href={match[2]}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+      >
+        {match[1]}
+      </a>
+    );
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < children.length) {
+    parts.push(children.substring(lastIndex));
+  }
+
+  return (
+    <div className={cn("whitespace-pre-wrap break-words", className)} {...props}>
+      {parts.length > 0 ? parts : children}
+    </div>
+  );
+};
 
 export type MessageAvatarProps = HTMLAttributes<HTMLDivElement> & {
   src?: string;
