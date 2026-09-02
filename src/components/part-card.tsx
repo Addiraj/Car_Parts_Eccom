@@ -219,19 +219,19 @@ export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlist
               <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mb-4">
                 <div className="flex items-center text-[10px] rounded bg-muted/60 dark:bg-slate-900/80 border border-border/50 dark:border-slate-800 overflow-hidden">
                   <span className="bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold px-2 py-1 w-12 text-center border-r border-blue-200/40 dark:border-blue-800/40">RATE</span>
-                  <span className="text-blue-600 dark:text-blue-400 font-bold px-2.5">{formatAED(Number(p.specs?.rate_price ?? p.price))}</span>
+                  <span className="text-blue-600 dark:text-blue-400 font-bold px-2.5">{formatAED(Number(p.rate_price ?? p.price))}</span>
                 </div>
                 <div className="flex items-center text-[10px] rounded bg-muted/60 dark:bg-slate-900/80 border border-border/50 dark:border-slate-800 overflow-hidden">
                   <span className="bg-muted text-muted-foreground dark:bg-slate-800 dark:text-slate-400 font-bold px-2 py-1 w-12 text-center border-r border-border dark:border-slate-700">IND</span>
-                  <span className="font-bold px-2.5 text-foreground dark:text-slate-200">{formatAED(Number(p.ind_price ?? p.price))}</span>
+                  <span className="font-bold px-2.5 text-foreground dark:text-slate-200">{p.ind_price != null ? formatAED(Number(p.ind_price)) : "-"}</span>
                 </div>
                 <div className="flex items-center text-[10px] rounded bg-muted/60 dark:bg-slate-900/80 border border-border/50 dark:border-slate-800 overflow-hidden">
                   <span className="bg-muted text-muted-foreground dark:bg-slate-800 dark:text-slate-400 font-bold px-2 py-1 w-12 text-center border-r border-border dark:border-slate-700">GAR</span>
-                  <span className="font-bold px-2.5 text-foreground dark:text-slate-200">{formatAED(Number(p.gar_price ?? p.price))}</span>
+                  <span className="font-bold px-2.5 text-foreground dark:text-slate-200">{p.gar_price != null ? formatAED(Number(p.gar_price)) : "-"}</span>
                 </div>
                 <div className="flex items-center text-[10px] rounded bg-muted/60 dark:bg-slate-900/80 border border-border/50 dark:border-slate-800 overflow-hidden">
                   <span className="bg-muted text-muted-foreground dark:bg-slate-800 dark:text-slate-400 font-bold px-2 py-1 w-12 text-center border-r border-border dark:border-slate-700">EXP</span>
-                  <span className="font-bold px-2.5 text-foreground dark:text-slate-200">{formatAED(Number(p.export_price ?? p.price))}</span>
+                  <span className="font-bold px-2.5 text-foreground dark:text-slate-200">{p.export_price != null ? formatAED(Number(p.export_price)) : "-"}</span>
                 </div>
               </div>
             ) : (

@@ -17,6 +17,7 @@ export function resolvePrice(
     ind_price?: number | string | null;
     gar_price?: number | string | null;
     export_price?: number | string | null;
+    price?: number | string | null;
   } | null | undefined,
   tier: CustomerType,
 ): number {
@@ -30,7 +31,9 @@ export function resolvePrice(
       ? Number(pick)
       : tier !== "IND" && part.ind_price != null && part.ind_price !== ""
         ? Number(part.ind_price)
-        : 0;
+        : part.price != null && part.price !== ""
+          ? Number(part.price)
+          : 0;
   return Number.isFinite(chosen) ? chosen : 0;
 }
 
