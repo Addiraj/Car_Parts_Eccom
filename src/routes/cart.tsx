@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getMyCart, updateCartQty, removeFromCart, clearCart, getStaffTierPrices, requestCartSalesman, type StaffTier } from "@/lib/account.functions";
+import { getMyCart, updateCartQty, removeFromCart, clearCart, requestCartSalesman, type StaffTier } from "@/lib/account.functions";
 import { getActiveOffersForParts, computeOfferPrice } from "@/lib/offers.functions";
 import { formatAED } from "@/lib/format";
 import { toast } from "sonner";
@@ -52,13 +52,6 @@ function CartPage() {
 
   const partIds = useMemo(() => items.map((i: any) => i.part?.id).filter(Boolean) as string[], [items]);
 
-  const { data: staffPricing } = useQuery({
-    queryKey: ["cart-staff-tier-prices", partIds.join(",")],
-    queryFn: () => getStaffTierPrices({ data: { partIds } }),
-    enabled: isStaff && partIds.length > 0,
-  });
-  const tierPrices = (staffPricing?.prices ?? {}) as Record<string, { rate: number; ind: number; gar: number; exp: number }>;
-
   const [tier, setTier] = useState<StaffTier>("ind");
   useEffect(() => {
     if (!isStaff) return;
@@ -109,11 +102,16 @@ function CartPage() {
   }
 
   const lines = items.map((it: any) => {
-    const tp = tierPrices[it.part?.id];
-    const original = isStaff && tp ? Number(tp[tier] || 0) : Number(it.part?.price || 0);
+    let original = Number(it.part?.price || 0);
+    if (isStaff) {
+      if (tier === "rate") original = Number(it.part?.rate_price || it.part?.price || 0);
+      else if (tier === "ind") original = Number(it.part?.ind_price || 0);
+      else if (tier === "gar") original = Number(it.part?.gar_price || 0);
+      else if (tier === "exp") original = Number(it.part?.export_price || 0);
+    }
     const off = offers[it.part?.id];
     const { final, discount } = off ? computeOfferPrice(original, off) : { final: original, discount: 0 };
-    return { ...it, originalUnit: original, finalUnit: final, savingsUnit: discount, offer: off ?? null, tp };
+    return { ...it, originalUnit: original, finalUnit: final, savingsUnit: discount, offer: off ?? null };
   });
   const originalTotal = lines.reduce((s: number, l: any) => s + l.originalUnit * l.quantity, 0);
   const finalTotal = lines.reduce((s: number, l: any) => s + l.finalUnit * l.quantity, 0);

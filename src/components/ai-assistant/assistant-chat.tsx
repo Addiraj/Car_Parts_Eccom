@@ -48,6 +48,11 @@ export function AssistantChat({
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
+  const [chatSessionId, setChatSessionId] = React.useState<string>(() =>
+    threadId ? `chat-${threadId}` : `chat-${Date.now()}`
+  );
+  const historyLoadRequestedRef = React.useRef(false);
+
   const transport = React.useMemo(
     () =>
       new DefaultChatTransport({
@@ -67,16 +72,22 @@ export function AssistantChat({
     [threadId, onThreadIdResolved],
   );
 
-
   const { messages, sendMessage, status, setMessages } = useChat({
-    id: threadId ?? "new",
+    id: chatSessionId,
     transport,
     onError: (e) => toast.error(e.message || "AI request failed"),
   });
 
   // Load existing thread messages
   React.useEffect(() => {
-    if (!threadId) { setMessages([]); return; }
+    if (!threadId) {
+      setMessages([]);
+      setChatSessionId(`chat-${Date.now()}`);
+      historyLoadRequestedRef.current = false;
+      return;
+    }
+    if (!historyLoadRequestedRef.current && messages.length > 0) return;
+    historyLoadRequestedRef.current = false;
     (async () => {
       try {
         const t = localStorage.getItem("jwt_token");
@@ -94,7 +105,7 @@ export function AssistantChat({
         console.error(err);
       }
     })();
-  }, [threadId, setMessages]);
+  }, [threadId]);
 
   const [input, setInput] = React.useState("");
   const [uploading, setUploading] = React.useState(false);
@@ -103,17 +114,11 @@ export function AssistantChat({
   const [cameraOpen, setCameraOpen] = React.useState(false);
   const isLoading = status === "submitted" || status === "streaming";
 
-  const ensureThread = async (): Promise<string | null> => {
-    if (threadId) return threadId;
-    return await onNewThread();
-  };
-
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isLoading) return;
     const t = typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null;
     if (!t) { toast.error("Please sign in to chat"); return; }
-    await ensureThread();
     setInput("");
     sendMessage({ text });
   };
@@ -212,7 +217,6 @@ export function AssistantChat({
 
     setUploading(true);
     try {
-      await ensureThread();
       const urls: string[] = [];
 
       for (const f of filesToUpload) {
@@ -339,6 +343,8 @@ export function AssistantChat({
               size="sm"
               className="w-full gap-2"
               onClick={async () => {
+                setChatSessionId(`chat-${Date.now()}`);
+                setMessages([]);
                 await onNewThread();
               }}
             >
@@ -359,6 +365,8 @@ export function AssistantChat({
                 <button
                   className="flex-1 truncate text-left"
                   onClick={() => {
+                    historyLoadRequestedRef.current = true;
+                    setChatSessionId(`chat-${t.id}`);
                     onSelectThread(t.id);
                     if (window.matchMedia("(max-width: 767px)").matches) setHistoryOpen(false);
                   }}
@@ -396,7 +404,11 @@ export function AssistantChat({
               size="icon"
               variant="ghost"
               className="h-8 w-8"
-              onClick={onNewThread}
+              onClick={async () => {
+                setChatSessionId(`chat-${Date.now()}`);
+                setMessages([]);
+                await onNewThread();
+              }}
               aria-label="New chat"
               title="New chat"
             >

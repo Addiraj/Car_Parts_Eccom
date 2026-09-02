@@ -93,30 +93,6 @@ function applyTier(rows: any[], col: string, isStaff: boolean = false) {
   return rows;
 }
 
-export const getStaffTierPrices = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .validator((d: unknown) => z.object({ partIds: z.array(z.string().uuid()).max(200) }).parse(d))
-  .handler(async ({ data, context }) => {
-    const staff = await isStaffUser(context.supabase, context.userId);
-    if (!staff || data.partIds.length === 0) return { isStaff: staff, prices: {} as Record<string, { rate: number; ind: number; gar: number; exp: number }> };
-    
-    const rows = await models.parts.findAll({
-      where: { id: { [Op.in]: data.partIds } },
-      attributes: ["id", "price", "ind_price", "gar_price", "export_price"]
-    });
-
-    const prices: Record<string, { rate: number; ind: number; gar: number; exp: number }> = {};
-    for (const r of rows) {
-      prices[r.id] = {
-        rate: Number(r.price ?? 0),
-        ind: Number(r.ind_price ?? 0),
-        gar: Number(r.gar_price ?? 0),
-        exp: Number(r.export_price ?? 0),
-      };
-    }
-    return { isStaff: true, prices };
-  });
-
 
 /* ============= PROFILE ============= */
 

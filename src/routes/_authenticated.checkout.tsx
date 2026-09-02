@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { getMyCart, getStaffTierPrices, type StaffTier } from "@/lib/account.functions";
+import { getMyCart, type StaffTier } from "@/lib/account.functions";
 import { getMyAddresses, getShippingZones, validateCoupon, placeOrder, saveAddress, VAT_RATE } from "@/lib/orders.functions";
 import { createStripeCheckout } from "@/lib/stripe/stripe.functions";
 import { getCheckoutPaymentContext } from "@/lib/credit.functions";
@@ -46,15 +46,14 @@ function CheckoutPage() {
   const { data: payCtx } = useQuery({ queryKey: ["checkout-payment-context"], queryFn: () => getCheckoutPaymentContext() });
 
   const partIds = useMemo(() => items.map((i: any) => i.part?.id).filter(Boolean) as string[], [items]);
-  const { data: staffPricing } = useQuery({
-    queryKey: ["cart-staff-tier-prices", partIds.join(",")],
-    queryFn: () => getStaffTierPrices({ data: { partIds } }),
-    enabled: isStaff && partIds.length > 0,
-  });
-  const tierPrices = (staffPricing?.prices ?? {}) as Record<string, { rate: number; ind: number; gar: number; exp: number }>;
 
   const unitFor = (it: any): number => {
-    if (isStaff && tier && tierPrices[it.part?.id]) return Number(tierPrices[it.part.id][tier] || 0);
+    if (isStaff) {
+      if (tier === "rate") return Number(it.part?.rate_price || it.part?.price || 0);
+      if (tier === "ind") return Number(it.part?.ind_price || 0);
+      if (tier === "gar") return Number(it.part?.gar_price || 0);
+      if (tier === "exp") return Number(it.part?.export_price || 0);
+    }
     return Number(it.part?.price || 0);
   };
 
@@ -81,7 +80,7 @@ function CheckoutPage() {
 
   const subtotal = useMemo(
     () => items.reduce((s: number, i: any) => s + unitFor(i) * i.quantity, 0),
-    [items, tier, tierPrices, isStaff]
+    [items, tier, isStaff]
   );
 
   const zone = zones.find((z: any) => z.emirate === selectedAddress?.emirate);
