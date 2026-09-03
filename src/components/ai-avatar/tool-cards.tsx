@@ -470,6 +470,38 @@ function PremiumPartCard({ p, isAlternative = false }: { p: Part; isAlternative?
   );
 }
 
+function SimpleContactBlock({ query, message }: { query: string; message: string }) {
+  const action = useAvatarAction();
+  const waMsg = encodeURIComponent(`Hi, I'd like to enquire about part ${query}`);
+  const waUrl = `https://wa.me/971547516365?text=${waMsg}`;
+  
+  return (
+    <div className="flex flex-col rounded-lg border border-slate-200 bg-slate-50 p-4 gap-3 shadow-sm w-full">
+      <div className="text-slate-700 text-[12px] font-medium leading-relaxed">
+        {message}
+      </div>
+      {action && (
+        <div className="flex gap-2 mt-1">
+          <button
+            onClick={() => action(`Please connect me with a salesman regarding part: ${query}`)}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md py-2 text-[11px] font-bold transition flex items-center justify-center gap-1 shadow-sm"
+          >
+            <UserCheck className="h-3.5 w-3.5" /> Contact Salesman
+          </button>
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-md py-2 text-[11px] font-bold transition flex items-center justify-center gap-1 shadow-xs"
+          >
+            <MessageCircle className="h-3.5 w-3.5 text-emerald-600" /> WhatsApp
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function OutOfStockInquiryBlock({ query, partNumber, name }: { query: string, partNumber?: string, name?: string }) {
   const action = useAvatarAction();
   const waMsg = encodeURIComponent(`Hi, I'd like to enquire about part ${partNumber || query} — ${name || ""}`);
@@ -478,7 +510,7 @@ function OutOfStockInquiryBlock({ query, partNumber, name }: { query: string, pa
     <div className="flex flex-col rounded-lg border border-red-200 bg-red-50 p-4 gap-3 shadow-sm w-full">
       <div>
         <div className="font-bold text-red-800 text-sm">Part Unavailable</div>
-        <div className="text-red-700 text-[11px] mt-1">We couldn't find available stock for <strong>{partNumber || query}</strong>. Please contact our sales team to check inbound inventory or arrange a special order.</div>
+        <div className="text-red-700 text-[11px] mt-1">For this partnumber please contact our sales team.</div>
       </div>
       {action && (
         <div className="flex gap-2">
@@ -513,29 +545,91 @@ function PartNumberSearchResult({ query, parts, alternatives }: { query: string;
   const mainOos = !isStaff ? parts.filter(p => Number(p.stock ?? 0) <= 0) : [];
   const altsAvailable = alternatives.filter(p => isStaff || Number(p.stock ?? 0) > 0);
   
-  return (
-    <div className="flex flex-col gap-4 my-2">
-      {/* Asked Part Section */}
-      <div className="border-l-[3px] border-[#2563eb] pl-3 flex flex-col gap-2">
-        <div className="text-[#2563eb] font-extrabold tracking-wider text-[11px] uppercase">
-          YOUR PART NUMBER — {query}
+  if (isStaff) {
+    return (
+      <div className="flex flex-col gap-4 my-2">
+        <div className="border-l-[3px] border-[#2563eb] pl-3 flex flex-col gap-2">
+          <div className="text-[#2563eb] font-extrabold tracking-wider text-[11px] uppercase">
+            YOUR PART NUMBER — {query}
+          </div>
+          <div className="flex flex-col gap-2">
+            {mainAvailable.map((p) => (
+              <PremiumPartCard key={p.id} p={p} isAlternative={false} />
+            ))}
+            {mainOos.map((p) => (
+              <OutOfStockInquiryBlock key={p.id} query={query} partNumber={p.part_number} name={p.name} />
+            ))}
+            {parts.length === 0 && (
+               <OutOfStockInquiryBlock query={query} />
+            )}
+          </div>
         </div>
-        <div className="flex flex-col gap-2">
-          {mainAvailable.map((p) => (
-            <PremiumPartCard key={p.id} p={p} isAlternative={false} />
-          ))}
-          {mainOos.map((p) => (
-            <OutOfStockInquiryBlock key={p.id} query={query} partNumber={p.part_number} name={p.name} />
-          ))}
-          {/* If completely not found for a normal customer, just show the inquiry block */}
-          {!isStaff && parts.length === 0 && (
-             <OutOfStockInquiryBlock query={query} />
-          )}
-        </div>
+        {altsAvailable.length > 0 && (
+          <div className="flex flex-col gap-1.5 mt-1">
+            <div className="text-slate-500 font-extrabold tracking-wider text-[11px] uppercase">
+              OTHER OPTIONS ({altsAvailable.length})
+            </div>
+            <div className="text-slate-400 text-[10px] leading-tight">
+              Compatible replacements we stock
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1.5">
+              {altsAvailable.map((alt) => (
+                <PremiumPartCard key={alt.id} p={alt} isAlternative={true} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+    );
+  }
 
-      {/* Alternative Parts Section */}
-      {altsAvailable.length > 0 && (
+  // NON-STAFF LOGIC
+  const hasExactMatchesInStock = mainAvailable.length > 0;
+  const hasAlternativesInStock = altsAvailable.length > 0;
+  
+  if (hasExactMatchesInStock) {
+    return (
+      <div className="flex flex-col gap-4 my-2">
+        <div className="border-l-[3px] border-[#2563eb] pl-3 flex flex-col gap-2">
+          <div className="text-[#2563eb] font-extrabold tracking-wider text-[11px] uppercase">
+            YOUR REQUESTED PART
+          </div>
+          <div className="flex flex-col gap-2">
+            {mainAvailable.map((p) => (
+              <PremiumPartCard key={p.id} p={p} isAlternative={false} />
+            ))}
+          </div>
+        </div>
+        {hasAlternativesInStock && (
+          <div className="flex flex-col gap-1.5 mt-1">
+            <div className="text-slate-500 font-extrabold tracking-wider text-[11px] uppercase">
+              OTHER OPTIONS ({altsAvailable.length})
+            </div>
+            <div className="text-slate-400 text-[10px] leading-tight">
+              Compatible replacements we stock
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1.5">
+              {altsAvailable.map((alt) => (
+                <PremiumPartCard key={alt.id} p={alt} isAlternative={true} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (!hasExactMatchesInStock && hasAlternativesInStock) {
+    return (
+      <div className="flex flex-col gap-4 my-2">
+        <div className="border-l-[3px] border-[#2563eb] pl-3 flex flex-col gap-2">
+          <div className="text-[#2563eb] font-extrabold tracking-wider text-[11px] uppercase">
+            YOUR REQUESTED PART
+          </div>
+          <div className="flex flex-col gap-2">
+             <SimpleContactBlock query={query} message={`For your partnumber: ${query} you can contact our salesman. But also we have other options below.`} />
+          </div>
+        </div>
         <div className="flex flex-col gap-1.5 mt-1">
           <div className="text-slate-500 font-extrabold tracking-wider text-[11px] uppercase">
             OTHER OPTIONS ({altsAvailable.length})
@@ -549,7 +643,13 @@ function PartNumberSearchResult({ query, parts, alternatives }: { query: string;
             ))}
           </div>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="my-2">
+       <SimpleContactBlock query={query} message={`For ${query} you can contact our team.`} />
     </div>
   );
 }

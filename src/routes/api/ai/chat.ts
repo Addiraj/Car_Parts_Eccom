@@ -90,7 +90,8 @@ async function buildSystem(
   } catch { /* ignore */ }
 
   const p = await loadPrompt("system", { content: DEFAULT_SYSTEM });
-  const vehBlock = vehicle && Object.keys(vehicle).length
+  const hasVehicleKeys = vehicle && Object.keys(vehicle).filter(k => k !== "source").length > 0;
+  const vehBlock = hasVehicleKeys
     ? `\n\nKnown vehicle in this conversation: ${JSON.stringify(vehicle)}. Use it without asking again.`
     : "";
   const profBlock = profile && (profile.name || profile.phone || profile.email)

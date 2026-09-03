@@ -9,9 +9,6 @@ import {
   PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit, PromptInputTools, PromptInputButton,
 } from "@/components/ai-elements/prompt-input";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import {
-  Tool, ToolHeader, ToolContent, ToolInput, ToolOutput,
-} from "@/components/ai-elements/tool";
 import { Button } from "@/components/ui/button";
 import { Mic, ImagePlus, Camera, FileUp, Loader2, MessageSquarePlus, Trash2, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import { CameraModal } from "@/components/ui/camera-modal";
@@ -20,9 +17,18 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
-
+import { supabase } from "@/integrations/supabase/client";
+import { ToolPartView, AvatarActionContext } from "@/components/ai-avatar/tool-cards";
 
 type Thread = { id: string; title: string };
+
+async function getAuthToken(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.access_token) return data.session.access_token;
+  } catch {}
+  return typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null;
+}
 
 export function AssistantChat({
   threadId,
@@ -39,14 +45,7 @@ export function AssistantChat({
   onDeleteThread: (id: string) => Promise<void>;
   onThreadIdResolved?: (id: string) => void;
 }) {
-  const [token, setToken] = React.useState<string | null>(null);
   const [isRecording, setIsRecording] = React.useState(false);
-  React.useEffect(() => {
-    setToken(localStorage.getItem("jwt_token"));
-    const handleStorage = () => setToken(localStorage.getItem("jwt_token"));
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
-  }, []);
 
   const [chatSessionId, setChatSessionId] = React.useState<string>(() =>
     threadId ? `chat-${threadId}` : `chat-${Date.now()}`
@@ -57,9 +56,9 @@ export function AssistantChat({
     () =>
       new DefaultChatTransport({
         api: "/api/ai/chat",
-        body: () => ({ threadId }),
+        body: () => ({ threadId, source: "automate" }),
         headers: async () => {
-          const t = typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null;
+          const t = await getAuthToken();
           return t ? ({ Authorization: `Bearer ${t}` } as Record<string, string>) : ({} as Record<string, string>);
         },
         fetch: (async (url: any, init: any) => {
@@ -90,7 +89,7 @@ export function AssistantChat({
     historyLoadRequestedRef.current = false;
     (async () => {
       try {
-        const t = localStorage.getItem("jwt_token");
+        const t = await getAuthToken();
         const headers: Record<string, string> = t ? { Authorization: `Bearer ${t}` } : {};
         const res = await fetch(`/api/ai/chat?threadId=${threadId}`, { headers });
         if (!res.ok) throw new Error("Failed to load messages");
@@ -117,7 +116,7 @@ export function AssistantChat({
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isLoading) return;
-    const t = typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null;
+    const t = await getAuthToken();
     if (!t) { toast.error("Please sign in to chat"); return; }
     setInput("");
     sendMessage({ text });
@@ -183,7 +182,7 @@ export function AssistantChat({
   };
 
   const handleUpload = async (file: File) => {
-    const currentToken = typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null;
+    const currentToken = await getAuthToken();
     if (!currentToken) { toast.error("Sign in to upload files"); return; }
     
     let filesToUpload: File[] = [file];
@@ -255,6 +254,7 @@ export function AssistantChat({
   const handleVoice = async () => {
     if (!navigator.mediaDevices) { toast.error("Voice not supported"); return; }
     try {
+      const currentToken = await getAuthToken();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mime = ["audio/webm", "audio/mp4"].find((t) => MediaRecorder.isTypeSupported(t));
       if (!mime) { stream.getTracks().forEach((t) => t.stop()); toast.error("Browser can't record supported audio"); return; }
@@ -271,7 +271,7 @@ export function AssistantChat({
         fd.append("file", blob);
         const res = await fetch("/api/ai/transcribe", {
           method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: currentToken ? { Authorization: `Bearer ${currentToken}` } : {},
           body: fd,
         });
         if (!res.ok) { toast.error("Transcription failed"); return; }
@@ -416,65 +416,70 @@ export function AssistantChat({
             </Button>
           )}
         </div>
-        <Conversation className="flex-1 min-h-0">
-          <ConversationContent>
-            {messages.length === 0 ? (
-              <ConversationEmptyState
-                title="How can I help with your vehicle today?"
-                description="Ask about a part, share a VIN, upload a warning light or part photo, or check stock and offers."
-              />
-            ) : null}
-            {messages.map((m: any) => (
-              <Message from={m.role} key={m.id}>
-                <MessageContent>
-                  {(m.parts ?? []).map((part: any, i: number) => {
-                    if (part.type === "text") {
-                      if (m.role === "assistant") {
-                        return <MessageResponse key={i}>{part.text}</MessageResponse>;
+        <AvatarActionContext.Provider value={(text: string) => {
+          if (isLoading) return;
+          sendMessage({ text });
+        }}>
+          <Conversation className="flex-1 min-h-0">
+            <ConversationContent>
+              {messages.length === 0 ? (
+                <ConversationEmptyState
+                  title="How can I help with your vehicle today?"
+                  description="Ask about a part, share a VIN, upload a warning light or part photo, or check stock and offers."
+                />
+              ) : null}
+              {messages.map((m: any) => (
+                <Message from={m.role} key={m.id}>
+                  <MessageContent>
+                    {(m.parts ?? []).map((part: any, i: number) => {
+                      if (part.type === "text") {
+                        if (m.role === "assistant") {
+                          return <MessageResponse key={i}>{part.text}</MessageResponse>;
+                        }
+                        const text: string = part.text ?? "";
+                        if (
+                          text.startsWith("I'm sharing image(s)") ||
+                          text.startsWith("I have uploaded a document") ||
+                          text.startsWith("I'm sharing a document")
+                        ) {
+                          const urlMatch = text.match(/\/uploads\/[^\s\n]+/g) ?? [];
+                          return (
+                            <span key={i} className="flex flex-wrap gap-1.5">
+                              {urlMatch.length > 0 ? urlMatch.map((u, ui) => (
+                                <span key={ui} className="inline-flex items-center gap-1 rounded-md bg-blue-100 border border-blue-200 px-2 py-1 text-[11px] text-blue-700">
+                                  <span>📷</span><span>Image shared</span>
+                                </span>
+                              )) : (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 border border-slate-200 px-2 py-1 text-[11px] text-slate-600">
+                                  <span>📄</span><span>Document shared</span>
+                                </span>
+                              )}
+                            </span>
+                          );
+                        }
+                        return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
                       }
-                      const text: string = part.text ?? "";
-                      if (
-                        text.startsWith("I'm sharing image(s)") ||
-                        text.startsWith("I have uploaded a document") ||
-                        text.startsWith("I'm sharing a document")
-                      ) {
-                        const urlMatch = text.match(/\/uploads\/[^\s\n]+/g) ?? [];
-                        return (
-                          <span key={i} className="flex flex-wrap gap-1.5">
-                            {urlMatch.length > 0 ? urlMatch.map((u, ui) => (
-                              <span key={ui} className="inline-flex items-center gap-1 rounded-md bg-blue-100 border border-blue-200 px-2 py-1 text-[11px] text-blue-700">
-                                <span>📷</span><span>Image shared</span>
-                              </span>
-                            )) : (
-                              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 border border-slate-200 px-2 py-1 text-[11px] text-slate-600">
-                                <span>📄</span><span>Document shared</span>
-                              </span>
-                            )}
-                          </span>
-                        );
+                      if (typeof part.type === "string" && part.type.startsWith("tool-")) {
+                        return <ToolPartView key={`part-${i}`} part={part} />;
                       }
-                      return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
-                    }
-                    if (part.type?.startsWith?.("tool-")) {
-                      return (
-                        <Tool key={i} className="my-2">
-                          <ToolHeader type={part.type} state={part.state} />
-                          <ToolContent>
-                            {part.input ? <ToolInput input={part.input} /> : null}
-                            <ToolOutput output={part.output ? <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(part.output, null, 2)}</pre> : null} errorText={part.errorText} />
-                          </ToolContent>
-                        </Tool>
-                      );
-                    }
-                    return null;
-                  })}
-                </MessageContent>
-              </Message>
-            ))}
-            {status === "submitted" ? <Shimmer>Thinking…</Shimmer> : null}
-          </ConversationContent>
-          <ConversationScrollButton />
-        </Conversation>
+                      return null;
+                    })}
+                    {(!m.parts || m.parts.length === 0) && m.content ? (
+                      m.role === "assistant"
+                        ? <MessageResponse key="content">{m.content}</MessageResponse>
+                        : <span key="content" className="whitespace-pre-wrap">{m.content}</span>
+                    ) : null}
+                    {(m.toolInvocations ?? []).map((toolInv: any, i: number) => (
+                      <ToolPartView key={`tool-${i}`} part={{ type: "tool-invocation", toolInvocation: toolInv }} />
+                    ))}
+                  </MessageContent>
+                </Message>
+              ))}
+              {status === "submitted" ? <Shimmer>Thinking…</Shimmer> : null}
+            </ConversationContent>
+            <ConversationScrollButton />
+          </Conversation>
+        </AvatarActionContext.Provider>
 
         {/* Quick actions */}
         {messages.length === 0 ? (

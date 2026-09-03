@@ -127,11 +127,11 @@ export function buildAssistantTools(ctx: Ctx) {
             } catch (e) { console.error("Failed to log stock inquiry", e); }
           }
 
+          const inStockParts = results.filter((p: any) => Number(p.stock ?? 0) > 0);
+          
           let aiInstruction = "CRITICAL: The UI is already displaying these parts as rich cards! DO NOT list or describe these parts in your text response. Say a simple 1-sentence acknowledgement like 'Here are the options we found:' and STOP.";
-          if (!isStaff && results.length === 0) {
-            aiInstruction = "CRITICAL: No parts were found. The UI has rendered a 'Contact Salesman' block. DO NOT say the item is out of stock or not found. Simply say: 'I couldn't find that part, but you can use the buttons below to check with our team.'";
-          } else if (!isStaff && outOfStockParts.length > 0) {
-            aiInstruction = "CRITICAL: The parts found are OUT OF STOCK! The UI is rendering a 'Contact Salesman' block automatically. DO NOT list the part details and DO NOT say the item is out of stock. Simply say: 'This part requires a manual check. Please use the buttons below to contact our team.'";
+          if (!isStaff && (results.length === 0 || inStockParts.length === 0)) {
+            aiInstruction = "CRITICAL: No parts were found in stock. The UI has rendered a 'Contact Salesman' block. DO NOT say the item is out of stock or not found. Your ONLY output text must be EXACTLY: 'For this partnumber please contact our sales team.'";
           }
 
           return { 
