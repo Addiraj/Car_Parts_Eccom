@@ -98,11 +98,9 @@ export function SupersededItemCard({ alt, isStaff, onAddToCart }: { alt: any; is
       ) : (
         <div className="flex items-center text-[10px] rounded bg-muted/60 dark:bg-slate-900/80 border border-border/50 dark:border-slate-800 overflow-hidden mb-4 w-fit">
           <span className="bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold px-2 py-0.5 border-r border-blue-200/40 dark:border-blue-800/40">YOUR PRICE</span>
-          {Number(alt.price) > 0 ? (
-            <span className="text-blue-600 dark:text-blue-400 font-bold px-2.5">{formatAED(Number(alt.price))}</span>
-          ) : (
-            <span className="text-muted-foreground px-2.5">Contact for price</span>
-          )}
+          <span className={`px-2.5 ${altInStock ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-muted-foreground italic'}`}>
+            {altInStock ? formatAED(Number(alt.price)) : "Contact for price"}
+          </span>
         </div>
       )}
 
@@ -263,11 +261,9 @@ export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlist
             ) : (
               <div className="flex items-center text-[10px] rounded bg-muted/60 dark:bg-slate-900/80 border border-border/50 dark:border-slate-800 overflow-hidden mb-4 w-fit">
                 <span className="bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold px-2 py-1 border-r border-blue-200/40 dark:border-blue-800/40">YOUR PRICE</span>
-                {Number(p.price) > 0 ? (
-                  <span className="text-blue-600 dark:text-blue-400 font-bold px-3">{formatAED(Number(p.price))}</span>
-                ) : (
-                  <span className="text-muted-foreground px-3">Contact for price</span>
-                )}
+                <span className={`px-3 ${inStock ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-muted-foreground italic'}`}>
+                  {inStock ? formatAED(Number(p.price)) : "Contact for price"}
+                </span>
               </div>
             )}
           </div>

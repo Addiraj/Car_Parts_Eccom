@@ -122,7 +122,7 @@ function WishlistPartCard({ item, isStaff, onRemove, onAddToCart }: {
 
             {/* Price */}
             <div className="text-lg font-bold text-blue-600 dark:text-blue-400 mb-3">
-              {formatAED(Number(p.price))}
+              {inStock ? formatAED(Number(p.price)) : <span className="text-sm italic text-muted-foreground font-medium">Contact for price</span>}
             </div>
 
             {isStaff && (
@@ -247,7 +247,6 @@ function WishlistPage() {
 
   const visibleItems = items.filter((it: any) => {
     if (!it.part) return false;
-    if (!isStaff && Number(it.part.stock ?? 0) <= 0) return false;
     return true;
   });
 
