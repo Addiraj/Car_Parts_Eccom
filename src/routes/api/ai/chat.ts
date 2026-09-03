@@ -128,7 +128,21 @@ export const Route = createFileRoute("/api/ai/chat")({
           raw: true,
         });
 
-        return Response.json(messages);
+        const mappedMessages = messages.map((m: any) => {
+          // Clean _AI_INSTRUCTION_ from any stored tool-invocation parts
+          const cleanParts = Array.isArray(m.parts)
+            ? m.parts.map((p: any) => {
+                if (p.type === "tool-invocation" && p.toolInvocation?.result && typeof p.toolInvocation.result === "object") {
+                  const { _AI_INSTRUCTION_: _, ...cleanResult } = p.toolInvocation.result;
+                  return { ...p, toolInvocation: { ...p.toolInvocation, result: cleanResult } };
+                }
+                return p;
+              })
+            : m.parts;
+          return { ...m, parts: cleanParts };
+        });
+
+        return Response.json(mappedMessages);
       },
       POST: async ({ request }) => {
         const body = (await request.json()) as ChatBody;
@@ -225,6 +239,9 @@ export const Route = createFileRoute("/api/ai/chat")({
           return m;
         });
 
+        // Closure to collect tool invocations across all steps (onStepFinish fires per step)
+        const collectedToolParts: any[] = [];
+
         try {
           const result = streamText({
             model,
@@ -232,13 +249,40 @@ export const Route = createFileRoute("/api/ai/chat")({
             messages: await convertToModelMessages(sanitizedMessages),
             tools,
             stopWhen: stepCountIs(50),
+            onStepFinish: async ({ toolCalls, toolResults }) => {
+              // Accumulate tool calls from each step as they complete
+              for (const tc of (toolCalls ?? [])) {
+                const tr = (toolResults ?? []).find((r: any) => r.toolCallId === tc.toolCallId);
+                const rawResult = tr?.result ?? null;
+                // Strip internal AI instruction field before persisting
+                const cleanResult = rawResult && typeof rawResult === "object"
+                  ? (({ _AI_INSTRUCTION_: _x, ...rest }) => rest)(rawResult as any)
+                  : rawResult;
+                collectedToolParts.push({
+                  type: "tool-invocation",
+                  toolInvocation: {
+                    state: "result",
+                    toolCallId: tc.toolCallId,
+                    toolName: tc.toolName,
+                    args: tc.args,
+                    result: cleanResult,
+                  }
+                });
+              }
+            },
             onFinish: async ({ text }) => {
               if (!threadId) return;
+
+              // Build parts: text first, then all accumulated tool invocations
+              const dbParts: any[] = [];
+              if (text) dbParts.push({ type: "text", text });
+              dbParts.push(...collectedToolParts);
+
               await models.ai_chat_messages.create({
                 thread_id: threadId,
                 role: "assistant",
                 text,
-                parts: [{ type: "text", text }] as any,
+                parts: dbParts.length > 0 ? dbParts as any : [{ type: "text", text }] as any,
               });
               await models.ai_chat_threads.update(
                 { last_message_at: new Date().toISOString() },

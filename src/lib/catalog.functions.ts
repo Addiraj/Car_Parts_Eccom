@@ -171,14 +171,42 @@ export const getPart = createServerFn({ method: "GET" })
 
     if (!part) return null;
 
-    const alts = await models.alternative_parts.findAll({
-      where: { part_id: data.id },
-      include: [{
-        model: models.parts,
-        as: 'alternative_part',
+    let dbAlts: any[] = [];
+    try {
+      dbAlts = await models.alternative_parts.findAll({
+        where: { part_id: data.id },
+        include: [{
+          model: models.parts,
+          as: 'alternative_part',
+          attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "images"]
+        }]
+      });
+    } catch (e) {}
+
+    let dynamicAlts: any[] = [];
+    if (part.category_tag) {
+      const altRows = await models.parts.findAll({
+        where: { 
+          category_tag: part.category_tag,
+          id: { [Op.ne]: part.id }
+        },
         attributes: ["id", "part_number", "name", "price", "ind_price", "gar_price", "export_price", "images"]
-      }]
-    });
+      });
+      dynamicAlts = altRows.map(a => ({
+        id: a.id,
+        part_id: part.id,
+        alternative_part_id: a.id,
+        is_two_way: true,
+        alternative_part: a.get({ plain: true })
+      }));
+    }
+
+    // Merge and deduplicate by alternative part ID
+    const mergedAltsMap = new Map();
+    for (const a of [...dbAlts, ...dynamicAlts]) {
+      if (a.alternative_part_id) mergedAltsMap.set(a.alternative_part_id, a);
+    }
+    const alts = Array.from(mergedAltsMap.values());
 
     const p = part.get({ plain: true });
     let specs = p.specs;
@@ -198,7 +226,7 @@ export const getPart = createServerFn({ method: "GET" })
     return {
       part: projected,
       alternatives: alts.map(a => {
-        const altData = a.get({ plain: true });
+        const altData = a.get ? a.get({ plain: true }) : a;
         const altPart = altData.alternative_part;
         let pAlt: any = altPart ? projectPart(altPart as any, tier) : null;
         if (isAdmin && pAlt && altPart) {
@@ -402,7 +430,8 @@ export const searchParts = createServerFn({ method: "GET" })
           { part_number: { [Op.iLike]: searchString } },
           { oem_number: { [Op.iLike]: searchString } },
           { name: { [Op.iLike]: searchString } },
-          { manufacturer: { [Op.iLike]: searchString } }
+          { manufacturer: { [Op.iLike]: searchString } },
+          { category_tag: { [Op.iLike]: searchString } }
         ]
       },
       include: includeAlts,
@@ -419,7 +448,8 @@ export const searchParts = createServerFn({ method: "GET" })
         where: {
           [Op.or]: [
             { part_number: { [Op.iRegexp]: regex } },
-            { oem_number: { [Op.iRegexp]: regex } }
+            { oem_number: { [Op.iRegexp]: regex } },
+            { category_tag: { [Op.iRegexp]: regex } }
           ]
         },
         include: includeAlts,
@@ -427,6 +457,26 @@ export const searchParts = createServerFn({ method: "GET" })
         limit
       });
       push(pass2.map((p: any) => p.get({ plain: true })));
+    }
+
+    // Pass 3: Expansion by category_tag (Superseded/Alternative parts grouping)
+    // If we found any parts, we extract their category_tag and find ALL other parts sharing the same tag.
+    const tagsToExpand = new Set<string>();
+    for (const p of byId.values()) {
+      if (p.category_tag) tagsToExpand.add(p.category_tag);
+    }
+
+    if (tagsToExpand.size > 0 && byId.size < limit * 3) {
+      const pass3 = await models.parts.findAll({
+        attributes: cols,
+        where: {
+          category_tag: { [Op.in]: Array.from(tagsToExpand) }
+        },
+        include: includeAlts,
+        order: [["stock", "DESC"], ["manufacturer", "ASC"], ["name", "ASC"]],
+        limit: limit * 3 // Allow some expansion limit
+      });
+      push(pass3.map((p: any) => p.get({ plain: true })));
     }
 
     const categories = await models.categories.findAll({

@@ -49,8 +49,8 @@ function Login() {
   const isAdminEmail = email === "admin" || email === "superadmin";
 
   useEffect(() => {
-    if (reason === "inactivity") {
-      toast.error("Session expired due to inactivity. Please log in again.");
+    if (reason === "session_expired") {
+      toast.error("Session expired. Please log in again.");
     }
   }, [reason]);
 

@@ -123,7 +123,8 @@ export const adminListParts = createServerFn({ method: "GET" })
         { part_number: { [Op.iLike]: `%${escaped}%` } },
         { oem_number: { [Op.iLike]: `%${escaped}%` } },
         { name: { [Op.iLike]: `%${escaped}%` } },
-        { manufacturer: { [Op.iLike]: `%${escaped}%` } }
+        { manufacturer: { [Op.iLike]: `%${escaped}%` } },
+        { category_tag: { [Op.iLike]: `%${escaped}%` } }
       ];
 
       const nk = s.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -132,6 +133,12 @@ export const adminListParts = createServerFn({ method: "GET" })
         where[Op.or].push(
           sequelize.where(
             sequelize.fn('upper', sequelize.fn('regexp_replace', sequelize.col('part_number'), '[^a-zA-Z0-9]', '', 'g')),
+            { [Op.like]: `%${nk}%` }
+          )
+        );
+        where[Op.or].push(
+          sequelize.where(
+            sequelize.fn('upper', sequelize.fn('regexp_replace', sequelize.col('category_tag'), '[^a-zA-Z0-9]', '', 'g')),
             { [Op.like]: `%${nk}%` }
           )
         );
@@ -302,25 +309,36 @@ export const adminImportPartsBatch = createServerFn({ method: "POST" })
 
     if (valid.length) {
       // Deduplicate valid records by unique_value to prevent "ON CONFLICT DO UPDATE command cannot affect row a second time"
-      // If unique_value is missing, fallback to deduplicating by part_number so we don't crash
+      // Per user instruction: DO NOT fallback to deduplicating by part_number. Duplicate part numbers are allowed.
       const uniqueValidMap = new Map();
+      const rowsWithoutUnique: any[] = [];
       for (const v of valid) {
-        const key = v.unique_value || v.part_number;
-        uniqueValidMap.set(key, v);
+        if (v.unique_value) {
+          uniqueValidMap.set(v.unique_value, v);
+        } else {
+          rowsWithoutUnique.push(v);
+        }
       }
-      const uniqueValid = Array.from(uniqueValidMap.values());
+      const uniqueValid = Array.from(uniqueValidMap.values()).concat(rowsWithoutUnique);
 
-      const existing = await models.parts.findAll({
-        attributes: ["unique_value", "part_number"],
-        where: { 
-          [Op.or]: [
-            { unique_value: { [Op.in]: uniqueValid.map(v => v.unique_value).filter(Boolean) } },
-            { part_number: { [Op.in]: uniqueValid.filter(v => !v.unique_value).map(v => v.part_number) } }
-          ]
-        },
-      });
-      const existingSet = new Set(existing.map((e) => e.unique_value || e.part_number));
-      for (const v of uniqueValid) (existingSet.has(v.unique_value || v.part_number) ? updated++ : inserted++);
+      const uniqueValuesToCheck = uniqueValid.map(v => v.unique_value).filter(Boolean);
+      let existingSet = new Set<string>();
+      
+      if (uniqueValuesToCheck.length > 0) {
+        const existing = await models.parts.findAll({
+          attributes: ["unique_value"],
+          where: { unique_value: { [Op.in]: uniqueValuesToCheck } },
+        });
+        existingSet = new Set(existing.map((e) => e.unique_value));
+      }
+
+      for (const v of uniqueValid) {
+        if (v.unique_value && existingSet.has(v.unique_value)) {
+          updated++;
+        } else {
+          inserted++;
+        }
+      }
 
       try {
         await models.parts.bulkCreate(uniqueValid, {

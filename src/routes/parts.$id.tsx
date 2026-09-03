@@ -218,7 +218,9 @@ function PartPage() {
                 <div className="p-3">
                   <div className="font-mono text-[10px] text-muted-foreground">REF OE:{a.part.part_number}</div>
                   <div className="mt-1 line-clamp-2 text-sm font-medium">{a.part.name}</div>
-                  {!isAdmin && <div className="mt-2 text-sm font-bold text-primary">{formatAED(Number(a.part.price))}</div>}
+                  {!isAdmin && <div className="mt-2 text-sm font-bold text-primary">
+                    {Number(a.part.price) > 0 ? formatAED(Number(a.part.price)) : <span className="text-muted-foreground font-normal text-xs">Contact for price</span>}
+                  </div>}
                 </div>
               </Link>
             ))}
@@ -263,7 +265,9 @@ function PriceBlock({ partId, price, stock, viewerTier, isStaff, isSignedIn, t }
         </div>
       )}
       <div className="mt-3 flex items-baseline gap-3">
-        <div className="text-3xl font-bold text-primary">{formatAED(final)}</div>
+        <div className="text-3xl font-bold text-primary">
+          {final > 0 ? formatAED(final) : <span className="text-xl text-muted-foreground font-medium">Contact for price</span>}
+        </div>
         {offer && <div className="text-base text-muted-foreground line-through">{formatAED(price)}</div>}
         {isStaff && (
           <div className={`text-xs font-semibold ${stock > 0 ? "text-success" : "text-destructive"}`}>

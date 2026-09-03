@@ -98,7 +98,11 @@ export function SupersededItemCard({ alt, isStaff, onAddToCart }: { alt: any; is
       ) : (
         <div className="flex items-center text-[10px] rounded bg-muted/60 dark:bg-slate-900/80 border border-border/50 dark:border-slate-800 overflow-hidden mb-4 w-fit">
           <span className="bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold px-2 py-0.5 border-r border-blue-200/40 dark:border-blue-800/40">YOUR PRICE</span>
-          <span className="text-blue-600 dark:text-blue-400 font-bold px-2.5">{formatAED(Number(alt.price))}</span>
+          {Number(alt.price) > 0 ? (
+            <span className="text-blue-600 dark:text-blue-400 font-bold px-2.5">{formatAED(Number(alt.price))}</span>
+          ) : (
+            <span className="text-muted-foreground px-2.5">Contact for price</span>
+          )}
         </div>
       )}
 
@@ -113,36 +117,34 @@ export function SupersededItemCard({ alt, isStaff, onAddToCart }: { alt: any; is
           >
             <ShoppingCart className="w-3.5 h-3.5 mr-2" /> Add to cart
           </Button>
+        ) : isStaff ? (
+          <Button
+            disabled
+            variant="outline"
+            size="sm"
+            className="w-full h-9 text-[12px] text-muted-foreground font-semibold bg-muted/40 border-border cursor-not-allowed dark:bg-slate-900/50 dark:border-slate-800 dark:text-slate-500"
+          >
+            <ShoppingCart className="w-3.5 h-3.5 mr-2" /> Out of stock
+          </Button>
         ) : (
-          <>
-            <Button
-              disabled
-              variant="outline"
-              size="sm"
-              className="w-full h-9 text-[12px] text-muted-foreground font-semibold bg-muted/40 border-border cursor-not-allowed dark:bg-slate-900/50 dark:border-slate-800 dark:text-slate-500"
-            >
-              <ShoppingCart className="w-3.5 h-3.5 mr-2" /> Out of stock
-            </Button>
-
-            <button
-              type="button"
-              onClick={handleContactSalesman}
-              disabled={requestSalesmanMut.isPending || requested}
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-blue-500/40 bg-blue-50/50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/60 dark:hover:text-blue-300 font-semibold text-xs h-9 w-full transition-colors disabled:opacity-60"
-            >
-              {requested ? (
-                <>
-                  <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  Request sent
-                </>
-              ) : (
-                <>
-                  <Headset className="h-4 w-4" />
-                  Contact salesman
-                </>
-              )}
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={handleContactSalesman}
+            disabled={requestSalesmanMut.isPending || requested}
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-blue-500/40 bg-blue-50/50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/60 dark:hover:text-blue-300 font-semibold text-xs h-9 w-full transition-colors disabled:opacity-60"
+          >
+            {requested ? (
+              <>
+                <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                Request sent
+              </>
+            ) : (
+              <>
+                <Headset className="h-4 w-4" />
+                Contact salesman
+              </>
+            )}
+          </button>
         )}
       </div>
     </div>
@@ -151,8 +153,32 @@ export function SupersededItemCard({ alt, isStaff, onAddToCart }: { alt: any; is
 
 export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlistButton, supersededParts, onAddToCart, href }: PartCardProps) {
   const isStaff = useIsStaff();
+  const { user } = useAuth();
   const router = useRouter();
   const [popupOpen, setPopupOpen] = useState(false);
+  const [requested, setRequested] = useState(false);
+
+  const requestSalesmanMut = useMutation({
+    mutationFn: (partNumber: string) => requestPartSalesman({ data: { partNumber, name: p.name } }),
+    onSuccess: () => {
+      setRequested(true);
+      toast.success(`Our salesman will contact you shortly regarding REF OE:${p.part_number}`);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to submit request");
+    }
+  });
+
+  const handleContactSalesman = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) {
+      toast.error("Please sign in to contact a salesman.");
+      router.navigate({ to: "/auth/login", search: { redirect: window.location.pathname } });
+      return;
+    }
+    requestSalesmanMut.mutate(p.part_number);
+  };
 
   const stock = Number(p.stock ?? 0);
   const inStock = stock > 0;
@@ -237,7 +263,11 @@ export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlist
             ) : (
               <div className="flex items-center text-[10px] rounded bg-muted/60 dark:bg-slate-900/80 border border-border/50 dark:border-slate-800 overflow-hidden mb-4 w-fit">
                 <span className="bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold px-2 py-1 border-r border-blue-200/40 dark:border-blue-800/40">YOUR PRICE</span>
-                <span className="text-blue-600 dark:text-blue-400 font-bold px-3">{formatAED(Number(p.price))}</span>
+                {Number(p.price) > 0 ? (
+                  <span className="text-blue-600 dark:text-blue-400 font-bold px-3">{formatAED(Number(p.price))}</span>
+                ) : (
+                  <span className="text-muted-foreground px-3">Contact for price</span>
+                )}
               </div>
             )}
           </div>
@@ -247,10 +277,29 @@ export function PartCard({ part: p, isWishlisted, onToggleWishlist, hideWishlist
               <Button onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAddToCart?.(p.id); }} variant="default" size="sm" className="flex-1 h-9 text-[12px] font-semibold bg-[#2563eb] hover:bg-blue-600 text-white">
                 <ShoppingCart className="w-3.5 h-3.5 mr-2" /> Add to cart
               </Button>
-            ) : (
+            ) : isStaff ? (
               <Button onClick={(e) => { e.preventDefault(); }} variant="outline" size="sm" className="flex-1 h-9 text-[12px] text-muted-foreground font-semibold bg-muted/40 border-border hover:bg-muted cursor-not-allowed dark:bg-slate-900/50 dark:border-slate-800 dark:text-slate-500">
                 <ShoppingCart className="w-3.5 h-3.5 mr-2" /> Out of stock
               </Button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleContactSalesman}
+                disabled={requestSalesmanMut.isPending || requested}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-md border border-blue-500/40 bg-blue-50/50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/60 dark:hover:text-blue-300 font-semibold text-xs h-9 transition-colors disabled:opacity-60"
+              >
+                {requested ? (
+                  <>
+                    <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    Request sent
+                  </>
+                ) : (
+                  <>
+                    <Headset className="h-4 w-4" />
+                    Contact salesman
+                  </>
+                )}
+              </button>
             )}
 
             <a

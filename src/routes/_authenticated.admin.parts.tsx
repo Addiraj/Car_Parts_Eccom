@@ -405,51 +405,46 @@ function BulkUpdateModal({ ids, onClose, onDone }: { ids: string[]; onClose: () 
 /* ───────── Import ───────── */
 
 const HEADER_MAP: Record<string, string> = {
-  "category name": "category_tag",
+  categoryname: "category_tag",
   category: "category_tag",
-  "category tag": "category_tag",
+  categorytag: "category_tag",
   tag: "category_tag",
-  "part number": "part_number",
-  "part no": "part_number",
   partnumber: "part_number",
+  partno: "part_number",
   brand: "manufacturer",
   manufacturer: "manufacturer",
-  "brand part number": "oem_number",
-  "brand part no": "oem_number",
-  "oem number": "oem_number",
+  brandpartnumber: "oem_number",
+  brandpartno: "oem_number",
+  oemnumber: "oem_number",
   oem: "oem_number",
-  "item description": "description",
+  itemdescription: "description",
   description: "description",
   name: "description",
-  "unique value": "unique_value",
+  uniquevalue: "unique_value",
   unique: "unique_value",
+  uniqueid: "unique_value",
+  id: "unique_value",
   quantity: "stock",
   qty: "stock",
   stock: "stock",
-  "rate price": "rate_price",
+  rateprice: "rate_price",
   rate: "rate_price",
   ind: "ind_price",
-  "ind price": "ind_price",
-  "individual price": "ind_price",
+  indprice: "ind_price",
+  individualprice: "ind_price",
   individual: "ind_price",
   price: "price",
-  "garage price": "gar_price",
+  garageprice: "gar_price",
   garage: "gar_price",
   gar: "gar_price",
-  "gar price": "gar_price",
-  "export price": "export_price",
+  garprice: "gar_price",
+  exportprice: "export_price",
   export: "export_price",
   exp: "export_price",
 };
 
 function normHeader(h: string) {
-  return h
-    .trim()
-    .toLowerCase()
-    .replace(/[.,#/()'"]+/g, " ")
-    .replace(/[_\-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return h.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 function toNum(v: any): number {
   if (v == null || v === "") return 0;

@@ -10,7 +10,14 @@ export function customerTypeLabel(t: CustomerType): string {
 
 /**
  * Resolve the price a viewer sees for a part based on their customer tier.
- * Falls back to the legacy `price` field when the tier column is null.
+ *
+ * Priority order (per tier):
+ *   IND  → ind_price  → 0              (never fall back to base rate price)
+ *   GAR  → gar_price  → ind_price → 0
+ *   EXP  → export_price → ind_price → 0
+ *
+ * The base `price` column is the admin rate/wholesale price and must NOT be
+ * shown to customers — only staff views (isAdmin) should read it directly.
  */
 export function resolvePrice(
   part: {
@@ -22,19 +29,23 @@ export function resolvePrice(
   tier: CustomerType,
 ): number {
   if (!part) return 0;
-  const pick =
-    tier === "GAR" ? part.gar_price :
-    tier === "EXP" ? part.export_price :
-    part.ind_price;
-  const chosen =
-    pick != null && pick !== ""
-      ? Number(pick)
-      : tier !== "IND" && part.ind_price != null && part.ind_price !== ""
-        ? Number(part.ind_price)
-        : part.price != null && part.price !== ""
-          ? Number(part.price)
-          : 0;
-  return Number.isFinite(chosen) ? chosen : 0;
+
+  const toNum = (v: number | string | null | undefined): number | null => {
+    if (v == null || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const indPrice = toNum(part.ind_price);
+
+  if (tier === "GAR") {
+    return toNum(part.gar_price) ?? indPrice ?? 0;
+  }
+  if (tier === "EXP") {
+    return toNum(part.export_price) ?? indPrice ?? 0;
+  }
+  // IND (default) — use ind_price only; do NOT fall back to wholesale rate
+  return indPrice ?? 0;
 }
 
 /** Strip private tier columns from a part record and replace `price` with the resolved value. */

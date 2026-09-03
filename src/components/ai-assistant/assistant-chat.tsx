@@ -94,11 +94,17 @@ export function AssistantChat({
         const res = await fetch(`/api/ai/chat?threadId=${threadId}`, { headers });
         if (!res.ok) throw new Error("Failed to load messages");
         const data = await res.json();
-        const ui = (data ?? []).map((m: any) => ({
-          id: m.id,
-          role: m.role as "user" | "assistant",
-          parts: Array.isArray(m.parts) && m.parts.length ? m.parts : [{ type: "text", text: m.text ?? "" }],
-        }));
+        const ui = (data ?? []).map((m: any) => {
+          const rawParts = Array.isArray(m.parts) && m.parts.length
+            ? m.parts
+            : [{ type: "text", text: m.text ?? "" }];
+
+          return {
+            id: m.id,
+            role: m.role as "user" | "assistant",
+            parts: rawParts,
+          };
+        });
         setMessages(ui as any);
       } catch (err) {
         console.error(err);
@@ -430,7 +436,7 @@ export function AssistantChat({
               ) : null}
               {messages.map((m: any) => (
                 <Message from={m.role} key={m.id}>
-                  <MessageContent>
+                  <MessageContent className={m.role === "assistant" ? "max-w-[96%]" : ""}>
                     {(m.parts ?? []).map((part: any, i: number) => {
                       if (part.type === "text") {
                         if (m.role === "assistant") {
@@ -469,7 +475,8 @@ export function AssistantChat({
                         ? <MessageResponse key="content">{m.content}</MessageResponse>
                         : <span key="content" className="whitespace-pre-wrap">{m.content}</span>
                     ) : null}
-                    {(m.toolInvocations ?? []).map((toolInv: any, i: number) => (
+                    {/* Only render toolInvocations if parts array doesn't already contain them (prevents duplicates in history) */}
+                    {!(m.parts ?? []).some((p: any) => p.type === "tool-invocation") && (m.toolInvocations ?? []).map((toolInv: any, i: number) => (
                       <ToolPartView key={`tool-${i}`} part={{ type: "tool-invocation", toolInvocation: toolInv }} />
                     ))}
                   </MessageContent>

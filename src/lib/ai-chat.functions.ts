@@ -93,7 +93,20 @@ export const getThreadMessages = createServerFn({ method: "GET" })
       where: { thread_id: data.id },
       order: [["created_at", "ASC"]]
     });
-    return rows.map((r: any) => r.get({ plain: true }));
+    return rows.map((r: any) => {
+      const m = r.get({ plain: true });
+      // Strip internal _AI_INSTRUCTION_ from stored tool results
+      if (Array.isArray(m.parts)) {
+        m.parts = m.parts.map((p: any) => {
+          if (p.type === "tool-invocation" && p.toolInvocation?.result && typeof p.toolInvocation.result === "object") {
+            const { _AI_INSTRUCTION_: _, ...cleanResult } = p.toolInvocation.result;
+            return { ...p, toolInvocation: { ...p.toolInvocation, result: cleanResult } };
+          }
+          return p;
+        });
+      }
+      return m;
+    });
   });
 
 /* ============ Admin ============ */
