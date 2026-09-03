@@ -193,7 +193,7 @@ function WishlistPartCard({ item, isStaff, onRemove, onAddToCart }: {
 
       {/* Superseded / Alternate Numbers link */}
       {altCount > 0 && (
-        <div 
+        <div
           className="border-t-2 border-blue-100 dark:border-slate-700 px-4 py-2.5 bg-blue-50/30 hover:bg-blue-100/50 dark:bg-slate-900/40 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPopupOpen(true); }}
         >
