@@ -114,7 +114,7 @@ export function AssistantLauncher() {
         "bg-background/95 backdrop-blur-xl shadow-2xl",
         full
           ? "inset-2 md:inset-6"
-          : "bottom-4 right-4 left-4 top-16 md:left-auto md:top-auto md:h-[640px] md:w-[440px] md:max-w-[95vw]",
+          : "bottom-4 right-4 left-4 top-16 md:left-auto md:top-auto md:h-[660px] md:w-[620px] md:max-w-[95vw]",
       )}
       role="dialog"
       aria-label="AI assistant"

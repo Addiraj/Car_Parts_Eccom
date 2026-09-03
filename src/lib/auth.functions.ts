@@ -153,7 +153,7 @@ export const register = createServerFn({ method: "POST" })
     const token = jwt.sign(
       { sub: user.id, email: user.email },
       getJwtSecret(),
-      { expiresIn: "7d" }
+      { expiresIn: "2h" }
     );
 
     const salesman = await models.salesmen.findOne({ where: { email: user.email } });
@@ -171,14 +171,7 @@ export const getSession = createServerFn({ method: "GET" })
       
       if (!user) throw new Error("User not found");
 
-      if (user.last_active_at) {
-        const diff = Date.now() - new Date(user.last_active_at).getTime();
-        if (diff > 2 * 60 * 60 * 1000) {
-          throw new Error("Session expired due to inactivity");
-        }
-      }
 
-      await user.update({ last_active_at: new Date() });
 
       const profile = await models.profiles.findByPk(decoded.sub);
       let profileData = null;

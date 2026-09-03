@@ -201,12 +201,18 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
     (async () => {
       try {
         const data = await fetchGetThreadMessages({ data: { id: threadId } });
-        const ui = (data ?? []).map((m: any) => ({
-          id: m.id,
-          role: m.role as "user" | "assistant",
-          parts: Array.isArray(m.parts) && m.parts.length ? m.parts : [{ type: "text", text: m.text ?? "" }],
-          createdAt: new Date(m.created_at),
-        }));
+        const ui = (data ?? []).map((m: any) => {
+          const rawParts = Array.isArray(m.parts) && m.parts.length
+            ? m.parts
+            : [{ type: "text", text: m.text ?? "" }];
+
+          return {
+            id: m.id,
+            role: m.role as "user" | "assistant",
+            parts: rawParts,
+            createdAt: new Date(m.created_at),
+          };
+        });
         skipNextSpeakRef.current = true;
         userRequestedSpeechRef.current = false;
         setMessages(ui as any);
@@ -747,7 +753,8 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
                               ? <MessageResponse key="content">{m.content}</MessageResponse>
                               : <span key="content" className="whitespace-pre-wrap">{m.content}</span>
                           ) : null}
-                          {(m.toolInvocations ?? []).map((toolInv: any, i: number) => (
+                          {/* Only render toolInvocations if parts array doesn't already contain them (prevents duplicates in history) */}
+                          {!(m.parts ?? []).some((p: any) => p.type === "tool-invocation") && (m.toolInvocations ?? []).map((toolInv: any, i: number) => (
                             <ToolPartView key={`tool-${i}`} part={{ type: "tool-invocation", toolInvocation: toolInv }} />
                           ))}
                         </MessageContent>

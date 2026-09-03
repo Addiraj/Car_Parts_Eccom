@@ -55,7 +55,9 @@ function CategoryPage() {
               <div className="p-3">
                 <div className="font-mono text-[10px] text-muted-foreground">{p.part_number}</div>
                 <div className="mt-1 line-clamp-2 text-sm font-medium">{p.name}</div>
-                <div className="mt-2 text-sm font-bold text-primary">{formatAED(Number(p.price))}</div>
+                <div className="mt-2 text-sm font-bold text-primary">
+                  {Number(p.price) > 0 ? formatAED(Number(p.price)) : <span className="text-muted-foreground font-normal text-xs">Contact for price</span>}
+                </div>
               </div>
             </Link>
           ))}
