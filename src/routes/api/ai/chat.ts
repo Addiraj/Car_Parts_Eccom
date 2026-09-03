@@ -41,7 +41,7 @@ async function authUser(request: Request) {
   return null;
 }
 
-const DEFAULT_SYSTEM = `You are "AutoMate", an expert automotive parts advisor for an online car-parts store in the UAE.
+const DEFAULT_SYSTEM = `You are "SellOnE", an expert automotive parts advisor for an online car-parts store in the UAE.
 Use the provided tools — never invent part numbers, prices, or stock.
 
 CRITICAL CARD DISPLAY & SEARCH RULE:
@@ -150,7 +150,7 @@ export const Route = createFileRoute("/api/ai/chat")({
         const userId = await authUser(request);
         if (!userId) {
           return new Response(
-            JSON.stringify({ error: "auth_required", message: "Please sign in to chat with AutoMate." }),
+            JSON.stringify({ error: "auth_required", message: "Please sign in to chat with us." }),
             { status: 401, headers: { "Content-Type": "application/json" } },
           );
         }

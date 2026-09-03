@@ -538,7 +538,7 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
 
         <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between border-t border-slate-200 bg-white/90 px-3 py-2 backdrop-blur shadow-xs">
           <div>
-            <div className="text-sm font-semibold tracking-wide text-slate-900">AutoMate</div>
+            <div className="text-sm font-semibold tracking-wide text-slate-900">SellOnE</div>
             <div className="text-[10px] uppercase tracking-wider text-blue-600 font-medium">
               {voice.isSpeaking ? "Speaking…" : voice.isRecording ? "Listening…" : "AI advisor"}
             </div>
@@ -568,7 +568,7 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
         <header className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2 bg-slate-50">
           <div className="flex items-center gap-2 min-w-0">
             <span className="inline-flex h-2 w-2 rounded-full bg-blue-600 shadow-[0_0_8px_1px_rgba(37,99,235,0.4)]" />
-            <span className="truncate text-sm font-semibold text-slate-800">AutoMate Avatar</span>
+            <span className="truncate text-sm font-semibold text-slate-800">SellOnE</span>
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-[11px] text-slate-600 hover:text-slate-900 hover:bg-slate-200/50" onClick={() => setShowHistory((v) => !v)}>
@@ -676,7 +676,7 @@ export function AvatarPanel({ onClose }: { onClose: () => void }) {
             <ConversationContent>
               {messages.length === 0 ? (
                 <ConversationEmptyState
-                  title="Hello — I'm AutoMate."
+                  title="Hello — I'm SellOnE."
                   description="Ask about a part number, paste a VIN, describe a warning light, or talk to me with the mic."
                 />
               ) : null}

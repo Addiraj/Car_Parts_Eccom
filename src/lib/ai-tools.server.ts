@@ -153,7 +153,7 @@ export function buildAssistantTools(ctx: Ctx) {
       execute: async ({ vin }) => {
         if (!isLikelyVin(vin)) return { error: "Invalid VIN format (must be 17 chars, no I/O/Q)" };
         const decoded = await decodeVinNHTSA(vin);
-        if (!decoded) return { error: "Could not decode this VIN" };
+        if (!decoded) return { vin, notFound: true };
         if (ctx.threadId) {
           await models.ai_chat_threads.update(
             { vehicle_context: decoded },
@@ -422,7 +422,9 @@ export function buildAssistantTools(ctx: Ctx) {
 
         const decoded = await decodeVinNHTSA(vin);
 
-        if (decoded && ctx.threadId) {
+        if (!decoded) return { vin, notFound: true };
+
+        if (ctx.threadId) {
           await models.ai_chat_threads.update(
             { vehicle_context: decoded },
             { where: { id: ctx.threadId } }

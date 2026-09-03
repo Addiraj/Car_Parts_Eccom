@@ -113,17 +113,19 @@ function WishlistPartCard({ item, isStaff, onRemove, onAddToCart }: {
                 <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800/50 px-2 py-0.5 rounded-full border border-emerald-200 uppercase whitespace-nowrap shrink-0">
                   IN STOCK
                 </span>
-              ) : (
+              ) : isStaff ? (
                 <span className="text-[10px] font-bold text-red-600 bg-red-50 dark:bg-red-950/60 dark:text-red-400 dark:border-red-800/50 px-2 py-0.5 rounded-full border border-red-200 uppercase whitespace-nowrap shrink-0">
                   OUT OF STOCK
                 </span>
-              )}
+              ) : null}
             </div>
 
             {/* Price */}
-            <div className="text-lg font-bold text-blue-600 dark:text-blue-400 mb-3">
-              {inStock ? formatAED(Number(p.price)) : <span className="text-sm italic text-muted-foreground font-medium">Contact for price</span>}
-            </div>
+            {(isStaff || inStock) && (
+              <div className="text-lg font-bold text-blue-600 dark:text-blue-400 mb-3">
+                {Number(p.price) > 0 ? formatAED(Number(p.price)) : <span className="text-sm text-muted-foreground">Contact for price</span>}
+              </div>
+            )}
 
             {isStaff && (
               <>
@@ -191,7 +193,7 @@ function WishlistPartCard({ item, isStaff, onRemove, onAddToCart }: {
 
       {/* Superseded / Alternate Numbers link */}
       {altCount > 0 && (
-        <div 
+        <div
           className="border-t-2 border-blue-100 dark:border-slate-700 px-4 py-2.5 bg-blue-50/30 hover:bg-blue-100/50 dark:bg-slate-900/40 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPopupOpen(true); }}
         >
