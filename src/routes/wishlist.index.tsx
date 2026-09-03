@@ -8,6 +8,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useIsStaff } from "@/hooks/use-is-staff";
 import { formatAED } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SupersededItemCard } from "@/components/part-card";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/wishlist/")({
@@ -25,6 +27,7 @@ function WishlistPartCard({ item, isStaff, onRemove, onAddToCart }: {
   const { user } = useAuth();
   const router = useRouter();
   const [requested, setRequested] = useState(false);
+  const [popupOpen, setPopupOpen] = useState(false);
 
   const p = item.part;
   if (!p) return null;
@@ -33,10 +36,9 @@ function WishlistPartCard({ item, isStaff, onRemove, onAddToCart }: {
   const inStock = stock > 0;
   const brand = String(p.manufacturer || "GLOBAL").toUpperCase();
 
-  // Filter alternates: regular customers only see in-stock alternates
+  // Show all alternates including out of stock for the pop-up
   const visibleAlts = (p.part_alternative_parts || []).filter((sp: any) => {
     if (!sp.alternative_part) return false;
-    if (!isStaff && Number(sp.alternative_part.stock ?? 0) <= 0) return false;
     return true;
   });
   const altCount = visibleAlts.length;
@@ -189,13 +191,43 @@ function WishlistPartCard({ item, isStaff, onRemove, onAddToCart }: {
 
       {/* Superseded / Alternate Numbers link */}
       {altCount > 0 && (
-        <div className="border-t-2 border-blue-100 dark:border-slate-700 px-4 py-2.5 bg-blue-50/30 dark:bg-slate-900/40">
-          <div className="flex items-center justify-between text-[12px] text-blue-600 dark:text-blue-400 font-semibold cursor-default">
+        <div 
+          className="border-t-2 border-blue-100 dark:border-slate-700 px-4 py-2.5 bg-blue-50/30 hover:bg-blue-100/50 dark:bg-slate-900/40 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPopupOpen(true); }}
+        >
+          <div className="flex items-center justify-between text-[12px] text-blue-600 dark:text-blue-400 font-semibold">
             <span>{altCount} Superseded / Alternate {altCount === 1 ? 'Number' : 'Numbers'}</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </div>
         </div>
       )}
+
+      {/* Pop-up Dialog for Superseded / Alternate parts */}
+      <Dialog open={popupOpen} onOpenChange={setPopupOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto border border-border bg-card text-card-foreground p-6 shadow-2xl rounded-2xl dark:border-slate-800 dark:bg-[#0b0f19] dark:text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground dark:text-white">
+              <ShoppingCart className="w-5 h-5 text-primary" />
+              Superseded / alternate numbers
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground dark:text-slate-400 mt-1">
+              Alternatives available in our inventory for REF OE:{p.part_number}.
+            </p>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+            {visibleAlts.map((sp: any) => (
+              sp.alternative_part && (
+                <SupersededItemCard
+                  key={sp.id}
+                  alt={sp.alternative_part}
+                  isStaff={isStaff}
+                  onAddToCart={onAddToCart}
+                />
+              )
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -211,6 +243,12 @@ function WishlistPage() {
     queryKey: ["wishlist"],
     queryFn: () => getMyWishlist(),
     enabled: !!user,
+  });
+
+  const visibleItems = items.filter((it: any) => {
+    if (!it.part) return false;
+    if (!isStaff && Number(it.part.stock ?? 0) <= 0) return false;
+    return true;
   });
 
   const rem = useMutation({
@@ -275,7 +313,7 @@ function WishlistPage() {
             </h1>
             {!isLoading && (
               <span className="rounded-full bg-muted border border-border px-3 py-1 text-xs font-semibold text-muted-foreground dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300">
-                {items.length} {items.length === 1 ? 'item' : 'items'}
+                {visibleItems.length} {visibleItems.length === 1 ? 'item' : 'items'}
               </span>
             )}
           </div>
@@ -313,15 +351,15 @@ function WishlistPage() {
 
       {isLoading && <p className="mt-8 text-sm text-muted-foreground">{t("loading")}</p>}
 
-      {!isLoading && items.length === 0 && (
+      {!isLoading && visibleItems.length === 0 && (
         <div className="mt-8 grid place-items-center rounded-2xl border border-dashed bg-surface-2 p-16 text-center">
           <Heart className="h-10 w-10 text-muted-foreground" />
-          <p className="mt-4 text-muted-foreground">{t("noSaved")}</p>
+          <p className="mt-4 text-muted-foreground">{items.length > 0 ? "All your saved items are currently out of stock." : t("noSaved")}</p>
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {items.map((it: any) => it.part && (
+        {visibleItems.map((it: any) => (
           <WishlistPartCard
             key={it.id}
             item={it}
