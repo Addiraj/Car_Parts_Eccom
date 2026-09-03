@@ -103,7 +103,7 @@ export function AssistantLauncher() {
         {isLoggedIn ? <span className="absolute inset-0 rounded-full bg-primary-foreground/20 animate-ping" /> : null}
         <MessageCircle className="relative h-5 w-5" />
       </span>
-      <span className="text-sm font-semibold">AutoMate</span>
+      <span className="text-sm font-semibold">Chat with us</span>
     </button>
   );
 
@@ -123,7 +123,7 @@ export function AssistantLauncher() {
         <div className="flex items-center gap-2">
           <img src={logoUrl} alt="" width={28} height={28} className="h-7 w-7 object-contain" loading="lazy" />
           <div>
-            <div className="text-sm font-semibold leading-none">AutoMate</div>
+            <div className="text-sm font-semibold leading-none">Chat with us</div>
             <div className="text-[10px] text-muted-foreground">AI parts advisor</div>
           </div>
         </div>
@@ -153,7 +153,7 @@ export function AssistantLauncher() {
     <AlertDialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Sign in to chat with AutoMate</AlertDialogTitle>
+          <AlertDialogTitle>Sign in to chat with us</AlertDialogTitle>
           <AlertDialogDescription>
             Create an account or sign in to ask about parts, VINs, warning lights, and more.
           </AlertDialogDescription>

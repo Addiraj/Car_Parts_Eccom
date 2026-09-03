@@ -1,12 +1,11 @@
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
 import { Package, Car, BadgePercent, AlertTriangle, CheckCircle2, Truck, UserCheck, Sparkles, ShoppingCart, Heart, FileText, LogIn, MessageCircle } from "lucide-react";
-import {
-  Tool, ToolHeader, ToolContent, ToolInput, ToolOutput,
-} from "@/components/ai-elements/tool";
+import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { cn } from "@/lib/utils";
 import { useIsStaff } from "@/hooks/use-is-staff";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Part = {
   id: string;
@@ -123,7 +122,10 @@ function VehicleCard({ v }: { v: Record<string, any> }) {
     model;
   const fields = [v.year, make, model, v.engine ?? v.Engine].filter(Boolean);
   const action = useAvatarAction();
-  const canBrowse = Boolean(make && modelNumber);
+  const canBrowse = Boolean(make);
+  const brandParam = String(make || "Unknown");
+  const modelNumParam = String(modelNumber || model || "Unknown");
+
   return (
     <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
       <div className="flex items-center gap-2 text-[12px] font-medium text-blue-700">
@@ -135,21 +137,12 @@ function VehicleCard({ v }: { v: Record<string, any> }) {
         <div className="mt-2 flex flex-wrap gap-1.5">
           <Link
             to="/vin/$brand/$modelNumber"
-            params={{ brand: String(make), modelNumber: String(modelNumber) }}
+            params={{ brand: brandParam, modelNumber: modelNumParam }}
             search={{ modelName: String(model || "") }}
             className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-blue-700 shadow-xs"
           >
             <Package className="h-3 w-3" /> Browse Catalog
           </Link>
-          {action ? (
-            <button
-              type="button"
-              onClick={() => action("Show me parts compatible with my vehicle")}
-              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 shadow-xs"
-            >
-              <Sparkles className="h-3 w-3 text-blue-600" /> Find compatible parts
-            </button>
-          ) : null}
         </div>
       ) : null}
     </div>
@@ -279,6 +272,17 @@ function CartActionCard({ d, kind }: { d: any; kind: "added" | "wishlist" }) {
     ? (d.alreadySaved ? "Already in cart" : `Added to cart${typeof d.cartCount === "number" ? ` (${d.cartCount})` : ""}`)
     : (d.alreadySaved ? "Already in wishlist" : "Saved to wishlist");
   const href = kind === "added" ? "/cart" : "/wishlist";
+  
+  const queryClient = useQueryClient();
+  React.useEffect(() => {
+    if (kind === "added") {
+      queryClient.invalidateQueries({ queryKey: ["cart-count"] });
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["wishlist-ids"] });
+    }
+  }, [kind, queryClient]);
+
   return (
     <div className={cn("my-2 flex items-center gap-2 rounded-lg border p-2.5 shadow-xs", tone)}>
       <Icon className={cn("h-4 w-4 shrink-0", iconTone)} />
@@ -711,8 +715,14 @@ export function ToolPartView({ part }: { part: any }) {
     case "tool-quoteFromCart":
       return <QuotationCard d={out ?? {}} />;
     case "tool-decodeVin":
+      if (out?.notFound) {
+        return <div className="my-2"><SimpleContactBlock query={out.vin || "number"} message={`For this VIN number please contact our salesman.`} /></div>;
+      }
       return <div className="my-2"><VehicleCard v={out ?? {}} /></div>;
     case "tool-ocrVin":
+      if (out?.notFound) {
+        return <div className="my-2"><SimpleContactBlock query={out.vin || "number"} message={`For this VIN number please contact our salesman.`} /></div>;
+      }
       return (
         <div className="my-2">
           <VehicleCard v={{

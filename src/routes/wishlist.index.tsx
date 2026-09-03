@@ -113,17 +113,19 @@ function WishlistPartCard({ item, isStaff, onRemove, onAddToCart }: {
                 <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800/50 px-2 py-0.5 rounded-full border border-emerald-200 uppercase whitespace-nowrap shrink-0">
                   IN STOCK
                 </span>
-              ) : (
+              ) : isStaff ? (
                 <span className="text-[10px] font-bold text-red-600 bg-red-50 dark:bg-red-950/60 dark:text-red-400 dark:border-red-800/50 px-2 py-0.5 rounded-full border border-red-200 uppercase whitespace-nowrap shrink-0">
                   OUT OF STOCK
                 </span>
-              )}
+              ) : null}
             </div>
 
             {/* Price */}
-            <div className="text-lg font-bold text-blue-600 dark:text-blue-400 mb-3">
-              {formatAED(Number(p.price))}
-            </div>
+            {(isStaff || inStock) && (
+              <div className="text-lg font-bold text-blue-600 dark:text-blue-400 mb-3">
+                {Number(p.price) > 0 ? formatAED(Number(p.price)) : <span className="text-sm text-muted-foreground">Contact for price</span>}
+              </div>
+            )}
 
             {isStaff && (
               <>
@@ -247,7 +249,6 @@ function WishlistPage() {
 
   const visibleItems = items.filter((it: any) => {
     if (!it.part) return false;
-    if (!isStaff && Number(it.part.stock ?? 0) <= 0) return false;
     return true;
   });
 

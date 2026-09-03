@@ -62,7 +62,7 @@ export function AvatarLauncher() {
         {isLoggedIn ? <span className="absolute inset-0 rounded-full bg-blue-300/40 animate-ping" /> : null}
         <Bot className="relative h-5 w-5" />
       </span>
-      <span className="text-sm font-semibold">Avatar</span>
+      <span className="text-sm font-semibold">Talk to SellOnE</span>
     </button>
   );
 
@@ -70,7 +70,7 @@ export function AvatarLauncher() {
     <AlertDialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Sign in to talk with the Avatar</AlertDialogTitle>
+          <AlertDialogTitle>Sign in to talk with SellOnE</AlertDialogTitle>
           <AlertDialogDescription>
             Create an account or sign in to chat by voice with our AI automotive advisor.
           </AlertDialogDescription>

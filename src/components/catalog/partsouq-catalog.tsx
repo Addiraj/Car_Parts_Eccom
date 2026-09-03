@@ -941,37 +941,6 @@ function PartNumberItem({
         <span className="text-[10px] text-muted-foreground">Qty {entry.quantity}</span>
       )}
 
-      {existsInInventory && isStaff && (
-        <div className="flex items-center gap-1 flex-wrap">
-          {price != null && (
-            <span className="text-[10px] rounded bg-muted px-1.5 py-0.5 font-mono" title="Rate">
-              <span className="text-muted-foreground">Rate</span> {formatAED(price)}
-            </span>
-          )}
-          {indPrice != null && (
-            <span className="text-[10px] rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 font-mono" title="Individual">
-              <span className="opacity-70">IND</span> {formatAED(indPrice)}
-            </span>
-          )}
-          {garPrice != null && (
-            <span className="text-[10px] rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 font-mono" title="Garage">
-              <span className="opacity-70">GAR</span> {formatAED(garPrice)}
-            </span>
-          )}
-          {exportPrice != null && (
-            <span className="text-[10px] rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 font-mono" title="Bulk / Export">
-              <span className="opacity-70">EXP</span> {formatAED(exportPrice)}
-            </span>
-          )}
-        </div>
-      )}
-
-      {existsInInventory && !isStaff && tierPrice > 0 && (
-        <span className="text-[11px] font-semibold text-primary font-mono">
-          {formatAED(tierPrice)}
-        </span>
-      )}
-
       {!availabilityLoading && existsInInventory && stock > 0 && isStaff && (
         <span className="text-[10px] text-emerald-600 dark:text-emerald-400">In stock: {stock}</span>
       )}

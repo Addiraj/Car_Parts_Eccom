@@ -152,11 +152,10 @@ function AltPartCard({
           <button
             type="button"
             onClick={() => onSave?.(alt.id)}
-            className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border font-semibold text-[11px] transition-colors ${
-              isSaved
+            className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border font-semibold text-[11px] transition-colors ${isSaved
                 ? "border-red-200 bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/50"
                 : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-800"
-            }`}
+              }`}
           >
             <Heart className={`w-3 h-3 ${isSaved ? "fill-current" : ""}`} /> Save
           </button>
@@ -201,6 +200,59 @@ function brandColor(brand: string): string {
     GLOBAL: "#475569",
   };
   return colors[brand] || "#2563eb";
+}
+
+/* -------- No Stock Contact Block -------- */
+function NoStockContactBlock({ part }: { part: any }) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const [requested, setRequested] = useState(false);
+
+  const requestSalesmanMut = useMutation({
+    mutationFn: (partNumber: string) =>
+      requestPartSalesman({ data: { partNumber, name: part.name } }),
+    onSuccess: () => {
+      setRequested(true);
+      toast.success(`Our salesman will contact you regarding REF OE:${part.part_number}`);
+    },
+    onError: (err: any) => toast.error(err?.message || "Failed to submit request"),
+  });
+
+  const handleContactSalesman = () => {
+    if (!user) {
+      toast.error("Please sign in to contact a salesman.");
+      router.navigate({ to: "/auth/login", search: { redirect: window.location.pathname } });
+      return;
+    }
+    requestSalesmanMut.mutate(part.part_number);
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-900/30 text-center col-span-full">
+      <Headset className="w-8 h-8 text-slate-400 mb-3" />
+      <p className="text-sm text-muted-foreground mb-4 max-w-sm">
+        For this part, please contact our team to check backorders or custom sourcing options.
+      </p>
+      <button
+        type="button"
+        onClick={handleContactSalesman}
+        disabled={requestSalesmanMut.isPending || requested}
+        className="inline-flex items-center justify-center gap-2 rounded-md border border-blue-500/40 bg-blue-50/50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 dark:hover:bg-blue-900/60 font-semibold text-sm px-4 py-2 transition-colors disabled:opacity-60"
+      >
+        {requested ? (
+          <>
+            <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            Request sent
+          </>
+        ) : (
+          <>
+            <Headset className="h-4 w-4" />
+            Contact Salesman
+          </>
+        )}
+      </button>
+    </div>
+  );
 }
 
 /* -------- Main Page -------- */
@@ -307,9 +359,6 @@ function WishlistQuotePage() {
             // For regular users: only show the item card if it's in stock
             const showSelfCard = isStaff || pInStock;
 
-            // If nothing visible for this section (item out of stock + no visible alts), skip entirely
-            if (!showSelfCard && alts.length === 0) return null;
-
             return (
               <section key={it.id}>
                 {/* Section header: Original part name + REF */}
@@ -324,30 +373,36 @@ function WishlistQuotePage() {
 
                 {/* Part cards grid: the item itself (if in stock or staff) + its alternates */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {/* The wishlisted item itself as a card (only if in stock or staff) */}
-                  {showSelfCard && (
-                    <AltPartCard
-                      key={`self-${p.id}`}
-                      alt={p}
-                      isStaff={isStaff}
-                      onAddToCart={(id) => addMut.mutate(id)}
-                      onSave={(id) => saveMut.mutate(id)}
-                      isSaved={wishlistedPartIds.has(p.id)}
-                    />
-                  )}
+                  {!showSelfCard && alts.length === 0 ? (
+                    <NoStockContactBlock part={p} />
+                  ) : (
+                    <>
+                      {/* The wishlisted item itself as a card (only if in stock or staff) */}
+                      {showSelfCard && (
+                        <AltPartCard
+                          key={`self-${p.id}`}
+                          alt={p}
+                          isStaff={isStaff}
+                          onAddToCart={(id) => addMut.mutate(id)}
+                          onSave={(id) => saveMut.mutate(id)}
+                          isSaved={wishlistedPartIds.has(p.id)}
+                        />
+                      )}
 
-                  {/* Superseded / alternate part cards */}
-                  {alts.map((sp: any) =>
-                    sp.alternative_part ? (
-                      <AltPartCard
-                        key={sp.id}
-                        alt={sp.alternative_part}
-                        isStaff={isStaff}
-                        onAddToCart={(id) => addMut.mutate(id)}
-                        onSave={(id) => saveMut.mutate(id)}
-                        isSaved={wishlistedPartIds.has(sp.alternative_part.id)}
-                      />
-                    ) : null
+                      {/* Superseded / alternate part cards */}
+                      {alts.map((sp: any) =>
+                        sp.alternative_part ? (
+                          <AltPartCard
+                            key={sp.id}
+                            alt={sp.alternative_part}
+                            isStaff={isStaff}
+                            onAddToCart={(id) => addMut.mutate(id)}
+                            onSave={(id) => saveMut.mutate(id)}
+                            isSaved={wishlistedPartIds.has(sp.alternative_part.id)}
+                          />
+                        ) : null
+                      )}
+                    </>
                   )}
                 </div>
               </section>
